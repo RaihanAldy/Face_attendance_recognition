@@ -1,1 +1,54 @@
 @import "tailwindcss";
+
+/* Dark theme overrides */
+body {
+  background-color: #020617; /* navy-950 */
+  color: #bae6fd; /* sky-100 */
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a; /* navy-900 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b; /* navy-800 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155; /* navy-700 */
+}
+
+/* Remove white background from any chart elements */
+.recharts-surface {
+  background: transparent !important;
+}
+
+.recharts-default-tooltip {
+  background-color: #0f172a !important; /* navy-900 */
+  border: 1px solid #1e293b !important; /* navy-800 */
+  color: #bae6fd !important; /* sky-100 */
+}
+
+/* Override any remaining white backgrounds */
+* {
+  border-color: #1e293b !important; /* navy-800 */
+}
+
+.bg-white {
+  background-color: #0f172a !important; /* navy-900 */
+}
+
+.text-gray-800, .text-gray-900 {
+  color: #bae6fd !important; /* sky-100 */
+}
+
+.text-gray-600, .text-gray-700 {
+  color: #7dd3fc !important; /* sky-300 */
+}

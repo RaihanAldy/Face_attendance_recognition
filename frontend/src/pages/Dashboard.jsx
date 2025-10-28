@@ -7,22 +7,30 @@ import SummaryCard from "../components/SummaryCard";
 
 export default function Dashboard() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Analytics Dashboard</h1>
+    <div className="bg-navy-950 min-h-screen p-6">
+      <h1 className="text-2xl font-bold text-sky-400 mb-6">Analytics Dashboard</h1>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <SummaryCard title="Total Violations" value={summary.total} color="border-yellow-400" />
-        <SummaryCard title="Critical Violations" value={summary.critical} color="border-orange-500" />
-        <SummaryCard title="Compliance Rate" value={`${summary.compliance}%`} color="border-green-500" />
+        <SummaryCard title="Total Violations" value={summary.total} color="border-yellow-400" bgColor="bg-navy-900" textColor="text-sky-100" />
+        <SummaryCard title="Critical Violations" value={summary.critical} color="border-red-500" bgColor="bg-navy-900" textColor="text-sky-100" />
+        <SummaryCard title="Compliance Rate" value={`${summary.compliance}%`} color="border-emerald-500" bgColor="bg-navy-900" textColor="text-sky-100" />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <LineChart data={violationTrend} />
-        <DonutChart value={complianceRate} />
-        <BarChart data={topViolations} />
-        <Heatmap data={heatmapData} />
+        <div className="bg-navy-900 p-4 rounded-lg border border-navy-800">
+          <LineChart data={violationTrend} />
+        </div>
+        <div className="bg-navy-900 p-4 rounded-lg border border-navy-800">
+          <DonutChart value={complianceRate} />
+        </div>
+        <div className="bg-navy-900 p-4 rounded-lg border border-navy-800">
+          <BarChart data={topViolations} />
+        </div>
+        <div className="bg-navy-900 p-4 rounded-lg border border-navy-800">
+          <Heatmap data={heatmapData} />
+        </div>
       </div>
     </div>
   );

@@ -29,20 +29,20 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`bg-white border-r border-orange-100 h-screen transition-all duration-300 flex flex-col ${
+      className={`bg-navy-950 border-r border-navy-800 h-screen transition-all duration-300 flex flex-col ${
         isCollapsed ? "w-20" : "w-64"
       }`}
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-orange-100 flex items-center justify-between">
+      <div className="p-4 border-b border-navy-800 flex items-center justify-between">
         {!isCollapsed && (
-          <h2 className="text-orange-600 text-xs uppercase tracking-wider font-semibold">
+          <h2 className="text-sky-400 text-xs uppercase tracking-wider font-semibold">
             Navigation
           </h2>
         )}
           <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 transition-colors ml-auto"
+          className="p-2 rounded-lg text-sky-400 hover:bg-navy-800 transition-colors ml-auto"
         >
           {isCollapsed ? (
             <ChevronRight className="h-5 w-5" />
@@ -66,23 +66,23 @@ export default function Sidebar() {
                 isCollapsed ? "justify-center" : "justify-start"
               } px-3 py-3 rounded-lg text-sm font-medium transition-all group ${
                 isActive
-                  ? "bg-orange-500 text-white shadow-lg shadow-orange-500/50"
-                  : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
+                  ? "bg-sky-500 text-navy-950 shadow-lg shadow-sky-500/20"
+                  : "text-sky-400 hover:bg-navy-800"
               }`}
               title={isCollapsed ? item.label : ""}
             >
               <Icon
                 className={`h-5 w-5 ${
                   isActive
-                    ? "text-white"
-                    : "text-slate-400 group-hover:text-white"
+                    ? "text-navy-950"
+                    : "text-sky-400 group-hover:text-sky-300"
                 } ${!isCollapsed && "mr-3"}`}
               />
               {!isCollapsed && (
                 <span className="flex-1 text-left">{item.label}</span>
               )}
               {!isCollapsed && isActive && (
-                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <div className="w-2 h-2 rounded-full bg-navy-950"></div>
               )}
             </button>
           );
@@ -91,15 +91,15 @@ export default function Sidebar() {
 
       {/* Sidebar Footer */}
       {!isCollapsed && (
-        <div className="p-4 border-t border-orange-100">
-          <div className="bg-orange-50 rounded-lg p-3">
-            <p className="text-orange-600 text-xs mb-1">Recognition Status</p>
+        <div className="p-4 border-t border-navy-800">
+          <div className="bg-navy-900 rounded-lg p-3 border border-navy-800">
+            <p className="text-sky-400 text-xs mb-1">Recognition Status</p>
             <div className="flex items-center justify-between">
-              <span className="text-gray-800 text-sm font-medium">
+              <span className="text-sky-100 text-sm font-medium">
                 Face Engine
               </span>
-              <span className="flex items-center text-green-600 text-xs">
-                <span className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+              <span className="flex items-center text-emerald-400 text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 mr-1.5"></span>
                 Active
               </span>
             </div>
