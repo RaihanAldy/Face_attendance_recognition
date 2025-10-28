@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ScanFace, Wifi, WifiOff, Bell, Search } from "lucide-react";
+import { ScanFace, Wifi, WifiOff, Bell } from "lucide-react";
 
 const Navbar = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -25,7 +25,7 @@ const Navbar = () => {
 
   return (
     <>
-      <nav className="bg-slate-900 border-b border-slate-800 shadow-lg">
+      <nav className="bg-slate-900 border-b border-slate-800">
         <div className="px-6">
           <div className="flex items-center justify-between h-16">
             {/* Logo & Brand */}
@@ -39,9 +39,6 @@ const Navbar = () => {
             {/* Right Side - Search, Status & User */}
             <div className="flex items-center space-x-4">
               {/* Search */}
-              <button className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                <Search className="h-5 w-5" />
-              </button>
 
               {/* Notifications */}
               <button className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
@@ -75,7 +72,7 @@ const Navbar = () => {
 
               {/* User Profile */}
               <button className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
+                <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
                   AD
                 </div>
                 <span className="text-slate-300 text-sm font-medium">
