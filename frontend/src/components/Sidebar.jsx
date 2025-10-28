@@ -32,22 +32,24 @@ export default function Sidebar() {
       }`}
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-        {!isCollapsed && (
-          <h2 className="text-slate-400 text-xs uppercase tracking-wider font-semibold">
-            Navigation
-          </h2>
-        )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors ml-auto"
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-5 w-5" />
-          ) : (
-            <ChevronLeft className="h-5 w-5" />
+      <div className="p-4 border-b w-full border-slate-800 flex items-center flex-row justify-between">
+        <div className="flex items-center w-full justify-between">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-5 w-5" />
+            ) : (
+              <ChevronLeft className="h-5 w-5" />
+            )}
+          </button>
+          {!isCollapsed && (
+            <h2 className="text-slate-400 text-xs uppercase tracking-wider font-semibold">
+              Navigation
+            </h2>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Menu Items */}
@@ -64,7 +66,7 @@ export default function Sidebar() {
                 isCollapsed ? "justify-center" : "justify-start"
               } px-3 py-3 rounded-lg text-sm font-medium transition-all group ${
                 isActive
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50"
+                  ? "bg-blue-600 text-white "
                   : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
               title={isCollapsed ? item.label : ""}
