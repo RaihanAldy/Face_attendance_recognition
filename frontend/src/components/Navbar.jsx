@@ -29,12 +29,7 @@ const Navbar = () => {
         <div className="px-6">
           <div className="flex items-center justify-between h-16">
             {/* Logo & Brand */}
-            <div className="flex items-center space-x-2">
-              <ScanFace className="h-8 w-8 text-blue-500" />
-              <span className="text-white text-xl font-bold">
-                Face Recognition Attendance
-              </span>
-            </div>
+            <div className="flex items-center space-x-2"></div>
 
             {/* Right Side - Search, Status & User */}
             <div className="flex items-center space-x-4">

@@ -74,7 +74,7 @@ export default function FaceScan() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 px-6 py-2">
+    <div className=" bg-slate-950 px-6 py-2">
       <div className="max-w-7xl mx-auto">
         <div className="w-full flex items-center justify-center pt-0 pb-2"></div>
         <div className="flex items-center justify-center flex-col">
