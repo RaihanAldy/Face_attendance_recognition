@@ -23,7 +23,7 @@ def health_check():
 
 @app.route('/api/employees', methods=['GET', 'POST'])
 def employees():
-    if request.method == 'GET':
+    if request.method == 'GET': 
         employees = db.get_all_employees()
         return jsonify(employees)
     
