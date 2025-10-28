@@ -1,0 +1,42 @@
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+export default function LineChartTrend({ data }) {
+  return (
+    <div className="bg-slate-900 p-4 rounded-2xl shadow-md">
+      <h2 className="text-lg font-semibold mb-3 text-gray-200">
+        Attendance Trend (7 Days)
+      </h2>
+      <ResponsiveContainer width="100%" height={250}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <XAxis dataKey="day" stroke="#9ca3af" />
+          <YAxis stroke="#9ca3af" />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: "8px",
+            }}
+            labelStyle={{ color: "#e5e7eb" }}
+          />
+          <Line
+            type="monotone"
+            dataKey="count"
+            stroke="#3b82f6"
+            strokeWidth={3}
+            dot={{ fill: "#3b82f6", r: 5 }}
+            activeDot={{ r: 7 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
