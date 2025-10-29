@@ -24,6 +24,7 @@ export const getTableHeaders = (filter, checkFilters) => {
   return ["ID", "Nama", "Status", "Timestamp"];
 };
 
+// Fungsi untuk render isi setiap sel tabel
 export const renderTableCell = (
   record,
   header,

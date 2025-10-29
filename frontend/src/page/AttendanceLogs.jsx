@@ -31,6 +31,7 @@ const AttendanceLog = () => {
       if (filter === "today") return isToday;
       return true;
     })
+
     .reduce((acc, record) => {
       const employeeId = record.employeeId || record.employee_id;
 
@@ -50,7 +51,7 @@ const AttendanceLog = () => {
           // Create new grouped record
           acc.push({
             employeeId: employeeId,
-            name: record.employees || record.name,
+            name: record.employees,
             checkIn:
               record.status === "check_in" || record.status === "check-in"
                 ? record.timestamp
@@ -98,6 +99,11 @@ const AttendanceLog = () => {
 
       return acc;
     }, []);
+  console.group("🧩 Attendance Data Debug");
+  console.log("Raw data from backend:", attendanceData);
+  console.log("Filtered & reduced data:", filteredData);
+  console.log("Active filters:", { filter, checkFilters });
+  console.groupEnd();
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
