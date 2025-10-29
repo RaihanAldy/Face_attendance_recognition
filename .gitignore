@@ -30,4 +30,4 @@ dist/
 
 # 7. Data/Upload Pengguna (Opsional)
 # Jika aplikasi Anda menyimpan gambar upload-an
-uploads/
+uploads/__pycache__/
