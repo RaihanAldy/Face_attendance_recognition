@@ -94,7 +94,7 @@ def check_out():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/attendance/log', methods=['GET'])
+@app.route('/api/attendance', methods=['GET'])
 def get_attendance_log():
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
