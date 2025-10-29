@@ -271,19 +271,24 @@ class MongoDBManager:
         def get_attendance_by_date(self, date_str=None):
             """Get raw attendance records by date - SIMPLIFIED VERSION"""
             try:
-                if date_str:
+                # ✅ FIXED: Jika date_str adalah 'all', ambil semua data tanpa filter tanggal
+                if date_str == 'all':
+                    query = {}
+                    print("📅 Fetching ALL attendance records (no date filter)")
+                elif date_str:
                     date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
+                    end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
+                    print(f"📅 Fetching attendance records for date: {date_str}")
                 else:
                     date_obj = datetime.now()
+                    start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
+                    end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
+                    print(f"📅 Fetching attendance records for today")
                 
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-                
-                # 🔧 SIMPLIFIED: Langsung ambil data tanpa lookup
-                # Karena field 'employees' sudah ada di collection attendance
-                query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
-                
-                results = list(self.attendance.find(query).sort('timestamp', 1))
+                results = list(self.attendance.find(query).sort('timestamp', -1))
                 
                 # Format untuk frontend
                 formatted_results = []
@@ -292,21 +297,21 @@ class MongoDBManager:
                         '_id': str(r.get('_id')),
                         'id': r.get('id', '-'),
                         'employeeId': r.get('employee_id', '-'),
-                        'name': r.get('employees', '-'),  # ✅ Langsung ambil dari field 'employees'
-                        'employees': r.get('employees', '-'),  # ✅ Backward compatibility
+                        'name': r.get('employees', '-'),
+                        'employees': r.get('employees', '-'),
                         'status': r.get('status', '-'),
                         'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
                         'confidence': float(r.get('confidence', 0))
                     })
                 
-                print(f"✅ Fetched {len(formatted_results)} attendance records for {date_str or 'today'}")
+                print(f"✅ Fetched {len(formatted_results)} attendance records")
                 return formatted_results
 
             except Exception as e:
                 print(f"❌ Error getting attendance by date: {e}")
                 traceback.print_exc()
                 return []
-        
+         
         def get_attendance_by_employee_id(self, employee_id, date_str=None):
             """Get attendance data untuk employee tertentu"""
             try:

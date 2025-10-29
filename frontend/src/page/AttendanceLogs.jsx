@@ -7,13 +7,20 @@ import { exportCSV } from "../utils/cvsExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
 
 const AttendanceLog = () => {
-  const { attendanceData, loading, error, fetchAttendanceData } =
-    useAttendanceData();
   const [filter, setFilter] = useState("today");
   const [checkFilters, setCheckFilters] = useState({
     checkin: false,
     checkout: false,
   });
+
+  // ✅ Pass filter ke hook dan re-fetch ketika filter berubah
+  const { attendanceData, loading, error, fetchAttendanceData } =
+    useAttendanceData(filter);
+
+  // ✅ Fetch data ketika filter berubah
+  React.useEffect(() => {
+    fetchAttendanceData(filter);
+  }, [filter]);
 
   const handleExportCSV = () =>
     exportCSV(attendanceData, formatDateTime, calculateWorkingHours);
@@ -21,6 +28,12 @@ const AttendanceLog = () => {
   // Filtered data
   const filteredData = attendanceData
     .filter((record) => {
+      // ✅ FIXED: Filter "all" tidak filter berdasarkan tanggal
+      if (filter === "all") {
+        return true; // Tampilkan semua data
+      }
+
+      // Filter "today"
       const today = new Date();
       const recordDate = new Date(record.timestamp);
       const isToday =
@@ -28,13 +41,11 @@ const AttendanceLog = () => {
         recordDate.getMonth() === today.getMonth() &&
         recordDate.getFullYear() === today.getFullYear();
 
-      if (filter === "today") return isToday;
-      return true;
+      return isToday;
     })
-
     .reduce((acc, record) => {
       const employeeId = record.employeeId || record.employee_id;
-      const employeeName = record.name || record.employees || "Unknown"; // ✅ FIXED
+      const employeeName = record.name || record.employees || "Unknown";
 
       // Jika checkin + checkout keduanya aktif, gabungkan records
       if (checkFilters.checkin && checkFilters.checkout) {
@@ -50,7 +61,7 @@ const AttendanceLog = () => {
         } else {
           acc.push({
             employeeId: employeeId,
-            name: employeeName, // ✅ FIXED
+            name: employeeName,
             checkIn:
               record.status === "check_in" || record.status === "check-in"
                 ? record.timestamp
@@ -69,7 +80,7 @@ const AttendanceLog = () => {
         if (record.status === "check_in" || record.status === "check-in") {
           acc.push({
             employeeId: employeeId,
-            name: employeeName, // ✅ FIXED
+            name: employeeName,
             checkIn: record.timestamp,
           });
         }
@@ -81,23 +92,24 @@ const AttendanceLog = () => {
         if (record.status === "check_out" || record.status === "check-out") {
           acc.push({
             employeeId: employeeId,
-            name: employeeName, // ✅ FIXED
+            name: employeeName,
             checkOut: record.timestamp,
           });
         }
         return acc;
       }
 
-      // Default: today only (tampilkan semua records)
+      // ✅ Default: tampilkan semua records (untuk filter "all" atau "today")
       acc.push({
         employeeId: employeeId,
-        name: employeeName, // ✅ FIXED
+        name: employeeName,
         status: record.status,
         timestamp: record.timestamp,
       });
 
       return acc;
     }, []);
+
   console.group("🧩 Attendance Data Debug");
   console.log("Raw data from backend:", attendanceData);
   console.log("Filtered & reduced data:", filteredData);
