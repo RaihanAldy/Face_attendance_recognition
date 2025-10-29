@@ -1,0 +1,33 @@
+# 1. Virtual Environment
+# Mengabaikan semua file di dalam venv
+venv/
+*.venv/
+
+# 2. Python Cache
+# Mengabaikan folder cache yang dibuat Python
+__pycache__/
+*.pyc
+
+# 3. File Rahasia (SANGAT PENTING)
+# JANGAN PERNAH menyimpan password/kunci API di Git!
+.env
+*.env
+
+# 4. Sisa Instalasi / Build
+# Mengabaikan sisa build dari C++
+build/
+dist/
+*.egg-info/
+
+# 5. File Editor (misal: VS Code)
+.vscode/
+
+# 6. Model AI (Jika Anda men-download-nya)
+# Jika file model terlalu besar, abaikan
+*.onnx
+*.pth
+*.pb
+
+# 7. Data/Upload Pengguna (Opsional)
+# Jika aplikasi Anda menyimpan gambar upload-an
+uploads/
