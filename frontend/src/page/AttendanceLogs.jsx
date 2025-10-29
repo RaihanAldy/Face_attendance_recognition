@@ -34,13 +34,13 @@ const AttendanceLog = () => {
 
     .reduce((acc, record) => {
       const employeeId = record.employeeId || record.employee_id;
+      const employeeName = record.name || record.employees || "Unknown"; // ✅ FIXED
 
       // Jika checkin + checkout keduanya aktif, gabungkan records
       if (checkFilters.checkin && checkFilters.checkout) {
         const existing = acc.find((r) => r.employeeId === employeeId);
 
         if (existing) {
-          // Update existing record
           if (record.status === "check_in" || record.status === "check-in") {
             existing.checkIn = record.timestamp;
           }
@@ -48,10 +48,9 @@ const AttendanceLog = () => {
             existing.checkOut = record.timestamp;
           }
         } else {
-          // Create new grouped record
           acc.push({
             employeeId: employeeId,
-            name: record.employees,
+            name: employeeName, // ✅ FIXED
             checkIn:
               record.status === "check_in" || record.status === "check-in"
                 ? record.timestamp
@@ -70,7 +69,7 @@ const AttendanceLog = () => {
         if (record.status === "check_in" || record.status === "check-in") {
           acc.push({
             employeeId: employeeId,
-            name: record.employees || record.name,
+            name: employeeName, // ✅ FIXED
             checkIn: record.timestamp,
           });
         }
@@ -82,7 +81,7 @@ const AttendanceLog = () => {
         if (record.status === "check_out" || record.status === "check-out") {
           acc.push({
             employeeId: employeeId,
-            name: record.employees || record.name,
+            name: employeeName, // ✅ FIXED
             checkOut: record.timestamp,
           });
         }
@@ -92,7 +91,7 @@ const AttendanceLog = () => {
       // Default: today only (tampilkan semua records)
       acc.push({
         employeeId: employeeId,
-        name: record.employees || record.name,
+        name: employeeName, // ✅ FIXED
         status: record.status,
         timestamp: record.timestamp,
       });

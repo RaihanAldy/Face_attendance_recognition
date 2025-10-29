@@ -19,22 +19,21 @@ export const useAttendanceData = () => {
 
       const data = await response.json();
 
-      // 🧩 Validasi format data
+      // 🧩 Debug: Cek data mentah
+      console.log("📦 Raw response from backend:", data);
+
+      if (data.length > 0) {
+        console.log("🔍 First record structure:", data[0]);
+        console.log("👤 First record name:", data[0].name || data[0].employees);
+      }
+
       if (!Array.isArray(data)) {
         console.error("❌ Invalid response format:", data);
         throw new Error("Response data is not an array");
       }
 
-      // 🧠 Cek struktur key penting
-      if (data.length > 0) {
-        const sample = data[0];
-        if (!("employees" in sample) || !("employee_id" in sample)) {
-          console.warn("⚠️ Missing expected keys in response:", sample);
-        }
-      }
-
       setAttendanceData(data);
-      console.log("✅ Attendance data fetched:", data);
+      console.log("✅ Attendance data set to state");
     } catch (err) {
       console.error("🔥 Error fetching attendance data:", err);
       setError(err.message || "Terjadi kesalahan saat mengambil data absensi.");
@@ -43,7 +42,6 @@ export const useAttendanceData = () => {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchAttendanceData();
   }, []);

@@ -269,7 +269,7 @@ class MongoDBManager:
                 }
         
         def get_attendance_by_date(self, date_str=None):
-            """Get raw attendance records by date with real employee names"""
+            """Get raw attendance records by date - SIMPLIFIED VERSION"""
             try:
                 if date_str:
                     date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -279,43 +279,11 @@ class MongoDBManager:
                 start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
                 
-                pipeline = [
-                    {
-                        '$match': {
-                            'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
-                        }
-                    },
-                    {
-                        '$lookup': {
-                            'from': 'employees',
-                            'localField': 'employee_id',
-                            'foreignField': 'employee_id',
-                            'as': 'employee_info'
-                        }
-                    },
-                    {
-                        '$unwind': {
-                            'path': '$employee_info',
-                            'preserveNullAndEmptyArrays': True
-                        }
-                    },
-                    {
-                        '$project': {
-                            '_id': 1,
-                            'id': 1,
-                            'employeeId': '$employee_id',
-                            'employees': '$employee_info.name',
-                            'status': 1,
-                            'timestamp': 1,
-                            'confidence': 1
-                        }
-                    },
-                    {
-                        '$sort': {'timestamp': 1}
-                    }
-                ]
+                # 🔧 SIMPLIFIED: Langsung ambil data tanpa lookup
+                # Karena field 'employees' sudah ada di collection attendance
+                query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
                 
-                results = list(self.attendance.aggregate(pipeline))
+                results = list(self.attendance.find(query).sort('timestamp', 1))
                 
                 # Format untuk frontend
                 formatted_results = []
@@ -323,20 +291,21 @@ class MongoDBManager:
                     formatted_results.append({
                         '_id': str(r.get('_id')),
                         'id': r.get('id', '-'),
-                        'employees': r.get('employees', '-'),
-                        'employeeId': r.get('employeeId', '-'),
+                        'employeeId': r.get('employee_id', '-'),
+                        'name': r.get('employees', '-'),  # ✅ Langsung ambil dari field 'employees'
+                        'employees': r.get('employees', '-'),  # ✅ Backward compatibility
                         'status': r.get('status', '-'),
                         'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
                         'confidence': float(r.get('confidence', 0))
                     })
                 
+                print(f"✅ Fetched {len(formatted_results)} attendance records for {date_str or 'today'}")
                 return formatted_results
-        
+
             except Exception as e:
                 print(f"❌ Error getting attendance by date: {e}")
                 traceback.print_exc()
                 return []
-
         
         def get_attendance_by_employee_id(self, employee_id, date_str=None):
             """Get attendance data untuk employee tertentu"""

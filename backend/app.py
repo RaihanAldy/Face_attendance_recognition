@@ -94,32 +94,26 @@ def check_out():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/attendance', methods=['GET'])
+
 @app.route('/api/attendance', methods=['GET'])
 def get_attendance_log():
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-        attendance_data = db.get_attendance_with_checkout(date)
-
-        # 🧩 Ubah key agar cocok dengan frontend
-        formatted = []
-        for record in attendance_data:
-            formatted.append({
-                "_id": str(record.get("_id")),
-                "employeeId": record.get("employee_id"),
-                "name": record.get("employees") or record.get("name"),
-                "status": record.get("status"),
-                "timestamp": record.get("timestamp"),
-                "checkIn": record.get("checkIn"),
-                "checkOut": record.get("checkOut"),
-            })
-
-        return jsonify(formatted)
+        attendance_data = db.get_attendance_by_date(date)
+        
+        # ✅ Data sudah diformat di mongo_db.py, langsung return
+        print(f"📤 Sending {len(attendance_data)} records to frontend")
+        
+        # Debug: print sample data
+        if attendance_data and len(attendance_data) > 0:
+            print(f"📋 Sample data: {attendance_data[0]}")
+        
+        return jsonify(attendance_data)
+        
     except Exception as e:
         print(f"❌ Attendance log error: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
     
 @app.route('/api/attendance/employee/<employee_id>', methods=['GET'])
 def get_employee_attendance(employee_id):
