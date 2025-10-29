@@ -50,7 +50,7 @@ export default function Sidebar() {
         </button>
 
         {!isCollapsed && (
-          <h2 className="text-slate-400 text-xl uppercase tracking-wider font-semibold">
+          <h2 className="text-gray-200 text-xl uppercase tracking-wider font-semibold">
             Recca
           </h2>
         )}
