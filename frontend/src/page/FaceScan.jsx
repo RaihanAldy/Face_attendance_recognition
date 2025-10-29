@@ -12,7 +12,7 @@ export default function FaceScan() {
   const [scanStatus, setScanStatus] = useState("idle"); // idle, scanning, success, failed
   const [employeeData, setEmployeeData] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [attendanceType, setAttendanceType] = useState('check_in');
+  const [attendanceType, setAttendanceType] = useState("check_in");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -32,13 +32,26 @@ export default function FaceScan() {
       stopCamera();
       console.log("🎥 Starting camera...");
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-        width: { ideal: 640 },  
-        height: { ideal: 480 }
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
       });
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+
+        // ✅ TUNGGU sampai video benar-benar ready
+        await new Promise((resolve) => {
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play();
+            resolve();
+          };
+        });
+
+        console.log("✅ Camera started and ready");
       }
       return true;
     } catch (error) {
@@ -50,109 +63,115 @@ export default function FaceScan() {
       return false;
     }
   };
-
   const stopCamera = () => {
     try {
       console.log("🛑 Stopping camera...");
-      
+
       if (streamRef.current) {
         console.log("📹 Stopping stream from streamRef");
         const tracks = streamRef.current.getTracks();
-        tracks.forEach(track => {
+        tracks.forEach((track) => {
           console.log(`⏹️ Stopping track: ${track.kind}`);
           track.stop();
         });
         streamRef.current = null;
       }
-       console.log("✅ Camera stopped successfully");
-      } catch (error) {
-        console.error("❌ Error stopping camera:", error);
-        // Force cleanup bahkan jika error
-        if (videoRef.current) {
-          videoRef.current.srcObject = null;
-        }
-        streamRef.current = null;
+      console.log("✅ Camera stopped successfully");
+    } catch (error) {
+      console.error("❌ Error stopping camera:", error);
+      // Force cleanup bahkan jika error
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
+      streamRef.current = null;
+    }
   };
 
   const captureAndRecognize = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
+
     if (!video || !canvas) return;
 
     // ✅ PERUBAHAN: Setup canvas dengan ukuran yang tepat
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    
-    const context = canvas.getContext('2d');
+
+    const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
+
     // ✅ PERUBAHAN: Convert ke base64 untuk dikirim ke backend
-    const imageData = canvas.toDataURL('image/jpeg');
-    
+    const imageData = canvas.toDataURL("image/jpeg");
+
     try {
-        const response = await fetch('http://localhost:5000/api/recognize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ image: imageData }),
-        });
+      const response = await fetch("http://localhost:5000/api/recognize", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ image: imageData }),
+      });
 
-        if (!response.ok) {
-          throw new Error(`Recognition API error: ${response.status}`);
-        }
-
-        const result = await response.json();
-        
-        if (result.success && result.faces_detected > 0) {
-          const mockEmployee = {
-            name: "John Doe",
-            id: "EMP-12345", 
-            department: "IT Department",
-            confidence: result.results[0]?.confidence || 0.95,
-          };
-          
-          setEmployeeData(mockEmployee);
-          setScanStatus("success");
-          
-          // ✅ HANDLE ERROR DENGAN TRY-CATCH
-          try {
-            await recordAttendance(mockEmployee.id, mockEmployee.confidence, attendanceType);
-          } catch (attendanceError) {
-            console.error("Attendance recording failed, but recognition succeeded");
-            // Tetap show success UI meski recording gagal
-          }
-        } else {
-          setScanStatus("failed");
-          setErrorMessage("Tidak ada wajah terdeteksi");
-        }
-      } catch (error) {
-        console.error("Recognition error:", error);
-        setScanStatus("failed");
-        setErrorMessage("Server tidak merespon. Pastikan backend running.");
+      if (!response.ok) {
+        throw new Error(`Recognition API error: ${response.status}`);
       }
-    };
+
+      const result = await response.json();
+
+      if (result.success && result.faces_detected > 0) {
+        const mockEmployee = {
+          name: "John Doe",
+          id: "EMP-12345",
+          department: "IT Department",
+          confidence: result.results[0]?.confidence || 0.95,
+        };
+
+        setEmployeeData(mockEmployee);
+        setScanStatus("success");
+
+        // ✅ HANDLE ERROR DENGAN TRY-CATCH
+        try {
+          await recordAttendance(
+            mockEmployee.id,
+            mockEmployee.confidence,
+            attendanceType
+          );
+        } catch {
+          console.error(
+            "Attendance recording failed, but recognition succeeded"
+          );
+          // Tetap show success UI meski recording gagal
+        }
+      } else {
+        setScanStatus("failed");
+        setErrorMessage("Tidak ada wajah terdeteksi");
+      }
+    } catch (error) {
+      console.error("Recognition error:", error);
+      setScanStatus("failed");
+      setErrorMessage("Server tidak merespon. Pastikan backend running.");
+    }
+  };
 
   // ✅ PERUBAHAN BARU: Function untuk record attendance ke backend
   const recordAttendance = async (employeeId, confidence, type) => {
     try {
       console.log(`🔄 Recording ${type} for ${employeeId}`);
-      const endpoint = type === 'check_in' ? '/attendance/checkin' : '/attendance/checkout';
+      const endpoint =
+        type === "check_in" ? "/attendance/checkin" : "/attendance/checkout";
 
       const response = await fetch(`http://localhost:5000/api${endpoint}`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           employeeId: employeeId,
           confidence: confidence,
-          status: 'present'
+          status: "present",
         }),
       });
-      console.log('📡 Response status:', response.status);
+      console.log("📡 Response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -162,7 +181,6 @@ export default function FaceScan() {
       const result = await response.json();
       console.log(`✅ ${type.toUpperCase()} recorded:`, result);
       return result;
-      
     } catch (error) {
       console.error(`❌ Failed to record ${type}:`, error);
       throw error; // Re-throw agar bisa dihandle di caller
@@ -170,7 +188,6 @@ export default function FaceScan() {
   };
 
   const handleStartScan = async () => {
-    
     setErrorMessage("");
     setEmployeeData(null);
     setScanStatus("scanning");
@@ -178,7 +195,7 @@ export default function FaceScan() {
     const cameraStarted = await startCamera();
     if (!cameraStarted) {
       console.log("❌ Camera failed to start");
-    return;
+      return;
     }
 
     setIsScanning(true);
@@ -197,10 +214,12 @@ export default function FaceScan() {
   };
 
   useEffect(() => {
-    return () => {
+    if (isScanning) {
+      startCamera();
+    } else {
       stopCamera();
-    };
-  }, []);
+    }
+  }, [isScanning]);
 
   return (
     <div className=" bg-slate-950 px-6 py-2">
@@ -241,21 +260,21 @@ export default function FaceScan() {
               <div className="flex items-center justify-between">
                 <div className="space-x-2">
                   <button
-                    onClick={() => setAttendanceType('check_in')}
+                    onClick={() => setAttendanceType("check_in")}
                     className={`px-4 py-2 rounded-lg ${
-                      attendanceType === 'check_in' 
-                        ? 'bg-green-600 text-white' 
-                        : 'bg-gray-600 text-gray-300'
+                      attendanceType === "check_in"
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-600 text-gray-300"
                     }`}
                   >
                     Check-In
                   </button>
                   <button
-                    onClick={() => setAttendanceType('check_out')} 
+                    onClick={() => setAttendanceType("check_out")}
                     className={`px-4 py-2 rounded-lg ${
-                      attendanceType === 'check_out'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-600 text-gray-300'
+                      attendanceType === "check_out"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-600 text-gray-300"
                     }`}
                   >
                     Check-Out
