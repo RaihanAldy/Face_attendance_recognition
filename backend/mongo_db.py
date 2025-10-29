@@ -11,29 +11,26 @@ class MongoDBManager:
         def __init__(self):
             self.client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://localhost:27017'))
             self.db = self.client[os.getenv('DATABASE_NAME', 'attendance_system')]
-            
+
             self.employees = self.db.employees
             self.attendance = self.db.attendance
             self.analytics = self.db.analytics
             self.system_logs = self.db.system_logs
-            
+
             self._create_indexes()
         
         def _create_indexes(self):
             self.employees.create_index('employee_id', unique=True)
-            self.attendance.create_index('id')
             self.attendance.create_index('timestamp')
             self.attendance.create_index([('timestamp', -1)])
-            # ✅ Index untuk employees field (nama karyawan)
             self.attendance.create_index('employees')
-        
+
         def register_employee(self, employee_id, name, department='General'):
             employee_data = {
                 'employee_id': employee_id,
                 'name': name,
                 'department': department,
                 'face_embeddings': [],
-                'is_active': True,
                 'created_at': datetime.now(),
                 'last_updated': datetime.now()
             }
@@ -45,41 +42,37 @@ class MongoDBManager:
                 return {'success': False, 'error': str(e)}
         
         def get_all_employees(self):
-            employees = list(self.employees.find({'is_active': True}))
+            employees = list(self.employees.find())  # Ambil semua dokumen tanpa filter
             for emp in employees:
                 emp['_id'] = str(emp['_id'])
-                emp['created_at'] = emp['created_at'].isoformat()
-                emp['last_updated'] = emp['last_updated'].isoformat()
+                if 'created_at' in emp and emp['created_at']:
+                    emp['created_at'] = emp['created_at'].isoformat()
+                if 'last_updated' in emp and emp['last_updated']:
+                    emp['last_updated'] = emp['last_updated'].isoformat()
             return employees
 
-        def record_attendance(self, employee_id, confidence=0.0, attendance_type='check-in'):
-            """Record attendance dengan type (check-in/check-out)"""
+
+
+
+        def record_attendance(self, employee_id, confidence=0.0, attendance_type='check-in', action=None):
+            """Record attendance dengan type (check-in/check-out) dan action tambahan"""
             try:
-                # ✅ Cari employee berdasarkan employee_id
                 existing_employee = self.employees.find_one({'employee_id': employee_id})
-                
                 if not existing_employee:
                     print(f"❌ Employee with ID {employee_id} not found. Attendance not recorded.")
                     return None
 
-                
-                # Generate unique ID untuk attendance record
-                import uuid
-                attendance_id = str(uuid.uuid4())[:8]
-                
-                # ✅ SIMPAN SESUAI STRUKTUR DATABASE YANG ADA
                 attendance_data = {
-                    'id': attendance_id,
                     'employees': existing_employee['name'],
                     'status': attendance_type,
                     'timestamp': datetime.now(),
                     'employee_id': employee_id,
-                    'confidence': float(confidence)
+                    'confidence': float(confidence),
+                    'action': action or attendance_type  # default action sama dengan status
                 }
-
                 
                 result = self.attendance.insert_one(attendance_data)
-                print(f"✅ {attendance_type.upper()} recorded for {employee_id} with ID: {attendance_id}")
+                print(f"✅ {attendance_type.upper()} recorded for {employee_id}")
                 return str(result.inserted_id)
                 
             except Exception as e:

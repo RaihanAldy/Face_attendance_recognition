@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAttendanceData } from "../utils/attendanceData";
 import AttendanceFilter from "../components/attendance/AttendanceFilter";
 import AttendanceHeader from "../components/attendance/AttendanceHeader";
@@ -13,97 +13,73 @@ const AttendanceLog = () => {
     checkout: false,
   });
 
-  // ✅ Pass filter ke hook dan re-fetch ketika filter berubah
   const { attendanceData, loading, error, fetchAttendanceData } =
     useAttendanceData(filter);
 
-  // ✅ Fetch data ketika filter berubah
-  React.useEffect(() => {
+  useEffect(() => {
     fetchAttendanceData(filter);
   }, [filter]);
 
   const handleExportCSV = () =>
     exportCSV(attendanceData, formatDateTime, calculateWorkingHours);
 
-  // Filtered data
   const filteredData = attendanceData
     .filter((record) => {
-      // ✅ FIXED: Filter "all" tidak filter berdasarkan tanggal
-      if (filter === "all") {
-        return true; // Tampilkan semua data
-      }
+      if (filter === "all") return true;
 
-      // Filter "today"
       const today = new Date();
       const recordDate = new Date(record.timestamp);
-      const isToday =
+      return (
         recordDate.getDate() === today.getDate() &&
         recordDate.getMonth() === today.getMonth() &&
-        recordDate.getFullYear() === today.getFullYear();
-
-      return isToday;
+        recordDate.getFullYear() === today.getFullYear()
+      );
     })
     .reduce((acc, record) => {
-      const employeeId = record.employeeId || record.employee_id;
-      const employeeName = record.name || record.employees || "Unknown";
+      const employeeId = record.employeeId;
+      const employeeName = record.name;
 
-      // Jika checkin + checkout keduanya aktif, gabungkan records
+      const isCheckIn = record.action === "check-in";
+      const isCheckOut = record.action === "check-out";
+
+      // Jika checkin + checkout filter aktif, gabungkan records per employee
       if (checkFilters.checkin && checkFilters.checkout) {
-        const existing = acc.find((r) => r.employeeId === employeeId);
-
-        if (existing) {
-          if (record.status === "check_in" || record.status === "check-in") {
-            existing.checkIn = record.timestamp;
-          }
-          if (record.status === "check_out" || record.status === "check-out") {
-            existing.checkOut = record.timestamp;
-          }
-        } else {
-          acc.push({
-            employeeId: employeeId,
+        let existing = acc.find((r) => r.employeeId === employeeId);
+        if (!existing) {
+          existing = {
+            employeeId,
             name: employeeName,
-            checkIn:
-              record.status === "check_in" || record.status === "check-in"
-                ? record.timestamp
-                : null,
-            checkOut:
-              record.status === "check_out" || record.status === "check-out"
-                ? record.timestamp
-                : null,
-          });
+            checkIn: null,
+            checkOut: null,
+          };
+          acc.push(existing);
         }
+        if (isCheckIn) existing.checkIn = record.timestamp;
+        if (isCheckOut) existing.checkOut = record.timestamp;
         return acc;
       }
 
-      // Jika hanya checkin aktif
-      if (checkFilters.checkin && !checkFilters.checkout) {
-        if (record.status === "check_in" || record.status === "check-in") {
-          acc.push({
-            employeeId: employeeId,
-            name: employeeName,
-            checkIn: record.timestamp,
-          });
-        }
+      // Jika hanya check-in aktif
+      if (checkFilters.checkin && !checkFilters.checkout && isCheckIn) {
+        acc.push({ employeeId, name: employeeName, checkIn: record.timestamp });
         return acc;
       }
 
-      // Jika hanya checkout aktif
-      if (checkFilters.checkout && !checkFilters.checkin) {
-        if (record.status === "check_out" || record.status === "check-out") {
-          acc.push({
-            employeeId: employeeId,
-            name: employeeName,
-            checkOut: record.timestamp,
-          });
-        }
+      // Jika hanya check-out aktif
+      if (checkFilters.checkout && !checkFilters.checkin && isCheckOut) {
+        acc.push({
+          employeeId,
+          name: employeeName,
+          checkOut: record.timestamp,
+        });
         return acc;
       }
 
-      // ✅ Default: tampilkan semua records (untuk filter "all" atau "today")
+      // Default: tampilkan semua records (untuk filter "all" atau "today")
       acc.push({
-        employeeId: employeeId,
+        employeeId,
         name: employeeName,
-        status: record.status,
+        status: record.status, // ontime / late / early
         timestamp: record.timestamp,
       });
 
@@ -171,13 +147,7 @@ const AttendanceLog = () => {
                   >
                     {getTableHeaders(filter, checkFilters).map(
                       (header, cellIndex) =>
-                        renderTableCell(
-                          record,
-                          header,
-                          cellIndex,
-                          filter,
-                          checkFilters
-                        )
+                        renderTableCell(record, header, cellIndex)
                     )}
                   </tr>
                 ))}

@@ -5,6 +5,7 @@ import FaceScan from "./page/FaceScan";
 import Analytics from "./page/Analytics";
 import AttendanceLog from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
+import Login from "./page/Login";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Navbar />
           <main className="">
             <Routes>
+              <Route path="/login" element={<Login />} />
               <Route path="/" element={<Analytics />} />
               <Route path="/attendance" element={<AttendanceLog />} />
               <Route path="/employees" element={<Employees />} />
