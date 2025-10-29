@@ -6,64 +6,12 @@ from sync_manager import sync_manager
 from datetime import datetime
 import traceback
 import json
-import boto3
-import os
-from dotenv import load_dotenv
-
-# 🟢 NEW: Load environment untuk AWS credentials
-load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
 # Start background tasks
 sync_manager.start()
-
-# 🟢 NEW: Setup AWS Lambda client
-lambda_client = boto3.client(
-    'lambda',
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION")
-)
-
-def trigger_alert(event_type, employee_name, timestamp):
-    """🟢 NEW: Kirim alert ke AWS Lambda"""
-    payload = {
-        "event_type": event_type,
-        "employee_name": employee_name,
-        "timestamp": timestamp
-    }
-    try:
-        response = lambda_client.invoke(
-            FunctionName=os.getenv("LAMBDA_FUNCTION_NAME"),
-            InvocationType='Event',  # async
-            Payload=json.dumps(payload)
-        )
-        print(f"✅ Lambda alert triggered: {payload}")
-        return True
-    except Exception as e:
-        print(f"❌ Lambda alert failed: {e}")
-        return False
-
-@app.route('/alert', methods=['POST'])
-def trigger_alert():
-    try:
-        data = request.get_json()
-        print("Simulated alert triggered:", data)
-
-        # Dummy response untuk Postman
-        return jsonify({
-            "status": "success",
-            "message": "Simulated alert triggered successfully",
-            "received_data": data
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -113,12 +61,6 @@ def check_in():
         
         if attendance_id:
             print(f"✅ Check-in recorded in MongoDB: {employee_id}")
-            # 🟢 NEW: Trigger Lambda alert saat check-in berhasil
-            trigger_alert(
-                event_type="Check-in",
-                employee_name=employee_id,
-                timestamp=datetime.now().isoformat()
-            )
             return jsonify({'success': True, 'attendanceId': attendance_id})
         else:
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
@@ -143,12 +85,6 @@ def check_out():
         
         if attendance_id:
             print(f"✅ Check-out recorded in MongoDB: {employee_id}")
-            # 🟢 NEW: Trigger Lambda alert saat checkout
-            trigger_alert(
-                event_type="Check-out",
-                employee_name=employee_id,
-                timestamp=datetime.now().isoformat()
-            )
             return jsonify({'success': True, 'attendanceId': attendance_id})
         else:
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
