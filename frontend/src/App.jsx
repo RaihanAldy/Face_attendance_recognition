@@ -1,72 +1,52 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
-import Dashboard from "./pages/Dashboard";
-import FaceScan from "./pages/FaceScan";
-import AttendanceLog from "./pages/AttendanceLog";
-import Employees from "./pages/Employees";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import Login from "./pages/auth/Login";
+import FaceScan from "./page/FaceScan";
+import Analytics from "./page/Analytics";
+import AttendanceLog from "./page/AttendanceLogs";
+import Employees from "./page/Employees";
+import Settings from "./page/Settings";
+import Login from "./page/Login";
 
-// Protected Route component
-const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('authToken') !== null;
-  return isAuthenticated ? children : <Navigate to="/auth/login" />;
+
+const PrivateRoute = ({ children }) => {
+  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 export default function App() {
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        window.location.href = '/auth/login';
-      }
-    };
-
-    checkAuth();
-    window.addEventListener('storage', checkAuth);
-
-    return () => {
-      window.removeEventListener('storage', checkAuth);
-    };
-  }, []);
-
   return (
     <Router>
       <Routes>
-        {/* Public Auth Routes */}
-        <Route path="/auth/login" element={<Login />} />
+        {/* Public Route */}
+        <Route path="/login" element={<Login />} />
 
-        {/* Protected App Routes */}
+        {/* Protected Routes wrapped in Layout */}
         <Route
-          path="/*"
+          path="/"
           element={
-            <ProtectedRoute>
-                <div className="flex min-h-screen bg-navy-950">
-                {/* Sidebar */}
+            <PrivateRoute>
+              <div className="flex bg-slate-950">
                 <Sidebar />
-
-                {/* Main content area */}
-                <div className="flex-1 flex flex-col bg-navy-950">
+                <div className="flex-1 flex flex-col">
                   <Navbar />
-
-                  <main className="p-6 flex-1 overflow-y-auto bg-navy-950">
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/face-scan" element={<FaceScan />} />
-                      <Route path="/attendance" element={<AttendanceLog />} />
-                      <Route path="/employees" element={<Employees />} />
-                      <Route path="/reports" element={<Reports />} />
-                      <Route path="/settings" element={<Settings />} />
-                    </Routes>
+                  <main className="">
+                    <Outlet />
                   </main>
                 </div>
               </div>
-            </ProtectedRoute>
+            </PrivateRoute>
           }
-        />
+        >
+          <Route index element={<Analytics />} />
+          <Route path="attendance" element={<AttendanceLog />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="face-scan" element={<FaceScan />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+
+        {/* Catch all - redirect to dashboard */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

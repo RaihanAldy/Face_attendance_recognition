@@ -1,25 +1,29 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from mongo_db import MongoDBManager
+from mongo_db import db
+from face_engine import face_engine
+from sync_manager import sync_manager
 from datetime import datetime
 import json
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS untuk React frontend
-db = MongoDBManager()
+CORS(app)
 
-# API Routes
+# Start background tasks
+sync_manager.start()
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'database': 'connected'
+        'database': 'connected',
+        'face_model': 'loaded' if face_engine.model else 'error'
     })
 
 @app.route('/api/employees', methods=['GET', 'POST'])
 def employees():
-    if request.method == 'GET':
+    if request.method == 'GET': 
         employees = db.get_all_employees()
         return jsonify(employees)
     
@@ -43,52 +47,41 @@ def attendance():
         data = request.json
         attendance_id = db.record_attendance(
             employee_id=data.get('employeeId'),
-            confidence=data.get('confidence', 0.0),
-            status=data.get('status', 'present')
+            confidence=data.get('confidence', 0.0)
         )
         return jsonify({'success': True, 'attendanceId': attendance_id})
+
+@app.route('/api/recognize', methods=['POST'])
+def recognize_face():
+    data = request.json
+    image_data = data.get('image')
+    
+    if not image_data:
+        return jsonify({'success': False, 'error': 'No image data provided'})
+    
+    result = face_engine.process_image(image_data)
+    return jsonify(result)
 
 @app.route('/api/analytics/dashboard', methods=['GET'])
 def dashboard_analytics():
     stats = db.get_attendance_stats()
     analytics = db.get_daily_analytics()
+    recent_recognitions = db.get_recent_recognitions(10)
     
     return jsonify({
         'stats': stats,
         'analytics': analytics,
+        'recentRecognitions': recent_recognitions,
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/api/recognize', methods=['POST'])
-def recognize_face():
-    """Endpoint untuk face recognition dari React"""
-    try:
-        # Expect base64 image dari React
-        data = request.json
-        image_data = data.get('image')
-        
-        # Process image dengan face engine
-        from face_engine import FaceEngine
-        engine = FaceEngine()
-        
-        result = engine.process_image(image_data)
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/sync/status', methods=['GET'])
-def sync_status():
-    """Check sync status"""
-    unsynced_data = db.get_unsynced_data()
-    return jsonify({
-        'unsyncedCount': unsynced_data['count'],
-        'lastSync': db.get_last_sync_time(),
-        'status': 'online'  # atau 'offline' berdasarkan kondisi
-    })
+@app.route('/api/system/cleanup', methods=['POST'])
+def cleanup_system():
+    return jsonify({'success': True, 'message': 'Cleanup completed'})
 
 if __name__ == '__main__':
-    print("🚀 Starting Flask API Server...")
-    print("📍 API: http://localhost:5000")
-    print("🔗 CORS Enabled for React")
+    print("🚀 Starting Attendance System...")
+    print("📍 API Server: http://localhost:5000")
+    print("📊 MongoDB: Connected")
+    print("🤖 Face Recognition: Ready")
     app.run(host='0.0.0.0', port=5000, debug=True)

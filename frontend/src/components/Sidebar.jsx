@@ -1,55 +1,59 @@
 import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   ScanFace,
   Users,
   Clock,
   FileText,
-  UserCog,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Calendar,
 } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function Sidebar() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  const navigate = useNavigate();
+  const location = useLocation();
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
     { id: "face-scan", label: "Face Scan", icon: ScanFace, path: "/face-scan" },
-    { id: "attendance", label: "Attendance Log", icon: Clock, path: "/attendance" },
+    {
+      id: "attendance",
+      label: "Attendance Log",
+      icon: Clock,
+      path: "/attendance",
+    },
     { id: "employees", label: "Employees", icon: Users, path: "/employees" },
-    { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
+    // { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
     { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
   ];
 
   return (
     <aside
-      className={`bg-navy-950 border-r border-navy-800 h-screen transition-all duration-300 flex flex-col ${
+      className={`bg-slate-900 border-r border-slate-800 min-h-screen transition-all duration-300 flex flex-col ${
         isCollapsed ? "w-20" : "w-64"
       }`}
     >
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-navy-800 flex items-center justify-between">
-        {!isCollapsed && (
-          <h2 className="text-sky-400 text-xs uppercase tracking-wider font-semibold">
-            Navigation
-          </h2>
-        )}
-          <button
+      <div className="border-b border-slate-800 flex items-center h-16 px-4">
+        <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-2 rounded-lg text-sky-400 hover:bg-navy-800 transition-colors ml-auto"
+          className="h-12 w-12 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
         >
           {isCollapsed ? (
-            <ChevronRight className="h-5 w-5" />
+            <ScanFace className="h-8 w-8 text-blue-500" />
           ) : (
-            <ChevronLeft className="h-5 w-5" />
+            <ScanFace className="h-8 w-8 text-blue-500" />
           )}
         </button>
+
+        {!isCollapsed && (
+          <h2 className="text-slate-400 text-xl uppercase tracking-wider font-semibold">
+            Recca
+          </h2>
+        )}
       </div>
 
       {/* Menu Items */}
@@ -66,46 +70,28 @@ export default function Sidebar() {
                 isCollapsed ? "justify-center" : "justify-start"
               } px-3 py-3 rounded-lg text-sm font-medium transition-all group ${
                 isActive
-                  ? "bg-sky-500 text-navy-950 shadow-lg shadow-sky-500/20"
-                  : "text-sky-400 hover:bg-navy-800"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
               title={isCollapsed ? item.label : ""}
             >
               <Icon
                 className={`h-5 w-5 ${
                   isActive
-                    ? "text-navy-950"
-                    : "text-sky-400 group-hover:text-sky-300"
+                    ? "text-white"
+                    : "text-slate-400 group-hover:text-white"
                 } ${!isCollapsed && "mr-3"}`}
               />
               {!isCollapsed && (
                 <span className="flex-1 text-left">{item.label}</span>
               )}
               {!isCollapsed && isActive && (
-                <div className="w-2 h-2 rounded-full bg-navy-950"></div>
+                <div className="w-2 h-2 rounded-full bg-white"></div>
               )}
             </button>
           );
         })}
       </nav>
-
-      {/* Sidebar Footer */}
-      {!isCollapsed && (
-        <div className="p-4 border-t border-navy-800">
-          <div className="bg-navy-900 rounded-lg p-3 border border-navy-800">
-            <p className="text-sky-400 text-xs mb-1">Recognition Status</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sky-100 text-sm font-medium">
-                Face Engine
-              </span>
-              <span className="flex items-center text-emerald-400 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 mr-1.5"></span>
-                Active
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

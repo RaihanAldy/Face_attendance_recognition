@@ -1,10 +1,10 @@
-export default function SummaryCard({ title, value, color, bgColor = "bg-navy-900", textColor = "text-sky-100" }) {
+export default function SummaryCard({ title, value, color }) {
   return (
     <div
-      className={`${bgColor} border-l-4 ${color} shadow-lg rounded-lg p-4 flex flex-col border-t border-r border-b border-navy-800`}
+      className={`bg-slate-900 border-l-4 ${color} shadow-sm rounded-lg p-4 flex flex-col`}
     >
-      <h3 className="text-sm font-medium text-sky-400">{title}</h3>
-      <p className={`text-2xl font-bold ${textColor} mt-2`}>{value}</p>
+      <h3 className="text-sm font-medium text-gray-200">{title}</h3>
+      <p className="text-2xl font-bold text-gray-300 mt-2">{value}</p>
     </div>
   );
 }
