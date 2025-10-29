@@ -1,246 +1,331 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const AttendanceLog = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [attendanceData, setAttendanceData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("toda");
+  const [checkFilters, setCheckFilters] = useState({
+    checkin: true,
+    checkout: true,
+  });
 
-  const handleExportCSV = () => {
-    // Convert data to CSV format
-    const headers = ["Employee Name", "ID", "Check In", "Check Out", "Status", "Working Hours"];
-    const csvData = attendanceData.map(record => {
-      const checkIn = new Date(record.checkIn);
-      const checkOut = new Date(record.checkOut);
-      const workingHours = ((checkOut - checkIn) / 3600000).toFixed(2);
-      return [
-        record.employeeName,
-        record.employeeId,
-        checkIn.toLocaleTimeString(),
-        checkOut.toLocaleTimeString(),
-        record.status,
-        `${workingHours}h`
-      ];
-    });
+  const fetchAttendanceData = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    // Create CSV content
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map(row => row.join(","))
-    ].join("\n");
+      const response = await fetch(`http://localhost:5000/api/attendance/log`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
 
-    // Create and download the file
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `attendance_log_${dateFilter || "all"}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const data = await response.json();
+      setAttendanceData(data);
+    } catch (err) {
+      console.error("Error fetching data absensi:", err);
+      setError("Gagal memuat data Absensi. Periksa koneksi server.");
+      setAttendanceData([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Mock data - replace with actual API call
-  const attendanceData = [
-    {
-      id: 1,
-      employeeName: "John Doe",
-      employeeId: "EMP001",
-      checkIn: "2025-10-28T09:00:00",
-      checkOut: "2025-10-28T17:00:00",
-      status: "Present",
-    },
-    {
-      id: 2,
-      employeeName: "Jane Smith",
-      employeeId: "EMP002",
-      checkIn: "2025-10-28T09:15:00",
-      checkOut: "2025-10-28T17:10:00",
-      status: "Present",
-    },
-    {
-      id: 3,
-      employeeName: "Michael Johnson",
-      employeeId: "EMP003",
-      checkIn: "2025-10-28T08:50:00",
-      checkOut: "2025-10-28T17:00:00",
-      status: "Present",
-    },
-    {
-      id: 4,
-      employeeName: "Emily Davis",
-      employeeId: "EMP004",
-      checkIn: "2025-10-28T09:05:00",
-      checkOut: "2025-10-28T17:05:00",
-      status: "Present",
-    },
-    {
-      id: 5,
-      employeeName: "William Brown",
-      employeeId: "EMP005",
-      checkIn: "2025-10-28T09:20:00",
-      checkOut: "2025-10-28T17:15:00",
-      status: "Present",
-    },
-    {
-      id: 6,
-      employeeName: "Olivia Wilson",
-      employeeId: "EMP006",
-      checkIn: "2025-10-28T09:00:00",
-      checkOut: "2025-10-28T17:00:00",
-      status: "Present",
-    },
-    {
-      id: 7,
-      employeeName: "James Taylor",
-      employeeId: "EMP007",
-      checkIn: "2025-10-28T09:10:00",
-      checkOut: "2025-10-28T17:05:00",
-      status: "Present",
-    },
-    {
-      id: 8,
-      employeeName: "Sophia Martinez",
-      employeeId: "EMP008",
-      checkIn: "2025-10-28T09:00:00",
-      checkOut: "2025-10-28T17:00:00",
-      status: "Present",
-    },
-    {
-      id: 9,
-      employeeName: "Benjamin Anderson",
-      employeeId: "EMP009",
-      checkIn: "2025-10-28T08:55:00",
-      checkOut: "2025-10-28T17:00:00",
-      status: "Present",
-    },
-    {
-      id: 10,
-      employeeName: "Isabella Thomas",
-      employeeId: "EMP010",
-      checkIn: "2025-10-28T09:05:00",
-      checkOut: "2025-10-28T17:10:00",
-      status: "Present",
-    },
-    {
-      id: 11,
-      employeeName: "Lucas White",
-      employeeId: "EMP011",
-      checkIn: "2025-10-28T09:00:00",
-      checkOut: "2025-10-28T17:00:00",
-      status: "Present",
-    },
-  ];
+  useEffect(() => {
+    fetchAttendanceData();
+  }, []);
+
+  const filteredData = attendanceData.filter((record) => {
+    const today = new Date();
+    const recordDate = new Date(record.checkIn || record.timestamp);
+    const isToday =
+      recordDate.getDate() === today.getDate() &&
+      recordDate.getMonth() === today.getMonth() &&
+      recordDate.getFullYear() === today.getFullYear();
+
+    const baseCondition =
+      filter === "all" ? true : filter === "today" ? isToday : true;
+
+    const checkCondition =
+      (checkFilters.checkin && record.checkIn && !record.checkOut) ||
+      (checkFilters.checkout && record.checkOut);
+
+    return baseCondition && checkCondition;
+  });
+
+  const formatDateTime = (timestamp) => {
+    if (!timestamp) return "-";
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    } catch {
+      return "-";
+    }
+  };
+
+  const calculateWorkingHours = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return "-";
+    try {
+      const start = new Date(checkIn);
+      const end = new Date(checkOut);
+      if (end <= start) return "0h";
+      const diffMs = end - start;
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      return `${hours}h ${minutes}m`;
+    } catch {
+      return "-";
+    }
+  };
+
+  const handleRefresh = () => fetchAttendanceData();
+
+  const handleExportCSV = () => {
+    try {
+      const headers = [
+        "Nama",
+        "ID Karyawan",
+        "Check In",
+        "Check Out",
+        "Status",
+        "Jam Kerja",
+        "Confidence",
+      ];
+
+      const csvData = attendanceData.map((record) => [
+        record.name || "-",
+        record.employeeId || "-",
+        formatDateTime(record.checkIn) || "-",
+        formatDateTime(record.checkOut) || "-",
+        record.checkOut
+          ? "Selesai"
+          : record.checkIn
+          ? "Sedang Bekerja"
+          : "Belum Check-In",
+        calculateWorkingHours(record.checkIn, record.checkOut),
+        record.confidence ? `${Math.round(record.confidence * 100)}%` : "-",
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...csvData.map((row) => row.join(",")),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `attendance-${
+        new Date().toISOString().split("T")[0]
+      }.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("Gagal mengexport data CSV");
+    }
+  };
 
   return (
-    <div className="p-6 bg-navy-950 rounded-lg shadow-md">
-      <h1 className="text-3xl font-bold mb-6 text-gray-200">Attendance Log</h1>
+    <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Attendance Log
+            </h1>
+            <p className="text-slate-400">
+              Monitor and manage employee attendance records
+            </p>
+          </div>
 
-      <div className="flex flex-wrap gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search by name or ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="px-4 py-2 bg-navy-900 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100 placeholder-blue-200"
-        />
-        <div className="flex gap-4">
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-4 py-2 bg-navy-900 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-          />
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-navy-900 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-          >
-            <option value="">All Status</option>
-            <option value="Present">Present</option>
-            <option value="Late">Late</option>
-            <option value="Absent">Absent</option>
-          </select>
-          <select
-            value={departmentFilter}
-            onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="px-4 py-2 bg-navy-900 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-          >
-            <option value="">All Departments</option>
-            <option value="IT">IT</option>
-            <option value="HR">HR</option>
-            <option value="Finance">Finance</option>
-            <option value="Marketing">Marketing</option>
-          </select>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              🔄 {loading ? "Loading..." : "Refresh"}
+            </button>
+
+            <button
+              onClick={handleExportCSV}
+              disabled={attendanceData.length === 0}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white rounded-lg font-medium transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              📁 Export CSV
+            </button>
+          </div>
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-        >
-          <span>Export CSV</span>
-        </button>
-      </div>
 
-      <div className="overflow-x-auto rounded-lg border border-navy-800">
-        <table className="min-w-full bg-navy-900">
-          <thead className="bg-navy-800">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Employee
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                ID
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Check In
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Check Out
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Working Hours
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-navy-800">
-            {attendanceData.map((record) => {
-              const checkIn = new Date(record.checkIn);
-              const checkOut = new Date(record.checkOut);
-              const workingHours = ((checkOut - checkIn) / 3600000).toFixed(2);
+        {/* ✅ Filter Buttons */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          {["all", "today"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 border ${
+                filter === f
+                  ? "border-emerald-500 bg-slate-800 text-emerald-400 shadow-md"
+                  : "border-slate-600 bg-slate-700 text-slate-300 hover:border-emerald-500 hover:text-emerald-400"
+              }`}
+            >
+              {f === "all" ? "All" : "Today"}
+            </button>
+          ))}
 
-              return (
-                <tr
-                  key={record.id}
-                  className="hover:bg-navy-800 transition-colors"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {record.employeeName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {record.employeeId}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {checkIn.toLocaleTimeString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {checkOut.toLocaleTimeString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-sm rounded-full bg-emerald-900 text-emerald-300 border border-emerald-700">
-                      {record.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {workingHours}h
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          {/* ✅ Tombol Check In & Check Out tanpa checkbox */}
+          {["checkin", "checkout"].map((key) => (
+            <button
+              key={key}
+              onClick={() =>
+                setCheckFilters((prev) => {
+                  const newState = { ...prev, [key]: !prev[key] };
+                  // Cegah agar keduanya tidak false
+                  if (!newState.checkin && !newState.checkout) {
+                    return prev; // batal toggle kalau dua-duanya jadi false
+                  }
+                  return newState;
+                })
+              }
+              className={`px-4 py-2 rounded-lg font-medium text-sm border transition-all duration-200 ${
+                checkFilters[key]
+                  ? "border-emerald-500 bg-slate-800 text-emerald-400 shadow-md"
+                  : "border-slate-600 bg-slate-700 text-slate-300 hover:border-emerald-500 hover:text-emerald-400"
+              }`}
+            >
+              {key === "checkin" ? "Check In" : "Check Out"}
+            </button>
+          ))}
+        </div>
+
+        {/* Status */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400">
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="text-center py-12 text-blue-400 animate-pulse">
+            Memuat data absensi...
+          </div>
+        )}
+
+        {!loading && filteredData.length === 0 && (
+          <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700/50">
+            <h3 className="text-lg font-medium text-slate-300 mb-2">
+              Tidak ada data untuk filter "{filter}"
+            </h3>
+          </div>
+        )}
+
+        {/* Table */}
+        {!loading && filteredData.length > 0 && (
+          <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-700/50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Karyawan
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Check In
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Check Out
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                      Jam Kerja
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {filteredData.map((record, index) => {
+                    const checkIn = record.checkIn
+                      ? new Date(record.checkIn)
+                      : null;
+                    const checkOut = record.checkOut
+                      ? new Date(record.checkOut)
+                      : null;
+                    const status =
+                      checkIn && checkOut
+                        ? "Selesai"
+                        : checkIn
+                        ? "Sedang Bekerja"
+                        : "Belum Check-In";
+
+                    const statusStyle = {
+                      Selesai:
+                        "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+                      "Sedang Bekerja":
+                        "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+                      "Belum Check-In":
+                        "bg-slate-500/10 text-slate-400 border border-slate-500/20",
+                    }[status];
+
+                    return (
+                      <tr
+                        key={record._id || index}
+                        className="hover:bg-slate-700/30 transition-colors"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-400 font-medium">
+                              {record.name?.charAt(0) ||
+                                record.employeeId?.charAt(0) ||
+                                "E"}
+                            </div>
+                            <div>
+                              <div className="text-white font-medium">
+                                {record.name || `Employee ${record.employeeId}`}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-300 font-mono text-sm">
+                          {record.employeeId}
+                        </td>
+                        <td className="px-6 py-4 text-slate-300">
+                          {checkIn ? checkIn.toLocaleTimeString("id-ID") : "-"}
+                        </td>
+                        <td className="px-6 py-4 text-slate-300">
+                          {checkOut
+                            ? checkOut.toLocaleTimeString("id-ID")
+                            : "-"}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full ${statusStyle}`}
+                          >
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-300 font-medium">
+                          {calculateWorkingHours(
+                            record.checkIn,
+                            record.checkOut
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

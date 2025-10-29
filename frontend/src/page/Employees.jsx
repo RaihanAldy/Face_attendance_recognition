@@ -142,7 +142,7 @@ const Employees = () => {
         <h1 className="text-3xl font-bold text-gray-200">Employees</h1>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
+      <div className="overflow-x-auto rounded-lg border border-blue-500">
         <table className="min-w-full bg-gray-900">
           <thead className="bg-gray-800">
             <tr>
