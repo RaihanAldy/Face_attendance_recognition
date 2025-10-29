@@ -71,8 +71,7 @@ class MongoDBManager:
                 'employee_id': employee_id,
                 'timestamp': datetime.now(),
                 'confidence': float(confidence),
-                'type': attendance_type,  # ✅ 'check_in' atau 'check_out'
-                'synced': False
+                'type': attendance_type
             }
             
             result = self.attendance.insert_one(attendance_data)
@@ -445,5 +444,114 @@ class MongoDBManager:
             print(f"❌ Error getting employee attendance: {e}")
             return []
         
-# Global instance
+    def register_employee_face(self, name, face_embedding, department='General'):
+        """Register employee dengan face embedding dan auto ID - REAL IMPLEMENTATION"""
+        try:
+            # Generate employee ID
+            employee_id = self.get_next_employee_id()
+            
+            employee_data = {
+                'employee_id': employee_id,
+                'name': name,
+                'department': department,
+                'face_embeddings': face_embedding,  # ✅ SIMPAN FACE EMBEDDING REAL
+                'is_active': True,
+                'created_at': datetime.now(),
+                'last_updated': datetime.now()
+            }
+            
+            result = self.employees.insert_one(employee_data)
+            print(f"✅ REAL: Employee {name} registered with ID: {employee_id}")
+            
+            return {
+                'success': True, 
+                'message': 'Employee registered successfully',
+                'employee_id': employee_id,
+                'name': name,
+                'department': department
+            }
+            
+        except Exception as e:
+            print(f"❌ Error registering employee: {e}")
+            return {'success': False, 'error': str(e)}
+        
+    def recognize_face(self, face_embedding, threshold=0.6):
+        """Recognize face dari embedding - REAL IMPLEMENTATION"""
+        try:
+            print(f"🔍 REAL: Searching for face match in database...")
+            
+            # Dapatkan semua employees yang aktif
+            employees = list(self.employees.find({'is_active': True}))
+            print(f"📊 REAL: Checking against {len(employees)} employees")
+            
+            if not employees:
+                print("❌ REAL: No employees found in database")
+                return {
+                    'success': False,
+                    'message': 'No employees registered in system',
+                    'similarity': 0
+                }
+            
+            best_match = None
+            highest_similarity = 0
+            
+            # ✅ REAL FACE MATCHING LOGIC
+            for employee in employees:
+                stored_embedding = employee.get('face_embeddings', [])
+                
+                if stored_embedding and len(stored_embedding) == len(face_embedding):
+                    # Hitung similarity (cosine similarity sederhana)
+                    similarity = self.calculate_similarity(face_embedding, stored_embedding)
+                    print(f"👤 {employee['name']} - Similarity: {similarity:.3f}")
+                    
+                    if similarity > highest_similarity and similarity >= threshold:
+                        highest_similarity = similarity
+                        best_match = employee
+            
+            if best_match:
+                print(f"✅ REAL: Match found - {best_match['name']} (Similarity: {highest_similarity:.3f})")
+                return {
+                    'success': True,
+                    'employee': {
+                        'employee_id': best_match['employee_id'],
+                        'name': best_match['name'],
+                        'department': best_match.get('department', 'General'),
+                        'similarity': highest_similarity
+                    },
+                    'message': 'Face recognized successfully'
+                }
+            else:
+                print(f"❌ REAL: No match found (best similarity: {highest_similarity:.3f})")
+                return {
+                    'success': False,
+                    'message': 'No matching employee found',
+                    'similarity': highest_similarity
+                }
+                
+        except Exception as e:
+            print(f"❌ REAL: Error recognizing face: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def calculate_similarity(self, embedding1, embedding2):
+        """Calculate cosine similarity antara dua embeddings - REAL IMPLEMENTATION"""
+        try:
+            if len(embedding1) != len(embedding2):
+                return 0
+                
+            # Cosine similarity calculation
+            dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+            norm1 = sum(a * a for a in embedding1) ** 0.5
+            norm2 = sum(b * b for b in embedding2) ** 0.5
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0
+                
+            similarity = dot_product / (norm1 * norm2)
+            return max(0, min(1, similarity))  # Clamp between 0 and 1
+            
+        except Exception as e:
+            print(f"❌ Error calculating similarity: {e}")
+            return 0
+        
+# Global instance   
 db = MongoDBManager()

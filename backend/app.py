@@ -8,7 +8,7 @@ import traceback
 import json
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173"])
+CORS(app)
 
 # Start background tasks
 sync_manager.start()
@@ -231,6 +231,48 @@ def dashboard_analytics():
 def cleanup_system():
     return jsonify({'success': True, 'message': 'Cleanup completed'})
 
+@app.route('/api/recognize-face', methods=['POST'])
+def recognize_face_embedding():
+    """Recognize face dari embedding - REAL DATA"""
+    try:
+        data = request.json
+        face_embedding = data.get('faceEmbedding')
+        
+        if not face_embedding:
+            return jsonify({'success': False, 'error': 'No face embedding provided'}), 400
+        
+        print(f"🔍 Received face embedding with {len(face_embedding)} dimensions")
+        
+        # ✅ GUNAKAN REAL FACE RECOGNITION DARI MONGODB
+        result = db.recognize_face(face_embedding)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Face recognition error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
+@app.route('/api/register', methods=['POST'])
+def register_employee():
+    """Register new employee dengan face data - REAL DATA"""
+    try:
+        data = request.json
+        name = data.get('name')
+        department = data.get('department', 'General')
+        face_embedding = data.get('faceEmbedding')
+        
+        if not name or not face_embedding:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        
+        # ✅ GUNAKAN REAL REGISTRATION DARI MONGODB
+        result = db.register_employee_face(name, face_embedding, department)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Registration error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
 if __name__ == '__main__':
     print("🚀 Starting Attendance System...")
     print("📍 API Server: http://localhost:5000")
