@@ -2,8 +2,8 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
-import json
 import traceback
+import uuid
 
 load_dotenv()
 
@@ -18,64 +18,203 @@ class MongoDBManager:
         self.system_logs = self.db.system_logs
         
         self._create_indexes()
+        print("✅ MongoDB Manager initialized")
     
     def _create_indexes(self):
+        """Create necessary indexes"""
         self.employees.create_index('employee_id', unique=True)
+        self.attendance.create_index('id')
         self.attendance.create_index('employee_id')
         self.attendance.create_index('timestamp')
         self.attendance.create_index([('timestamp', -1)])
+        self.attendance.create_index('employees')
+        print("✅ Database indexes created")
+
+    # ==================== EMPLOYEE MANAGEMENT ==================== #
     
-    def register_employee(self, employee_id, name, department='General'):
-        employee_data = {
-            'employee_id': employee_id,
-            'name': name,
-            'department': department,
-            'face_embeddings': [],
-            'is_active': True,
-            'created_at': datetime.now(),
-            'last_updated': datetime.now()
-        }
-        
+    def get_next_employee_id(self):
+        """Generate auto-increment employee ID (EMP-001, EMP-002, etc.)"""
         try:
-            result = self.employees.insert_one(employee_data)
-            return {'success': True, 'message': 'Employee registered successfully'}
+            last_employee = self.employees.find_one(
+                {'employee_id': {'$regex': '^EMP-'}}, 
+                sort=[("employee_id", -1)]
+            )
+            
+            if last_employee and last_employee.get('employee_id'):
+                last_id = last_employee['employee_id']
+                try:
+                    last_number = int(last_id.split('-')[1])
+                    next_number = last_number + 1
+                except:
+                    next_number = 1
+            else:
+                next_number = 1
+            
+            return f"EMP-{next_number:03d}"
+            
         except Exception as e:
+            print(f"❌ Error generating employee ID: {e}")
+            return f"EMP-{int(datetime.now().timestamp())}"
+    
+    def register_employee_face(self, name, face_embedding, department='General'):
+        """Register new employee dengan face embedding dan auto-generated ID"""
+        try:
+            employee_id = self.get_next_employee_id()
+            
+            employee_data = {
+                'employee_id': employee_id,
+                'name': name,
+                'department': department,
+                'face_embeddings': face_embedding,
+                'is_active': True,
+                'created_at': datetime.now(),
+                'last_updated': datetime.now()
+            }
+            
+            result = self.employees.insert_one(employee_data)
+            
+            if result.inserted_id:
+                print(f"✅ New employee registered: {employee_id} - {name}")
+                return {
+                    'success': True,
+                    'message': 'Employee registered successfully',
+                    'employee_id': employee_id
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Failed to insert employee'
+                }
+            
+        except Exception as e:
+            print(f"❌ Error registering employee: {e}")
+            traceback.print_exc()
             return {'success': False, 'error': str(e)}
     
     def get_all_employees(self):
-        employees = list(self.employees.find({'is_active': True}))
-        for emp in employees:
-            emp['_id'] = str(emp['_id'])
-            emp['created_at'] = emp['created_at'].isoformat()
-            emp['last_updated'] = emp['last_updated'].isoformat()
-        return employees
-
-    def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
-        """Record attendance dengan type (check_in/check_out)"""
+        """Get all active employees"""
         try:
-            # Cek employee exists atau auto-create
-            existing_employee = self.employees.find_one({'employee_id': employee_id})
-            if not existing_employee:
-                # Auto-create employee
-                employee_data = {
-                    'employee_id': employee_id,
-                    'name': f"Employee {employee_id}",
-                    'department': 'General', 
-                    'is_active': True,
-                    'created_at': datetime.now()
+            employees = list(self.employees.find({'is_active': True}))
+            for emp in employees:
+                emp['_id'] = str(emp['_id'])
+                if 'created_at' in emp:
+                    emp['created_at'] = emp['created_at'].isoformat()
+                if 'last_updated' in emp:
+                    emp['last_updated'] = emp['last_updated'].isoformat()
+            return employees
+        except Exception as e:
+            print(f"❌ Error getting employees: {e}")
+            return []
+    
+    def get_employee_by_id(self, employee_id):
+        """Get employee data by ID"""
+        try:
+            employee = self.employees.find_one({'employee_id': employee_id})
+            if employee:
+                return {
+                    'success': True,
+                    'employee': {
+                        'employee_id': employee['employee_id'],
+                        'name': employee['name'],
+                        'department': employee.get('department', 'General'),
+                        'created_at': employee['created_at'].isoformat() if 'created_at' in employee else None
+                    }
                 }
-                self.employees.insert_one(employee_data)
-                print(f"✅ Auto-created employee: {employee_id}")
+            else:
+                return {'success': False, 'message': 'Employee not found'}
+        except Exception as e:
+            print(f"❌ Error getting employee: {e}")
+            return {'success': False, 'error': str(e)}
+
+    # ==================== FACE RECOGNITION ==================== #
+    
+    def recognize_face(self, face_embedding, threshold=0.6):
+        """Recognize face from embedding dengan similarity threshold"""
+        try:
+            employees = list(self.employees.find({'is_active': True}))
+            
+            best_match = None
+            highest_similarity = 0
+            
+            for employee in employees:
+                if 'face_embeddings' in employee and employee['face_embeddings']:
+                    similarity = self.calculate_similarity(face_embedding, employee['face_embeddings'])
+                    
+                    if similarity > highest_similarity and similarity >= threshold:
+                        highest_similarity = similarity
+                        best_match = employee
+            
+            if best_match:
+                return {
+                    'success': True,
+                    'employee': {
+                        'employee_id': best_match['employee_id'],
+                        'name': best_match['name'],
+                        'department': best_match.get('department', 'General'),
+                        'similarity': highest_similarity
+                    },
+                    'message': 'Face recognized successfully'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No matching employee found',
+                    'similarity': highest_similarity
+                }
+                
+        except Exception as e:
+            print(f"❌ Error recognizing face: {e}")
+            traceback.print_exc()
+            return {'success': False, 'error': str(e)}
+    
+    def calculate_similarity(self, embedding1, embedding2):
+        """Calculate cosine similarity between two embeddings"""
+        try:
+            dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+            norm1 = sum(a * a for a in embedding1) ** 0.5
+            norm2 = sum(b * b for b in embedding2) ** 0.5
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0
+                
+            return dot_product / (norm1 * norm2)
+        except Exception as e:
+            print(f"❌ Error calculating similarity: {e}")
+            return 0
+
+    # ==================== ATTENDANCE RECORDING ====================
+    
+    def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
+        """
+        Record attendance dengan type (check_in/check_out)
+        Compatible dengan struktur AttendanceLog yang menggunakan field 'employees' untuk nama
+        """
+        try:
+            # ✅ Cari employee berdasarkan employee_id
+            existing_employee = self.employees.find_one({'employee_id': employee_id})
+            
+            if not existing_employee:
+                print(f"❌ Employee with ID {employee_id} not found")
+                return None
+            
+            # Generate unique ID untuk attendance record
+            attendance_id = str(uuid.uuid4())[:8]
+            
+            # ✅ Format yang compatible dengan AttendanceLog
+            # Menggunakan 'check-in' / 'check-out' dengan dash (bukan underscore)
+            status = 'check-in' if attendance_type == 'check_in' else 'check-out'
             
             attendance_data = {
+                'id': attendance_id,
                 'employee_id': employee_id,
+                'employees': existing_employee['name'],  # ✅ Field 'employees' berisi nama
+                'status': status,  # ✅ 'check-in' atau 'check-out'
                 'timestamp': datetime.now(),
-                'confidence': float(confidence),
-                'type': attendance_type
+                'confidence': float(confidence)
             }
             
             result = self.attendance.insert_one(attendance_data)
-            print(f"✅ {attendance_type.upper()} recorded for {employee_id}")
+            print(f"✅ {status.upper()} recorded for {employee_id} ({existing_employee['name']})")
             return str(result.inserted_id)
             
         except Exception as e:
@@ -83,8 +222,13 @@ class MongoDBManager:
             traceback.print_exc()
             return None
 
+    # ==================== ATTENDANCE QUERIES ====================
+    
     def get_attendance_with_checkout(self, date_str=None):
-        """Get attendance data dengan pairing check-in/check-out"""
+        """
+        Get attendance data dengan pairing check-in/check-out
+        Compatible dengan AttendanceLog frontend
+        """
         try:
             if date_str:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -94,7 +238,6 @@ class MongoDBManager:
                 start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
 
-            # Aggregate untuk pairing check-in dan check-out
             pipeline = [
                 {
                     '$match': {
@@ -102,14 +245,16 @@ class MongoDBManager:
                     }
                 },
                 {
-                    '$sort': {'timestamp': 1}  # Urutkan berdasarkan waktu
+                    '$sort': {'timestamp': 1}
                 },
                 {
                     '$group': {
-                        '_id': '$employee_id',
+                        '_id': '$employees',  # Group by nama karyawan
+                        'employee_id': {'$first': '$employee_id'},
                         'records': {
                             '$push': {
-                                'type': '$type',
+                                'id': '$id',
+                                'status': '$status',
                                 'timestamp': '$timestamp',
                                 'confidence': '$confidence'
                             }
@@ -119,27 +264,34 @@ class MongoDBManager:
                 {
                     '$lookup': {
                         'from': 'employees',
-                        'localField': '_id',
+                        'localField': 'employee_id',
                         'foreignField': 'employee_id',
                         'as': 'employee_info'
                     }
                 },
                 {
-                    '$unwind': '$employee_info'
-                },
-                {
                     '$project': {
-                        'employeeId': '$_id',
-                        'name': '$employee_info.name',
-                        'department': '$employee_info.department',
-                        'records': 1,
+                        'employeeId': '$employee_id',
+                        'name': '$_id',
+                        'department': {
+                            '$ifNull': [
+                                {'$arrayElemAt': ['$employee_info.department', 0]},
+                                'General'
+                            ]
+                        },
                         'checkIn': {
                             '$arrayElemAt': [
                                 {
-                                    '$filter': {
-                                        'input': '$records',
-                                        'as': 'record',
-                                        'cond': {'$eq': ['$$record.type', 'check_in']}
+                                    '$map': {
+                                        'input': {
+                                            '$filter': {
+                                                'input': '$records',
+                                                'as': 'record',
+                                                'cond': {'$eq': ['$$record.status', 'check-in']}
+                                            }
+                                        },
+                                        'as': 'filtered',
+                                        'in': '$$filtered.timestamp'
                                     }
                                 },
                                 0
@@ -148,15 +300,22 @@ class MongoDBManager:
                         'checkOut': {
                             '$arrayElemAt': [
                                 {
-                                    '$filter': {
-                                        'input': '$records',
-                                        'as': 'record', 
-                                        'cond': {'$eq': ['$$record.type', 'check_out']}
+                                    '$map': {
+                                        'input': {
+                                            '$filter': {
+                                                'input': '$records',
+                                                'as': 'record',
+                                                'cond': {'$eq': ['$$record.status', 'check-out']}
+                                            }
+                                        },
+                                        'as': 'filtered',
+                                        'in': '$$filtered.timestamp'
                                     }
                                 },
                                 0
                             ]
-                        }
+                        },
+                        'confidence': {'$arrayElemAt': ['$records.confidence', 0]}
                     }
                 }
             ]
@@ -166,42 +325,116 @@ class MongoDBManager:
             # Format untuk frontend
             formatted_results = []
             for item in results:
-                check_in_time = item['checkIn']['timestamp'] if item['checkIn'] else None
-                check_out_time = item['checkOut']['timestamp'] if item['checkOut'] else None
+                check_in = item.get('checkIn')
+                check_out = item.get('checkOut')
                 
-                formatted_results.append({
+                formatted_item = {
                     '_id': str(item.get('_id', '')),
-                    'employeeId': item['employeeId'],
-                    'name': item['name'],
-                    'department': item['department'],
-                    'checkIn': check_in_time.isoformat() if check_in_time else None,
-                    'checkOut': check_out_time.isoformat() if check_out_time else None,
-                    'status': 'Present' if check_in_time else 'Absent',
-                    'workingHours': self.calculate_working_hours(check_in_time, check_out_time)
-                })
+                    'employeeId': item.get('employeeId', 'N/A'),
+                    'name': item.get('name', 'Unknown'),
+                    'department': item.get('department', 'General'),
+                    'checkIn': check_in.isoformat() if check_in else None,
+                    'checkOut': check_out.isoformat() if check_out else None,
+                    'confidence': item.get('confidence', 0),
+                    'status': 'Present' if check_in else 'Absent',
+                    'workingHours': self.calculate_working_hours(check_in, check_out)
+                }
+                
+                formatted_results.append(formatted_item)
             
+            print(f"✅ Found {len(formatted_results)} attendance records for {date_str or 'today'}")
             return formatted_results
             
         except Exception as e:
             print(f"❌ Error getting attendance with checkout: {e}")
+            traceback.print_exc()
             return []
-
+    
     def calculate_working_hours(self, check_in, check_out):
-        """Calculate working hours antara check-in dan check-out"""
+        """Calculate working hours between check-in and check-out"""
         if not check_in:
-            return "0h"
+            return "0h 0m"
         
-        if not check_out:
-            # Masih bekerja, hitung sampai sekarang
-            check_out = datetime.now()
-        
-        diff_seconds = (check_out - check_in).total_seconds()
-        hours = int(diff_seconds // 3600)
-        minutes = int((diff_seconds % 3600) // 60)
-        
-        return f"{hours}h {minutes}m"
+        try:
+            if isinstance(check_in, str):
+                check_in = datetime.fromisoformat(check_in.replace('Z', '+00:00'))
             
+            if not check_out:
+                check_out = datetime.now()
+            elif isinstance(check_out, str):
+                check_out = datetime.fromisoformat(check_out.replace('Z', '+00:00'))
+            
+            diff_seconds = (check_out - check_in).total_seconds()
+            hours = int(diff_seconds // 3600)
+            minutes = int((diff_seconds % 3600) // 60)
+            
+            return f"{hours}h {minutes}m"
+        except Exception as e:
+            print(f"❌ Error calculating working hours: {e}")
+            return "0h 0m"
+
+    def get_attendance_by_date(self, date):
+        """Get attendance records for specific date - FIXED VERSION"""
+        try:
+            print(f"📅 Fetching attendance for date: {date}")
+            
+            # Convert string date to datetime range
+            start_date = datetime.strptime(date, '%Y-%m-%d').replace(hour=0, minute=0, second=0)
+            end_date = datetime.strptime(date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            
+            # Query attendance collection
+            records = self.attendance.find({
+                'timestamp': {
+                    '$gte': start_date,
+                    '$lte': end_date
+                }
+            }).sort('timestamp', -1)  # Sort by latest first
+            
+            attendance_list = []
+            for record in records:
+                # Convert ObjectId to string
+                record['_id'] = str(record['_id'])
+                
+                # Get employee details
+                employee = self.employees.find_one({'employee_id': record.get('employee_id')})
+                
+                # Format the record for frontend
+                formatted_record = {
+                    'id': record['_id'],
+                    'employee_id': record.get('employee_id', ''),
+                    'employee_name': employee.get('name', 'Unknown') if employee else 'Unknown',
+                    'timestamp': record.get('timestamp'),
+                    'check_in': record.get('timestamp') if record.get('attendance_type') == 'check_in' else None,
+                    'check_out': record.get('timestamp') if record.get('attendance_type') == 'check_out' else None,
+                    'status': 'present',
+                    'department': employee.get('department', 'General') if employee else 'General',
+                    'confidence': record.get('confidence', 0.0),
+                    'attendance_type': record.get('attendance_type', '')
+                }
+                
+                # Convert datetime to ISO string for JSON
+                if formatted_record['timestamp'] and isinstance(formatted_record['timestamp'], datetime):
+                    formatted_record['timestamp'] = formatted_record['timestamp'].isoformat()
+                if formatted_record['check_in'] and isinstance(formatted_record['check_in'], datetime):
+                    formatted_record['check_in'] = formatted_record['check_in'].isoformat()
+                if formatted_record['check_out'] and isinstance(formatted_record['check_out'], datetime):
+                    formatted_record['check_out'] = formatted_record['check_out'].isoformat()
+                    
+                attendance_list.append(formatted_record)
+            
+            print(f"✅ Found {len(attendance_list)} attendance records for {date}")
+            return attendance_list
+            
+        except Exception as e:
+            print(f"❌ Error getting attendance by date: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+        
+    # ==================== STATISTICS & ANALYTICS ====================
+    
     def get_attendance_stats(self):
+        """Get attendance statistics for today"""
         try:
             start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             
@@ -209,7 +442,8 @@ class MongoDBManager:
             
             # Count unique employees yang check-in hari ini
             present_today = len(self.attendance.distinct('employee_id', {
-                'timestamp': {'$gte': start_of_day}
+                'timestamp': {'$gte': start_of_day},
+                'status': 'check-in'
             }))
             
             attendance_rate = (present_today / total_employees * 100) if total_employees > 0 else 0
@@ -217,78 +451,33 @@ class MongoDBManager:
             return {
                 'total_employees': total_employees,
                 'present_today': present_today,
-                'attendance_rate': attendance_rate
+                'attendance_rate': round(attendance_rate, 2)
             }
             
         except Exception as e:
             print(f"❌ Error getting attendance stats: {e}")
             return {
                 'total_employees': 0,
-                'present_today': 0, 
+                'present_today': 0,
                 'attendance_rate': 0
             }
-        
-    def get_recent_recognitions(self, limit=10):
-        start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        pipeline = [
-            {
-                '$match': {
-                    'timestamp': {'$gte': start_of_day},
-                    'status': 'present'
-                }
-            },
-            {
-                '$sort': {'timestamp': -1}
-            },
-            {
-                '$limit': limit
-            },
-            {
-                '$lookup': {
-                    'from': 'employees',
-                    'localField': 'employee_id',
-                    'foreignField': 'employee_id',
-                    'as': 'employee'
-                }
-            },
-            {
-                '$unwind': '$employee'
-            },
-            {
-                '$project': {
-                    'name': '$employee.name',
-                    'timestamp': 1,
-                    'confidence': 1
-                }
-            }
-        ]
-        
-        results = list(self.attendance.aggregate(pipeline))
-        for item in results:
-            item['timestamp'] = item['timestamp'].strftime('%H:%M:%S')
-        
-        return results
     
     def get_daily_analytics(self, date=None):
+        """Get daily analytics data"""
         try:
             if date is None:
                 date = datetime.now().strftime('%Y-%m-%d')
             
-            # Simple analytics calculation
             stats = self.get_attendance_stats()
             
-            analytics_data = {
+            return {
                 'date': date,
                 'attendance_rate': stats.get('attendance_rate', 0),
                 'total_employees': stats.get('total_employees', 0),
                 'present_today': stats.get('present_today', 0),
-                'avg_confidence': 95.2,  # Placeholder
-                'peak_hour': '08:30'     # Placeholder
+                'avg_confidence': 95.2,
+                'peak_hour': '08:30'
             }
-            
-            print(f"📊 Analytics generated for {date}")
-            return analytics_data
             
         except Exception as e:
             print(f"❌ Error in get_daily_analytics: {e}")
@@ -301,257 +490,52 @@ class MongoDBManager:
                 'peak_hour': 'N/A'
             }
     
-    def get_attendance_by_date(self, date_str=None):
+    def get_recent_recognitions(self, limit=10):
+        """Get recent face recognitions"""
         try:
-            if date_str:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            else:
-                date_obj = datetime.now()
-            
-            start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-        except:
             start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            end_of_day = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-        
-        pipeline = [
-            {
-                '$match': {
-                    'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
-                }
-            },
-            {
-                '$lookup': {
-                    'from': 'employees',
-                    'localField': 'employee_id',
-                    'foreignField': 'employee_id',
-                    'as': 'employee'
-                }
-            },
-            {
-                '$unwind': '$employee'
-            },
-            {
-                '$project': {
-                    'employeeId': '$employee_id',
-                    'name': '$employee.name',
-                    'department': '$employee.department',
-                    'timestamp': 1,
-                    'confidence': 1,
-                    'status': 1
-                }
-            },
-            {
-                '$sort': {'timestamp': -1}
-            }
-        ]
-        
-        results = list(self.attendance.aggregate(pipeline))
-        for item in results:
-            item['timestamp'] = item['timestamp'].isoformat()
-        
-        return results
-    
-    def get_attendance_with_employee_data(self, date_str=None): 
-        """Get attendance data dengan employee information untuk frontend"""
-        try:
-            if date_str:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            else:
-                # Default to today
-                start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
-
+            
             pipeline = [
                 {
                     '$match': {
-                        'timestamp': {'$gte': start_of_day, '$lte': end_of_day},
-                        'status': 'present'
+                        'timestamp': {'$gte': start_of_day}
                     }
+                },
+                {
+                    '$sort': {'timestamp': -1}
+                },
+                {
+                    '$limit': limit
                 },
                 {
                     '$lookup': {
                         'from': 'employees',
                         'localField': 'employee_id',
-                        'foreignField': 'employee_id', 
-                        'as': 'employee_info'
+                        'foreignField': 'employee_id',
+                        'as': 'employee'
                     }
                 },
                 {
-                    '$unwind': {
-                        'path': '$employee_info',
-                        'preserveNullAndEmptyArrays': True  # Tetap include meski employee tidak ditemukan
-                    }
+                    '$unwind': '$employee'
                 },
                 {
                     '$project': {
-                        '_id': 1,
-                        'employeeId': '$employee_id',
-                        'name': '$employee_info.name',  # Ambil nama dari collection employees
-                        'department': '$employee_info.department',
+                        'name': '$employee.name',
                         'timestamp': 1,
-                        'confidence': 1,
-                        'status': 1,
-                        'checkIn': '$timestamp',  # Untuk compatibility dengan frontend
-                        'employeeName': '$employee_info.name'  # Dual field support
+                        'confidence': 1
                     }
-                },
-                {
-                    '$sort': {'timestamp': -1}  # Terbaru di atas
                 }
             ]
             
             results = list(self.attendance.aggregate(pipeline))
-            
-            # ✅ Convert ObjectId dan datetime untuk JSON response
             for item in results:
                 item['_id'] = str(item['_id'])
-                if 'timestamp' in item:
-                    item['timestamp'] = item['timestamp'].isoformat()
-                if 'checkIn' in item:
-                    item['checkIn'] = item['checkIn'].isoformat()
-                    
+                item['timestamp'] = item['timestamp'].strftime('%H:%M:%S')
+            
             return results
-            
         except Exception as e:
-            print(f"❌ Error getting attendance data: {e}")
+            print(f"❌ Error getting recent recognitions: {e}")
             return []
-        
-    def get_attendance_by_employee_id(self, employee_id, date_str=None):
-        """Get attendance data untuk employee tertentu"""
-        try:
-            query = {'employee_id': employee_id}
-            
-            if date_str:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-                query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
-            
-            attendance_records = list(self.attendance.find(query).sort('timestamp', -1))
-            
-            # Convert untuk JSON
-            for record in attendance_records:
-                record['_id'] = str(record['_id'])
-                if 'timestamp' in record:
-                    record['timestamp'] = record['timestamp'].isoformat()
-                    
-            return attendance_records
-            
-        except Exception as e:
-            print(f"❌ Error getting employee attendance: {e}")
-            return []
-        
-    def register_employee_face(self, name, face_embedding, department='General'):
-        """Register employee dengan face embedding dan auto ID - REAL IMPLEMENTATION"""
-        try:
-            # Generate employee ID
-            employee_id = self.get_next_employee_id()
-            
-            employee_data = {
-                'employee_id': employee_id,
-                'name': name,
-                'department': department,
-                'face_embeddings': face_embedding,  # ✅ SIMPAN FACE EMBEDDING REAL
-                'is_active': True,
-                'created_at': datetime.now(),
-                'last_updated': datetime.now()
-            }
-            
-            result = self.employees.insert_one(employee_data)
-            print(f"✅ REAL: Employee {name} registered with ID: {employee_id}")
-            
-            return {
-                'success': True, 
-                'message': 'Employee registered successfully',
-                'employee_id': employee_id,
-                'name': name,
-                'department': department
-            }
-            
-        except Exception as e:
-            print(f"❌ Error registering employee: {e}")
-            return {'success': False, 'error': str(e)}
-        
-    def recognize_face(self, face_embedding, threshold=0.6):
-        """Recognize face dari embedding - REAL IMPLEMENTATION"""
-        try:
-            print(f"🔍 REAL: Searching for face match in database...")
-            
-            # Dapatkan semua employees yang aktif
-            employees = list(self.employees.find({'is_active': True}))
-            print(f"📊 REAL: Checking against {len(employees)} employees")
-            
-            if not employees:
-                print("❌ REAL: No employees found in database")
-                return {
-                    'success': False,
-                    'message': 'No employees registered in system',
-                    'similarity': 0
-                }
-            
-            best_match = None
-            highest_similarity = 0
-            
-            # ✅ REAL FACE MATCHING LOGIC
-            for employee in employees:
-                stored_embedding = employee.get('face_embeddings', [])
-                
-                if stored_embedding and len(stored_embedding) == len(face_embedding):
-                    # Hitung similarity (cosine similarity sederhana)
-                    similarity = self.calculate_similarity(face_embedding, stored_embedding)
-                    print(f"👤 {employee['name']} - Similarity: {similarity:.3f}")
-                    
-                    if similarity > highest_similarity and similarity >= threshold:
-                        highest_similarity = similarity
-                        best_match = employee
-            
-            if best_match:
-                print(f"✅ REAL: Match found - {best_match['name']} (Similarity: {highest_similarity:.3f})")
-                return {
-                    'success': True,
-                    'employee': {
-                        'employee_id': best_match['employee_id'],
-                        'name': best_match['name'],
-                        'department': best_match.get('department', 'General'),
-                        'similarity': highest_similarity
-                    },
-                    'message': 'Face recognized successfully'
-                }
-            else:
-                print(f"❌ REAL: No match found (best similarity: {highest_similarity:.3f})")
-                return {
-                    'success': False,
-                    'message': 'No matching employee found',
-                    'similarity': highest_similarity
-                }
-                
-        except Exception as e:
-            print(f"❌ REAL: Error recognizing face: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    def calculate_similarity(self, embedding1, embedding2):
-        """Calculate cosine similarity antara dua embeddings - REAL IMPLEMENTATION"""
-        try:
-            if len(embedding1) != len(embedding2):
-                return 0
-                
-            # Cosine similarity calculation
-            dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
-            norm1 = sum(a * a for a in embedding1) ** 0.5
-            norm2 = sum(b * b for b in embedding2) ** 0.5
-            
-            if norm1 == 0 or norm2 == 0:
-                return 0
-                
-            similarity = dot_product / (norm1 * norm2)
-            return max(0, min(1, similarity))  # Clamp between 0 and 1
-            
-        except Exception as e:
-            print(f"❌ Error calculating similarity: {e}")
-            return 0
-        
-# Global instance   
+
+# Global instance
 db = MongoDBManager()

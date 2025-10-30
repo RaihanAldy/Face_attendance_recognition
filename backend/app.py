@@ -94,13 +94,19 @@ def check_out():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/attendance/log', methods=['GET'])
+
+@app.route('/api/attendance', methods=['GET'])
 def get_attendance_log():
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        attendance_data = db.get_attendance_by_date(date)
         
-        # ✅ GUNAKAN MONGODB, BUKAN IN-MEMORY
-        attendance_data = db.get_attendance_with_checkout(date)
+        # ✅ Data sudah diformat di mongo_db.py, langsung return
+        print(f"📤 Sending {len(attendance_data)} records to frontend")
+        
+        # Debug: print sample data
+        if attendance_data and len(attendance_data) > 0:
+            print(f"📋 Sample data: {attendance_data[0]}")
         
         return jsonify(attendance_data)
         
