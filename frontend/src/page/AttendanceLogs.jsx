@@ -180,7 +180,7 @@ const AttendanceLog = () => {
                   {getTableHeaders(filter, checkFilters).map((header, i) => (
                     <th
                       key={i}
-                      className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider"
+                      className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider"
                     >
                       {header}
                     </th>

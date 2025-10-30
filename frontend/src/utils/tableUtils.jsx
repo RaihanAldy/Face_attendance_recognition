@@ -50,7 +50,7 @@ export const renderTableCell = (record, header, index) => {
       return (
         <td key={index} className={`${baseClass} capitalize`}>
           <span
-            className={`px-2 py-1 rounded-full text-xs ${
+            className={`px-2 py-1 rounded-full ${
               record.status === "ontime"
                 ? "bg-green-500/20 text-green-400"
                 : record.status === "late"
@@ -74,7 +74,7 @@ export const renderTableCell = (record, header, index) => {
       return (
         <td key={index} className={`${baseClass} capitalize`}>
           <span
-            className={`px-2 py-1 rounded-full text-xs ${
+            className={`px-2 py-1 rounded-full ${
               displayAction === "check-in"
                 ? "bg-green-500/20 text-green-400"
                 : displayAction === "check-out"
@@ -126,7 +126,7 @@ export const renderTableCell = (record, header, index) => {
       return (
         <td key={index} className={baseClass}>
           {record.checkOut ? (
-            <div className="flex flex-row items-center justify-baseline space-x-1">
+            <div className="flex flex-row items-center justify-baseline space-x-1 ">
               <span className="bg-blue-600 rounded-full px-2 py-0.5 text-slate-200">
                 {formatDateTime(record.checkOut)}
               </span>

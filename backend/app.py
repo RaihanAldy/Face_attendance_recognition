@@ -249,11 +249,14 @@ def recognize_face_embedding():
 
 @app.route('/api/register', methods=['POST'])
 def register_employee():
-    """Register new employee with face embedding"""
+    """Register new employee with face embedding and complete data"""
     try:
         data = request.json
         name = data.get('name')
         department = data.get('department', 'General')
+        position = data.get('position', '')
+        email = data.get('email', '')
+        phone = data.get('phone', '')
         face_embedding = data.get('faceEmbedding')
         
         # Validation
@@ -263,16 +266,26 @@ def register_employee():
         if not face_embedding or not isinstance(face_embedding, list):
             return jsonify({'success': False, 'error': 'Invalid face embedding'}), 400
         
-        print(f"📝 Registration request - name: {name}, dept: {department}, embedding size: {len(face_embedding)}")
+        print(f"📝 Registration request - name: {name}, dept: {department}, position: {position}")
+        print(f"📧 Contact: {email} | {phone}, embedding size: {len(face_embedding)}")
         
-        # Call MongoDB registration
-        result = db.register_employee_face(name, face_embedding, department)
+        # Call MongoDB registration with new fields
+        result = db.register_employee_face(
+            name=name,
+            face_embedding=face_embedding,
+            department=department,
+            position=position,
+            email=email,
+            phone=phone
+        )
         
         if result.get('success'):
-            print(f"✅ Employee registered: {result['employee_id']} - {name}")
+            employee_id = result.get('employee_id')
+            print(f"✅ Employee registered successfully: {employee_id} - {name}")
             return jsonify(result), 201
         else:
-            print(f"❌ Registration failed: {result.get('error')}")
+            error_msg = result.get('error', 'Unknown error')
+            print(f"❌ Registration failed: {error_msg}")
             return jsonify(result), 500
         
     except Exception as e:
