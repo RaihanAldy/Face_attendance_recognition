@@ -340,6 +340,8 @@ export default function FaceScan() {
     }
   };
 
+  // ✅ Update recordAttendance function di FaceScan.jsx
+
   const recordAttendance = async (employeeId, confidence, type) => {
     try {
       // ✅ Jika checkout, tampilkan konfirmasi
@@ -382,10 +384,52 @@ export default function FaceScan() {
       const result = await response.json();
       console.log(`✅ ${type.toUpperCase()} recorded:`, result);
 
-      // ✅ Tampilkan alert sukses otomatis 5 detik
+      // ✅ Ambil attendance status dari response
+      const attendanceStatus = result.attendanceStatus || "on-time";
+
+      // ✅ Mapping status ke emoji dan text
+      const statusConfig = {
+        "on-time": {
+          emoji: "✅",
+          text: "Tepat Waktu",
+          color: "green",
+        },
+        late: {
+          emoji: "⏰",
+          text: "Terlambat",
+          color: "orange",
+        },
+        early: {
+          emoji: "⚡",
+          text: "Pulang Cepat",
+          color: "yellow",
+        },
+      };
+
+      const status = statusConfig[attendanceStatus] || statusConfig["on-time"];
+
+      // ✅ Tampilkan alert sukses dengan status
       await MySwal.fire({
         title: "Berhasil!",
-        text: type === "check_in" ? "Check-In berhasil" : "Check-Out berhasil",
+        html: `
+        <div style="text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 16px;">${
+            status.emoji
+          }</div>
+          <p style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">
+            ${type === "check_in" ? "Check-In" : "Check-Out"} berhasil
+          </p>
+          <p style="font-size: 16px; color: ${
+            status.color === "green"
+              ? "#10b981"
+              : status.color === "orange"
+              ? "#f59e0b"
+              : "#eab308"
+          };">
+            Status: ${status.text}
+          </p>
+        </div>
+      `,
         icon: "success",
         timer: 5000,
         timerProgressBar: true,

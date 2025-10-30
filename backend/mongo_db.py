@@ -1,5 +1,6 @@
 from pymongo import MongoClient
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+import calendar
 import os
 from dotenv import load_dotenv
 import traceback
@@ -32,8 +33,8 @@ class MongoDBManager:
                     'startTime': '08:00',
                     'endTime': '17:00',
                     'syncFrequency': 15,
-                    'lateThreshold': 15,  # Toleransi terlambat (menit)
-                    'earlyLeaveThreshold': 30,  # Toleransi pulang cepat (menit)
+                    'lateThreshold': 15,
+                    'earlyLeaveThreshold': 30,
                     'created_at': datetime.now(),
                     'updated_at': datetime.now()
                 }
@@ -42,7 +43,7 @@ class MongoDBManager:
         except Exception as e:
             print(f"⚠️ Error initializing default settings: {e}")
 
-# ==================== SETTINGS MANAGEMENT ====================
+    # ==================== SETTINGS MANAGEMENT ====================
 
     def get_settings(self):
         """Get current system settings"""
@@ -64,25 +65,21 @@ class MongoDBManager:
     def update_settings(self, settings_data):
         """Update system settings"""
         try:
-            # Validasi input
             required_fields = ['startTime', 'endTime', 'syncFrequency']
             for field in required_fields:
                 if field not in settings_data:
                     return {'success': False, 'error': f'Missing required field: {field}'}
             
-            # Validasi waktu
             start_time = settings_data['startTime']
             end_time = settings_data['endTime']
             
             if start_time >= end_time:
                 return {'success': False, 'error': 'End time must be after start time'}
             
-            # Validasi sync frequency
             sync_freq = int(settings_data['syncFrequency'])
             if sync_freq < 1:
                 return {'success': False, 'error': 'Sync frequency must be at least 1 minute'}
             
-            # Update settings
             update_data = {
                 'startTime': start_time,
                 'endTime': end_time,
@@ -133,6 +130,53 @@ class MongoDBManager:
         self.attendance.create_index([('timestamp', -1)])
         self.attendance.create_index('employees')
         print("✅ Database indexes created")
+
+    # ==================== ATTENDANCE STATUS CALCULATION ====================
+    
+    def calculate_attendance_status(self, timestamp, action):
+        """
+        Calculate attendance status based on time and settings
+        For check_in: 'ontime' or 'late'
+        For check_out: 'ontime' or 'early'
+        """
+        try:
+            schedule = self.get_work_schedule()
+            if not schedule:
+                return 'ontime'
+            
+            start_time_str = schedule['start_time']
+            end_time_str = schedule['end_time']
+            
+            start_hour, start_min = map(int, start_time_str.split(':'))
+            end_hour, end_min = map(int, end_time_str.split(':'))
+            
+            start_time = time(start_hour, start_min)
+            end_time = time(end_hour, end_min)
+            
+            current_time = timestamp.time()
+            
+            if action == 'check_in':
+                # Check-in <= startTime = ontime
+                # Check-in > startTime = late
+                if current_time <= start_time:
+                    return 'ontime'
+                else:
+                    return 'late'
+            
+            elif action == 'check_out':
+                # Check-out < endTime = early
+                # Check-out >= endTime = ontime
+                if current_time < end_time:
+                    return 'early'
+                else:
+                    return 'ontime'
+            
+            return 'ontime'
+            
+        except Exception as e:
+            print(f"❌ Error calculating attendance status: {e}")
+            traceback.print_exc()
+            return 'ontime'
 
     # ==================== EMPLOYEE MANAGEMENT ====================
     
@@ -288,50 +332,85 @@ class MongoDBManager:
     # ==================== ATTENDANCE RECORDING ====================
     
     def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
-        """
-        Record attendance dengan type (check_in/check_out)
-        Compatible dengan struktur AttendanceLog yang menggunakan field 'employees' untuk nama
-        """
+    
         try:
-            # Cari employee berdasarkan employee_id
+        # 🧩 Ambil data karyawan
             existing_employee = self.employees.find_one({'employee_id': employee_id})
-            
             if not existing_employee:
                 print(f"❌ Employee with ID {employee_id} not found")
                 return None
-            
-            # Generate unique ID untuk attendance record
-            attendance_id = str(uuid.uuid4())[:8]
-            
-            # Format yang compatible dengan AttendanceLog
-            # Menggunakan 'check-in' / 'check-out' dengan dash (bukan underscore)
-            status = 'check-in' if attendance_type == 'check_in' else 'check-out'
-            
+
+            current_timestamp = datetime.now()
+            schedule = self.get_work_schedule()
+            status = self.calculate_attendance_status(current_timestamp, attendance_type)
+
+            # 🗓️ Tambahan field analitik
+            date_str = current_timestamp.strftime('%Y-%m-%d')
+            day_of_week = calendar.day_name[current_timestamp.weekday()]
+            department = existing_employee.get('department', 'General')
+
+            # 🕒 Hitung keterlambatan dan durasi kerja (sementara)
+            lateness_minutes = 0
+            work_duration = 0
+
+            # Hitung keterlambatan hanya untuk check-in
+            if attendance_type == 'check_in' and schedule:
+                start_hour, start_min = map(int, schedule['start_time'].split(':'))
+                start_time_today = current_timestamp.replace(hour=start_hour, minute=start_min, second=0, microsecond=0)
+                if current_timestamp > start_time_today:
+                    lateness_minutes = int((current_timestamp - start_time_today).total_seconds() // 60)
+
+            # Hitung durasi kerja jika ini check-out
+            if attendance_type == 'check_out':
+                today_records = list(self.attendance.find({
+                    'employee_id': employee_id,
+                    'date': date_str,
+                    'action': 'check_in'
+                }).sort('timestamp', 1))
+
+                if today_records:
+                    check_in_time = today_records[0]['timestamp']
+                    work_duration = int((current_timestamp - check_in_time).total_seconds() // 60)  # dalam menit
+
+            # 📦 Buat data yang akan disimpan
             attendance_data = {
                 'employee_id': employee_id,
-                'employees': existing_employee['name'],  # Field 'employees' berisi nama
-                'status': status,  # 'check-in' atau 'check-out'
-                'action': attendance_type,  # 'check_in' atau 'check_out'
-                'timestamp': datetime.now(),
+                'employees': existing_employee['name'],
+                'status': status,  # 'ontime', 'late', 'early'
+                'action': attendance_type.replace('_', '-'),  # ubah jadi check-in/check-out
+                'timestamp': current_timestamp,
+                'date': date_str,
+                'day_of_week': day_of_week,
+                'department': department,
+                'work_duration': work_duration,       # menit
+                'lateness_minutes': lateness_minutes, # menit
                 'confidence': float(confidence)
             }
-            
+
             result = self.attendance.insert_one(attendance_data)
-            print(f"✅ {status.upper()} recorded for {employee_id} ({existing_employee['name']})")
-            return str(result.inserted_id)
-            
+
+            # 🟢 Logging
+            emoji = {'ontime': '✅', 'late': '⏰', 'early': '⚡'}.get(status, '📝')
+            print(f"{emoji} {attendance_type.upper()} - {existing_employee['name']} ({department}) | "
+                f"Status: {status.upper()} | Late: {lateness_minutes}m | Work: {work_duration}m")
+
+            return {
+                'success': True,
+                'id': str(result.inserted_id),
+                'status': status,
+                'lateness_minutes': lateness_minutes,
+                'work_duration': work_duration
+            }
+
         except Exception as e:
-            print(f"❌ Error recording {attendance_type}: {e}")
+            print(f"❌ Error recording attendance: {e}")
             traceback.print_exc()
-            return None
+            return {'success': False, 'error': str(e)}
 
     # ==================== ATTENDANCE QUERIES ====================
     
     def get_attendance_with_checkout(self, date_str=None):
-        """
-        Get attendance data dengan pairing check-in/check-out
-        Compatible dengan AttendanceLog frontend
-        """
+        """Get attendance data dengan pairing check-in/check-out"""
         try:
             if date_str:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -352,11 +431,10 @@ class MongoDBManager:
                 },
                 {
                     '$group': {
-                        '_id': '$employees',  # Group by nama karyawan
-                        'employee_id': {'$first': '$employee_id'},
+                        '_id': '$employee_id',
                         'records': {
                             '$push': {
-                                'id': '$id',
+                                'action': '$action',
                                 'status': '$status',
                                 'timestamp': '$timestamp',
                                 'confidence': '$confidence'
@@ -367,15 +445,20 @@ class MongoDBManager:
                 {
                     '$lookup': {
                         'from': 'employees',
-                        'localField': 'employee_id',
+                        'localField': '_id',
                         'foreignField': 'employee_id',
                         'as': 'employee_info'
                     }
                 },
                 {
                     '$project': {
-                        'employeeId': '$employee_id',
-                        'name': '$_id',
+                        'employeeId': '$_id',
+                        'name': {
+                            '$ifNull': [
+                                {'$arrayElemAt': ['$employee_info.name', 0]},
+                                'Unknown'
+                            ]
+                        },
                         'department': {
                             '$ifNull': [
                                 {'$arrayElemAt': ['$employee_info.department', 0]},
@@ -390,11 +473,29 @@ class MongoDBManager:
                                             '$filter': {
                                                 'input': '$records',
                                                 'as': 'record',
-                                                'cond': {'$eq': ['$$record.status', 'check-in']}
+                                                'cond': {'$eq': ['$$record.action', 'check_in']}
                                             }
                                         },
                                         'as': 'filtered',
                                         'in': '$$filtered.timestamp'
+                                    }
+                                },
+                                0
+                            ]
+                        },
+                        'checkInStatus': {
+                            '$arrayElemAt': [
+                                {
+                                    '$map': {
+                                        'input': {
+                                            '$filter': {
+                                                'input': '$records',
+                                                'as': 'record',
+                                                'cond': {'$eq': ['$$record.action', 'check_in']}
+                                            }
+                                        },
+                                        'as': 'filtered',
+                                        'in': '$$filtered.status'
                                     }
                                 },
                                 0
@@ -408,11 +509,29 @@ class MongoDBManager:
                                             '$filter': {
                                                 'input': '$records',
                                                 'as': 'record',
-                                                'cond': {'$eq': ['$$record.status', 'check-out']}
+                                                'cond': {'$eq': ['$$record.action', 'check_out']}
                                             }
                                         },
                                         'as': 'filtered',
                                         'in': '$$filtered.timestamp'
+                                    }
+                                },
+                                0
+                            ]
+                        },
+                        'checkOutStatus': {
+                            '$arrayElemAt': [
+                                {
+                                    '$map': {
+                                        'input': {
+                                            '$filter': {
+                                                'input': '$records',
+                                                'as': 'record',
+                                                'cond': {'$eq': ['$$record.action', 'check_out']}
+                                            }
+                                        },
+                                        'as': 'filtered',
+                                        'in': '$$filtered.status'
                                     }
                                 },
                                 0
@@ -425,7 +544,6 @@ class MongoDBManager:
             
             results = list(self.attendance.aggregate(pipeline))
             
-            # Format untuk frontend
             formatted_results = []
             for item in results:
                 check_in = item.get('checkIn')
@@ -437,7 +555,9 @@ class MongoDBManager:
                     'name': item.get('name', 'Unknown'),
                     'department': item.get('department', 'General'),
                     'checkIn': check_in.isoformat() if check_in else None,
+                    'checkInStatus': item.get('checkInStatus', 'ontime'),
                     'checkOut': check_out.isoformat() if check_out else None,
+                    'checkOutStatus': item.get('checkOutStatus', 'ontime'),
                     'confidence': item.get('confidence', 0),
                     'status': 'Present' if check_in else 'Absent',
                     'workingHours': self.calculate_working_hours(check_in, check_out)
@@ -454,29 +574,23 @@ class MongoDBManager:
             return []
     
     def get_attendance_by_date(self, date_str=None):
-        """Get raw attendance records by date - supports 'all' filter"""
+        """Get raw attendance records by date"""
         try:
-            # Handle 'all' filter - get all records without date filtering
             if date_str == 'all':
                 query = {}
-                print("📅 Fetching ALL attendance records (no date filter)")
             elif date_str:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                 start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
                 query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
-                print(f"📅 Fetching attendance records for date: {date_str}")
             else:
-                # Default to today
                 date_obj = datetime.now()
                 start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
                 query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
-                print(f"📅 Fetching attendance records for today")
             
             results = list(self.attendance.find(query).sort('timestamp', -1))
             
-            # Format untuk frontend
             formatted_results = []
             for r in results:
                 formatted_record = {
@@ -484,15 +598,14 @@ class MongoDBManager:
                     'employeeId': r.get('employee_id', 'N/A'),
                     'name': r.get('employees', 'Unknown'),
                     'employees': r.get('employees', 'Unknown'),
-                    'action': r.get('action', r.get('status', 'check-in')),
-                    'status': r.get('status', 'check-in'),
+                    'action': r.get('action', 'check_in'),
+                    'status': r.get('status', 'ontime'),
                     'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
                     'confidence': float(r.get('confidence', 0))
                 }
                 
                 formatted_results.append(formatted_record)
             
-            print(f"✅ Formatted {len(formatted_results)} attendance records")
             return formatted_results
 
         except Exception as e:
@@ -536,7 +649,6 @@ class MongoDBManager:
             
             attendance_records = list(self.attendance.find(query).sort('timestamp', -1))
             
-            # Convert untuk JSON
             for record in attendance_records:
                 record['_id'] = str(record['_id'])
                 if 'timestamp' in record:
@@ -555,12 +667,11 @@ class MongoDBManager:
         try:
             start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             
-            total_employees = self.employees.count_documents()
+            total_employees = self.employees.count_documents({})
             
-            # Count unique employees yang check-in hari ini
             present_today = len(self.attendance.distinct('employee_id', {
                 'timestamp': {'$gte': start_of_day},
-                'status': 'check-in'
+                'action': 'check_in'
             }))
             
             attendance_rate = (present_today / total_employees * 100) if total_employees > 0 else 0
@@ -627,8 +738,8 @@ class MongoDBManager:
                 },
                 {
                     '$project': {
-                        'id': 1,
                         'employees': 1,
+                        'action': 1,
                         'status': 1,
                         'timestamp': 1,
                         'confidence': 1,

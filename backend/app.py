@@ -143,7 +143,7 @@ def attendance():
 
 @app.route('/api/attendance/checkin', methods=['POST'])
 def check_in():
-    """Record check-in"""
+    """Record check-in with punctuality status"""
     try:
         data = request.json
         employee_id = data.get('employeeId')
@@ -154,15 +154,22 @@ def check_in():
         
         print(f"📥 Check-in request for: {employee_id}")
         
-        attendance_id = db.record_attendance(
+        # ✅ record_attendance now returns dict with 'id' and 'punctuality'
+        result = db.record_attendance(
             employee_id=employee_id,
             confidence=confidence,
             attendance_type='check_in'
         )
         
-        if attendance_id:
-            print(f"✅ Check-in recorded: {employee_id}")
-            return jsonify({'success': True, 'attendanceId': attendance_id})
+        if result:
+            punctuality = result.get('punctuality', 'on-time')
+            print(f"✅ Check-in recorded: {employee_id} - Punctuality: {punctuality}")
+            
+            return jsonify({
+                'success': True,
+                'attendanceId': result['id'],
+                'punctuality': punctuality  # ✅ Send punctuality to frontend
+            })
         else:
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
             
@@ -173,7 +180,7 @@ def check_in():
 
 @app.route('/api/attendance/checkout', methods=['POST'])
 def check_out():
-    """Record check-out"""
+    """Record check-out with punctuality status"""
     try:
         data = request.json
         employee_id = data.get('employeeId')
@@ -184,15 +191,22 @@ def check_out():
         
         print(f"📤 Check-out request for: {employee_id}")
         
-        attendance_id = db.record_attendance(
+        # ✅ record_attendance now returns dict with 'id' and 'punctuality'
+        result = db.record_attendance(
             employee_id=employee_id,
             confidence=confidence,
             attendance_type='check_out'
         )
         
-        if attendance_id:
-            print(f"✅ Check-out recorded: {employee_id}")
-            return jsonify({'success': True, 'attendanceId': attendance_id})
+        if result:
+            punctuality = result.get('punctuality', 'on-time')
+            print(f"✅ Check-out recorded: {employee_id} - Punctuality: {punctuality}")
+            
+            return jsonify({
+                'success': True,
+                'attendanceId': result['id'],
+                'punctuality': punctuality  # ✅ Send punctuality to frontend
+            })
         else:
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
             
