@@ -21,6 +21,64 @@ def health_check():
         'face_model': 'loaded' if face_engine.model else 'error'
     })
 
+# ==================== SETTINGS ENDPOINTS ====================
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def settings():
+    """
+    GET: Retrieve current settings
+    POST: Update settings
+    """
+    if request.method == 'GET':
+        try:
+            result = db.get_settings()
+            if result.get('success'):
+                return jsonify(result['settings'])
+            else:
+                return jsonify({'error': result.get('error', 'Failed to get settings')}), 500
+                
+        except Exception as e:
+            print(f"❌ Error getting settings: {e}")
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.json
+            
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            print(f"📝 Updating settings: {data}")
+            
+            result = db.update_settings(data)
+            
+            if result.get('success'):
+                print(f"✅ Settings updated successfully")
+                return jsonify(result), 200
+            else:
+                print(f"❌ Failed to update settings: {result.get('error')}")
+                return jsonify(result), 400
+                
+        except Exception as e:
+            print(f"❌ Error updating settings: {e}")
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/settings/schedule', methods=['GET'])
+def get_schedule():
+    """Get work schedule for validation"""
+    try:
+        schedule = db.get_work_schedule()
+        if schedule:
+            return jsonify(schedule)
+        else:
+            return jsonify({'error': 'Schedule not found'}), 404
+            
+    except Exception as e:
+        print(f"❌ Error getting schedule: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
     """Get all employees"""

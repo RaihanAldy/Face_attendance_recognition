@@ -8,6 +8,8 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
 
 export default function FaceScan() {
   const [isScanning, setIsScanning] = useState(false);
@@ -18,13 +20,14 @@ export default function FaceScan() {
   const [mode, setMode] = useState("recognition");
   const [registrationData, setRegistrationData] = useState({
     name: "",
-    department: "General"
+    department: "General",
   });
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-  const isStartingRef = useRef(false); // ✅ Prevent double-call
+  const isStartingRef = useRef(false);
+  const MySwal = withReactContent(Swal);
 
   useEffect(() => {
     return () => {
@@ -33,177 +36,185 @@ export default function FaceScan() {
   }, []);
 
   // ✅ FIXED: Proper async/await camera initialization
-const startCamera = async () => {
-  // Prevent concurrent calls
-  if (isStartingRef.current) {
-    console.log("⏳ Camera already starting, skipping...");
-    return false;
-  }
-
-  isStartingRef.current = true;
-
-  try {
-    setErrorMessage("");
-    console.log("🎥 Requesting camera access...");
-    
-    // Stop existing camera first
-    if (streamRef.current) {
-      console.log("🛑 Stopping existing stream first");
-      stopCamera();
-      await new Promise(resolve => setTimeout(resolve, 100));
+  const startCamera = async () => {
+    // Prevent concurrent calls
+    if (isStartingRef.current) {
+      console.log("⏳ Camera already starting, skipping...");
+      return false;
     }
 
-    // ✅ FIX: Wait for video element to be ready
-    let retries = 0;
-    const maxRetries = 10;
-    while (!videoRef.current && retries < maxRetries) {
-      console.log(`⏳ Waiting for video element... (${retries + 1}/${maxRetries})`);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      retries++;
-    }
+    isStartingRef.current = true;
 
-    if (!videoRef.current) {
-      throw new Error("Video element not found after waiting");
-    }
+    try {
+      setErrorMessage("");
+      console.log("🎥 Requesting camera access...");
 
-    console.log("✅ Video element found!");
-
-    // Request camera with constraints
-    const constraints = {
-      video: {
-        facingMode: "user",
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+      // Stop existing camera first
+      if (streamRef.current) {
+        console.log("🛑 Stopping existing stream first");
+        stopCamera();
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
-    };
 
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    
-    if (!stream) {
-      throw new Error("No stream returned from camera");
-    }
+      // ✅ FIX: Wait for video element to be ready
+      let retries = 0;
+      const maxRetries = 10;
+      while (!videoRef.current && retries < maxRetries) {
+        console.log(
+          `⏳ Waiting for video element... (${retries + 1}/${maxRetries})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        retries++;
+      }
 
-    console.log("✅ Stream obtained:", stream.id);
+      if (!videoRef.current) {
+        throw new Error("Video element not found after waiting");
+      }
 
-    // Assign stream to video
-    videoRef.current.srcObject = stream;
-    streamRef.current = stream;
+      console.log("✅ Video element found!");
 
-    // ✅ Wait for video to load and play
-    await new Promise((resolve, reject) => {
-      const video = videoRef.current;
-      let resolved = false;
-
-      const cleanup = () => {
-        video.removeEventListener('loadedmetadata', onLoadedMetadata);
-        video.removeEventListener('canplay', onCanPlay);
-        video.removeEventListener('error', onError);
+      // Request camera with constraints
+      const constraints = {
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       };
 
-      const onLoadedMetadata = () => {
-        console.log("📹 Video metadata loaded");
-      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      const onCanPlay = () => {
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          console.log("✅ Video can play - dimensions:", video.videoWidth, "x", video.videoHeight);
-          
-          video.play()
-            .then(() => {
-              console.log("▶️ Video playing");
-              resolve();
-            })
-            .catch(err => {
-              console.error("❌ Play error:", err);
-              reject(err);
-            });
-        }
-      };
+      if (!stream) {
+        throw new Error("No stream returned from camera");
+      }
 
-      const onError = (err) => {
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          console.error("❌ Video error:", err);
-          reject(new Error(`Video error: ${err.message || 'Unknown'}`));
-        }
-      };
+      console.log("✅ Stream obtained:", stream.id);
 
-      video.addEventListener('loadedmetadata', onLoadedMetadata);
-      video.addEventListener('canplay', onCanPlay);
-      video.addEventListener('error', onError);
+      // Assign stream to video
+      videoRef.current.srcObject = stream;
+      streamRef.current = stream;
 
-      // Fallback timeout
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            console.log("⏰ Timeout but video has dimensions, accepting");
-            video.play().then(resolve).catch(reject);
-          } else {
-            reject(new Error("Video load timeout - no dimensions"));
+      // ✅ Wait for video to load and play
+      await new Promise((resolve, reject) => {
+        const video = videoRef.current;
+        let resolved = false;
+
+        const cleanup = () => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          video.removeEventListener("canplay", onCanPlay);
+          video.removeEventListener("error", onError);
+        };
+
+        const onLoadedMetadata = () => {
+          console.log("📹 Video metadata loaded");
+        };
+
+        const onCanPlay = () => {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            console.log(
+              "✅ Video can play - dimensions:",
+              video.videoWidth,
+              "x",
+              video.videoHeight
+            );
+
+            video
+              .play()
+              .then(() => {
+                console.log("▶️ Video playing");
+                resolve();
+              })
+              .catch((err) => {
+                console.error("❌ Play error:", err);
+                reject(err);
+              });
           }
-        }
-      }, 5000);
-    });
+        };
 
-    setIsScanning(true);
-    isStartingRef.current = false;
-    console.log("✅ Camera started successfully!");
-    return true;
-    
-  } catch (error) {
-    console.error("❌ Camera access failed:", error);
-    isStartingRef.current = false;
-    
-    let detailedError = "Tidak dapat mengakses kamera. ";
-    
-    if (error.name === 'NotAllowedError') {
-      detailedError += "Permission kamera ditolak. Silakan izinkan akses kamera di browser settings.";
-    } else if (error.name === 'NotFoundError') {
-      detailedError += "Tidak ada kamera yang ditemukan.";
-    } else if (error.name === 'NotSupportedError') {
-      detailedError += "Browser tidak mendukung akses kamera.";
-    } else if (error.name === 'NotReadableError') {
-      detailedError += "Kamera sedang digunakan oleh aplikasi lain.";
-    } else {
-      detailedError += `Error: ${error.message}`;
+        const onError = (err) => {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+            console.error("❌ Video error:", err);
+            reject(new Error(`Video error: ${err.message || "Unknown"}`));
+          }
+        };
+
+        video.addEventListener("loadedmetadata", onLoadedMetadata);
+        video.addEventListener("canplay", onCanPlay);
+        video.addEventListener("error", onError);
+
+        // Fallback timeout
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            cleanup();
+
+            if (video.videoWidth > 0 && video.videoHeight > 0) {
+              console.log("⏰ Timeout but video has dimensions, accepting");
+              video.play().then(resolve).catch(reject);
+            } else {
+              reject(new Error("Video load timeout - no dimensions"));
+            }
+          }
+        }, 5000);
+      });
+
+      setIsScanning(true);
+      isStartingRef.current = false;
+      console.log("✅ Camera started successfully!");
+      return true;
+    } catch (error) {
+      console.error("❌ Camera access failed:", error);
+      isStartingRef.current = false;
+
+      let detailedError = "Tidak dapat mengakses kamera. ";
+
+      if (error.name === "NotAllowedError") {
+        detailedError +=
+          "Permission kamera ditolak. Silakan izinkan akses kamera di browser settings.";
+      } else if (error.name === "NotFoundError") {
+        detailedError += "Tidak ada kamera yang ditemukan.";
+      } else if (error.name === "NotSupportedError") {
+        detailedError += "Browser tidak mendukung akses kamera.";
+      } else if (error.name === "NotReadableError") {
+        detailedError += "Kamera sedang digunakan oleh aplikasi lain.";
+      } else {
+        detailedError += `Error: ${error.message}`;
+      }
+
+      setErrorMessage(detailedError);
+      setScanStatus("failed");
+      setIsScanning(false);
+
+      // Cleanup on error
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      return false;
     }
-    
-    setErrorMessage(detailedError);
-    setScanStatus("failed");
-    setIsScanning(false);
-    
-    // Cleanup on error
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    return false;
-  }
-};
+  };
 
   const stopCamera = () => {
     try {
       if (streamRef.current) {
         console.log("🛑 Stopping camera tracks...");
         const tracks = streamRef.current.getTracks();
-        tracks.forEach(track => {
+        tracks.forEach((track) => {
           track.stop();
           console.log(`⏹️ Stopped ${track.kind} track`);
         });
         streamRef.current = null;
       }
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      
+
       setIsScanning(false);
       isStartingRef.current = false;
       console.log("✅ Camera fully stopped");
@@ -220,110 +231,138 @@ const startCamera = async () => {
   };
 
   // Face Recognition Function
-const recognizeFace = async () => {
-  const faceEmbedding = generateFaceEmbedding();
-  
-  try {
-    console.log("🔍 Sending REAL recognition request...");
-    
-    const response = await fetch("http://localhost:5000/api/recognize-face", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ faceEmbedding: faceEmbedding }),
-    });
-
-    if (!response.ok) throw new Error(`Recognition API error: ${response.status}`);
-    
-    const result = await response.json();
-    console.log("✅ REAL Recognition result:", result);
-
-    if (result.success) {
-      // ✅ GUNAKAN DATA REAL DARI BACKEND
-      setEmployeeData({
-        name: result.employee.name,
-        id: result.employee.employee_id, // ✅ ID dari backend
-        department: result.employee.department,
-        confidence: result.employee.similarity,
-        isExisting: true
-      });
-      setScanStatus("success");
-      
-      await recordAttendance(result.employee.employee_id, result.employee.similarity, attendanceType);
-    } else {
-      // Karyawan tidak dikenali - TAMPILKAN FORM REGISTRASI
-      setEmployeeData({
-        name: "Karyawan Baru",
-        id: "UNKNOWN",
-        department: "Unknown",
-        confidence: result.similarity || 0,
-        isExisting: false
-      });
-      setScanStatus("new_employee");
-    }
-  } catch (error) {
-    console.error("Recognition error:", error);
-    setScanStatus("failed");
-    setErrorMessage("Server tidak merespon. Pastikan backend running.");
-  }
-};
-
-// Employee Registration Function - REAL DATA
-const registerEmployee = async () => {
-  if (!registrationData.name) {
-    setErrorMessage("Nama harus diisi");
-    return;
-  }
-
-  try {
+  const recognizeFace = async () => {
     const faceEmbedding = generateFaceEmbedding();
-    
-    console.log("📝 Sending REAL registration request...");
-    
-    const response = await fetch("http://localhost:5000/api/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: registrationData.name,
-        department: registrationData.department,
-        faceEmbedding: faceEmbedding
-      }),
-    });
 
-    if (!response.ok) throw new Error(`Registration API error: ${response.status}`);
-    
-    const result = await response.json();
-    console.log("✅ REAL Registration result:", result);
+    try {
+      console.log("🔍 Sending REAL recognition request...");
 
-    if (result.success) {
-      // ✅ GUNAKAN DATA REAL DARI BACKEND
-      setEmployeeData({
-        name: registrationData.name,
-        id: result.employee_id, // ✅ ID REAL dari backend
-        department: registrationData.department,
-        confidence: 0.95,
-        isExisting: true
+      const response = await fetch("http://localhost:5000/api/recognize-face", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ faceEmbedding: faceEmbedding }),
       });
-      setScanStatus("registration_success");
-      console.log("✅ Employee registered successfully with REAL ID:", result.employee_id);
-    } else {
+
+      if (!response.ok)
+        throw new Error(`Recognition API error: ${response.status}`);
+
+      const result = await response.json();
+      console.log("✅ REAL Recognition result:", result);
+
+      if (result.success) {
+        // ✅ GUNAKAN DATA REAL DARI BACKEND
+        setEmployeeData({
+          name: result.employee.name,
+          id: result.employee.employee_id, // ✅ ID dari backend
+          department: result.employee.department,
+          confidence: result.employee.similarity,
+          isExisting: true,
+        });
+        setScanStatus("success");
+
+        await recordAttendance(
+          result.employee.employee_id,
+          result.employee.similarity,
+          attendanceType
+        );
+      } else {
+        // Karyawan tidak dikenali - TAMPILKAN FORM REGISTRASI
+        setEmployeeData({
+          name: "Karyawan Baru",
+          id: "UNKNOWN",
+          department: "Unknown",
+          confidence: result.similarity || 0,
+          isExisting: false,
+        });
+        setScanStatus("new_employee");
+      }
+    } catch (error) {
+      console.error("Recognition error:", error);
       setScanStatus("failed");
-      setErrorMessage(result.error || "Registrasi gagal");
+      setErrorMessage("Server tidak merespon. Pastikan backend running.");
     }
-  } catch (error) {
-    console.error("Registration error:", error);
-    setScanStatus("failed");
-    setErrorMessage("Gagal melakukan registrasi");
-  }
-};
+  };
+
+  // Employee Registration Function - REAL DATA
+  const registerEmployee = async () => {
+    if (!registrationData.name) {
+      setErrorMessage("Nama harus diisi");
+      return;
+    }
+
+    try {
+      const faceEmbedding = generateFaceEmbedding();
+
+      console.log("📝 Sending REAL registration request...");
+
+      const response = await fetch("http://localhost:5000/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: registrationData.name,
+          department: registrationData.department,
+          faceEmbedding: faceEmbedding,
+        }),
+      });
+
+      if (!response.ok)
+        throw new Error(`Registration API error: ${response.status}`);
+
+      const result = await response.json();
+      console.log("✅ REAL Registration result:", result);
+
+      if (result.success) {
+        // ✅ GUNAKAN DATA REAL DARI BACKEND
+        setEmployeeData({
+          name: registrationData.name,
+          id: result.employee_id, // ✅ ID REAL dari backend
+          department: registrationData.department,
+          confidence: 0.95,
+          isExisting: true,
+        });
+        setScanStatus("registration_success");
+        console.log(
+          "✅ Employee registered successfully with REAL ID:",
+          result.employee_id
+        );
+      } else {
+        setScanStatus("failed");
+        setErrorMessage(result.error || "Registrasi gagal");
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setScanStatus("failed");
+      setErrorMessage("Gagal melakukan registrasi");
+    }
+  };
 
   const recordAttendance = async (employeeId, confidence, type) => {
     try {
-      const endpoint = type === "check_in" ? "/attendance/checkin" : "/attendance/checkout";
-      
+      // ✅ Jika checkout, tampilkan konfirmasi
+      if (type === "check_out") {
+        const confirmResult = await MySwal.fire({
+          title: "Konfirmasi Checkout",
+          text: "Apakah Anda yakin ingin melakukan Check-Out?",
+          icon: "question",
+          showCancelButton: true,
+          confirmButtonText: "Ya, Checkout",
+          cancelButtonText: "Batal",
+          timerProgressBar: true,
+        });
+
+        if (!confirmResult.isConfirmed) {
+          console.log("❌ Checkout dibatalkan");
+          return null;
+        }
+      }
+
+      const endpoint =
+        type === "check_in" ? "/attendance/checkin" : "/attendance/checkout";
+
       const response = await fetch(`http://localhost:5000/api${endpoint}`, {
         method: "POST",
         headers: {
@@ -342,9 +381,31 @@ const registerEmployee = async () => {
 
       const result = await response.json();
       console.log(`✅ ${type.toUpperCase()} recorded:`, result);
+
+      // ✅ Tampilkan alert sukses otomatis 5 detik
+      await MySwal.fire({
+        title: "Berhasil!",
+        text: type === "check_in" ? "Check-In berhasil" : "Check-Out berhasil",
+        icon: "success",
+        timer: 5000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+
       return result;
     } catch (error) {
       console.error(`❌ Failed to record ${type}:`, error);
+
+      // ✅ Alert gagal otomatis 5 detik
+      MySwal.fire({
+        title: "Gagal!",
+        text: `Absensi gagal: ${error.message}`,
+        icon: "error",
+        timer: 5000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+
       throw error;
     }
   };
@@ -360,11 +421,11 @@ const registerEmployee = async () => {
     setErrorMessage("");
     setEmployeeData(null);
     setScanStatus("scanning");
-    
+
     console.log("🔄 Starting scan process...");
 
     const cameraStarted = await startCamera();
-    
+
     if (!cameraStarted) {
       console.log("❌ Camera failed to start, reverting state");
       setScanStatus("idle");
@@ -400,7 +461,12 @@ const registerEmployee = async () => {
 
   // Debug state changes
   useEffect(() => {
-    console.log("🔍 State update - isScanning:", isScanning, "scanStatus:", scanStatus);
+    console.log(
+      "🔍 State update - isScanning:",
+      isScanning,
+      "scanStatus:",
+      scanStatus
+    );
   }, [isScanning, scanStatus]);
 
   return (
@@ -438,41 +504,45 @@ const registerEmployee = async () => {
 
         <div className="flex items-center justify-center flex-col">
           <div className="w-4/5 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-          {/* Camera Preview */}
-          <div className="relative bg-slate-950 aspect-video flex items-center justify-center">
-            {/* ✅ Video element ALWAYS rendered, just hidden when not scanning */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-full object-cover ${!isScanning ? 'hidden' : ''}`}
-            />
-            <canvas ref={canvasRef} className="hidden" />
+            {/* Camera Preview */}
+            <div className="relative bg-slate-950 aspect-video flex items-center justify-center">
+              {/* ✅ Video element ALWAYS rendered, just hidden when not scanning */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${
+                  !isScanning ? "hidden" : ""
+                }`}
+              />
+              <canvas ref={canvasRef} className="hidden" />
 
-            {/* ✅ Placeholder - shown when NOT scanning */}
-            {!isScanning && (
-              <div className="text-center absolute inset-0 flex items-center justify-center">
-                <div>
-                  <ScanFace className="h-24 w-24 text-slate-700 mx-auto mb-4" />
-                  <p className="text-slate-500">
-                    {mode === "recognition" ? "Face Recognition" : "Employee Registration"}
-                  </p>
-                  <p className="text-slate-600 text-sm mt-2">
-                    Klik "Mulai Scan" untuk memulai
-                  </p>
+              {/* ✅ Placeholder - shown when NOT scanning */}
+              {!isScanning && (
+                <div className="text-center absolute inset-0 flex items-center justify-center">
+                  <div>
+                    <ScanFace className="h-24 w-24 text-slate-700 mx-auto mb-4" />
+                    <p className="text-slate-500">
+                      {mode === "recognition"
+                        ? "Face Recognition"
+                        : "Employee Registration"}
+                    </p>
+                    <p className="text-slate-600 text-sm mt-2">
+                      Klik "Mulai Scan" untuk memulai
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ✅ Scan Overlay - shown when IS scanning */}
-            {isScanning && (
-              <>
-                <div className="absolute inset-0 border-4 border-blue-500 rounded-lg opacity-50 pointer-events-none"></div>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-80 border-2 border-green-500 rounded-lg pointer-events-none"></div>
-              </>
-            )}
-</div>
+              {/* ✅ Scan Overlay - shown when IS scanning */}
+              {isScanning && (
+                <>
+                  <div className="absolute inset-0 border-4 border-blue-500 rounded-lg opacity-50 pointer-events-none"></div>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-80 border-2 border-green-500 rounded-lg pointer-events-none"></div>
+                </>
+              )}
+            </div>
             {/* Status Bar */}
             <div className="p-4 bg-slate-900 border-t border-slate-800">
               <div className="flex items-center justify-between">
@@ -514,7 +584,9 @@ const registerEmployee = async () => {
                     <>
                       <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
                       <span className="text-sm text-slate-400">
-                        {mode === "recognition" ? "Recognition Mode" : "Registration Mode"}
+                        {mode === "recognition"
+                          ? "Recognition Mode"
+                          : "Registration Mode"}
                       </span>
                     </>
                   )}
@@ -535,19 +607,25 @@ const registerEmployee = async () => {
                   {isScanning && scanStatus === "new_employee" && (
                     <>
                       <UserPlus className="w-5 h-5 text-yellow-500" />
-                      <span className="text-sm text-yellow-400">Karyawan Baru</span>
+                      <span className="text-sm text-yellow-400">
+                        Karyawan Baru
+                      </span>
                     </>
                   )}
                   {isScanning && scanStatus === "ready_for_registration" && (
                     <>
                       <UserPlus className="w-5 h-5 text-blue-500" />
-                      <span className="text-sm text-blue-400">Siap Registrasi</span>
+                      <span className="text-sm text-blue-400">
+                        Siap Registrasi
+                      </span>
                     </>
                   )}
                   {isScanning && scanStatus === "registration_success" && (
                     <>
                       <CheckCircle className="w-5 h-5 text-green-500" />
-                      <span className="text-sm text-green-400">Registrasi Berhasil!</span>
+                      <span className="text-sm text-green-400">
+                        Registrasi Berhasil!
+                      </span>
                     </>
                   )}
                   {isScanning && scanStatus === "failed" && (
@@ -581,31 +659,48 @@ const registerEmployee = async () => {
             </div>
 
             {/* Registration Form */}
-            {(scanStatus === "new_employee" || scanStatus === "ready_for_registration") && (
+            {(scanStatus === "new_employee" ||
+              scanStatus === "ready_for_registration") && (
               <div className="p-6 bg-yellow-900/20 border-t border-yellow-800">
                 <div className="flex items-start space-x-4">
                   <UserPlus className="h-12 w-12 text-yellow-500 shrink-0" />
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-white mb-4">
-                      {mode === "recognition" ? "Karyawan Baru Terdeteksi!" : "Registrasi Karyawan Baru"}
+                      {mode === "recognition"
+                        ? "Karyawan Baru Terdeteksi!"
+                        : "Registrasi Karyawan Baru"}
                     </h3>
                     <div className="grid grid-cols-1 gap-4 mb-4">
                       <div>
-                        <label className="block text-slate-400 text-sm mb-2">Nama Lengkap *</label>
+                        <label className="block text-slate-400 text-sm mb-2">
+                          Nama Lengkap *
+                        </label>
                         <input
                           type="text"
                           value={registrationData.name}
-                          onChange={(e) => setRegistrationData({...registrationData, name: e.target.value})}
+                          onChange={(e) =>
+                            setRegistrationData({
+                              ...registrationData,
+                              name: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
                           placeholder="Masukkan nama lengkap"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-400 text-sm mb-2">Departemen</label>
+                        <label className="block text-slate-400 text-sm mb-2">
+                          Departemen
+                        </label>
                         <select
                           value={registrationData.department}
-                          onChange={(e) => setRegistrationData({...registrationData, department: e.target.value})}
+                          onChange={(e) =>
+                            setRegistrationData({
+                              ...registrationData,
+                              department: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
                         >
                           <option value="General">General</option>
@@ -628,7 +723,9 @@ const registerEmployee = async () => {
                         onClick={registerEmployee}
                         className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
                       >
-                        {mode === "recognition" ? "Daftarkan & Check-In" : "Daftarkan Karyawan"}
+                        {mode === "recognition"
+                          ? "Daftarkan & Check-In"
+                          : "Daftarkan Karyawan"}
                       </button>
                       <button
                         onClick={handleStopScan}
@@ -643,54 +740,66 @@ const registerEmployee = async () => {
             )}
 
             {/* Success Result Panel */}
-            {(scanStatus === "success" || scanStatus === "registration_success") && employeeData && (
-              <div className="p-6 bg-green-900/20 border-t border-green-800">
-                <div className="flex items-start space-x-4">
-                  <CheckCircle className="h-12 w-12 text-green-500 shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      {scanStatus === "success" ? "Absensi Berhasil!" : "Registrasi Berhasil!"}
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-slate-400">Nama</p>
-                        <p className="text-white font-medium">{employeeData.name}</p>
+            {(scanStatus === "success" ||
+              scanStatus === "registration_success") &&
+              employeeData && (
+                <div className="p-6 bg-green-900/20 border-t border-green-800">
+                  <div className="flex items-start space-x-4">
+                    <CheckCircle className="h-12 w-12 text-green-500 shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-white mb-2">
+                        {scanStatus === "success"
+                          ? "Absensi Berhasil!"
+                          : "Registrasi Berhasil!"}
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-slate-400">Nama</p>
+                          <p className="text-white font-medium">
+                            {employeeData.name}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">ID Karyawan</p>
+                          <p className="text-white font-medium">
+                            {employeeData.id}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Departemen</p>
+                          <p className="text-white font-medium">
+                            {employeeData.department}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Waktu</p>
+                          <p className="text-white font-medium">
+                            {new Date().toLocaleTimeString("id-ID")}
+                          </p>
+                        </div>
+                        {scanStatus === "success" && (
+                          <>
+                            <div>
+                              <p className="text-slate-400">Status</p>
+                              <p className="text-white font-medium">
+                                {attendanceType === "check_in"
+                                  ? "Check-In"
+                                  : "Check-Out"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400">Confidence</p>
+                              <p className="text-white font-medium">
+                                {Math.round(employeeData.confidence * 100)}%
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-slate-400">ID Karyawan</p>
-                        <p className="text-white font-medium">{employeeData.id}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400">Departemen</p>
-                        <p className="text-white font-medium">{employeeData.department}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400">Waktu</p>
-                        <p className="text-white font-medium">
-                          {new Date().toLocaleTimeString("id-ID")}
-                        </p>
-                      </div>
-                      {scanStatus === "success" && (
-                        <>
-                          <div>
-                            <p className="text-slate-400">Status</p>
-                            <p className="text-white font-medium">
-                              {attendanceType === "check_in" ? "Check-In" : "Check-Out"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-slate-400">Confidence</p>
-                            <p className="text-white font-medium">
-                              {Math.round(employeeData.confidence * 100)}%
-                            </p>
-                          </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Error Message */}
             {errorMessage && (

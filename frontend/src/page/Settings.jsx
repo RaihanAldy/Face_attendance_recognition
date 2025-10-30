@@ -15,7 +15,8 @@ const Settings = () => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
-        const res = await fetch("/api/settings");
+        // ✅ UPDATE: Tambahkan base URL backend
+        const res = await fetch("http://localhost:5000/api/settings");
 
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
@@ -23,9 +24,9 @@ const Settings = () => {
 
         const data = await res.json();
         setSettings({
-          startTime: data.startTime || "08:37",
+          startTime: data.startTime || "08:00",
           endTime: data.endTime || "17:00",
-          syncFrequency: data.syncFrequency || 61,
+          syncFrequency: data.syncFrequency || 15,
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -89,7 +90,8 @@ const Settings = () => {
       setIsSaving(true);
       setMessage({ type: "", text: "" });
 
-      const response = await fetch("/api/settings", {
+      // ✅ UPDATE: Tambahkan base URL backend
+      const response = await fetch("http://localhost:5000/api/settings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -98,12 +100,17 @@ const Settings = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
       }
+
+      const result = await response.json();
 
       setMessage({
         type: "success",
-        text: "Pengaturan berhasil disimpan!",
+        text: result.message || "Pengaturan berhasil disimpan!",
       });
 
       // Auto clear success message after 3 seconds
@@ -114,7 +121,7 @@ const Settings = () => {
       console.error("Failed to save settings:", error);
       setMessage({
         type: "error",
-        text: "Error menyimpan pengaturan",
+        text: error.message || "Error menyimpan pengaturan",
       });
     } finally {
       setIsSaving(false);

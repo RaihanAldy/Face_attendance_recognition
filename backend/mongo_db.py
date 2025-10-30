@@ -16,9 +16,114 @@ class MongoDBManager:
         self.attendance = self.db.attendance
         self.analytics = self.db.analytics
         self.system_logs = self.db.system_logs
+        self.settings = self.db.settings
         
         self._create_indexes()
+        self._init_default_settings()
         print("✅ MongoDB Manager initialized")
+
+    def _init_default_settings(self):
+        """Initialize default settings if not exists"""
+        try:
+            existing = self.settings.find_one({'_id': 'default'})
+            if not existing:
+                default_settings = {
+                    '_id': 'default',
+                    'startTime': '08:00',
+                    'endTime': '17:00',
+                    'syncFrequency': 15,
+                    'lateThreshold': 15,  # Toleransi terlambat (menit)
+                    'earlyLeaveThreshold': 30,  # Toleransi pulang cepat (menit)
+                    'created_at': datetime.now(),
+                    'updated_at': datetime.now()
+                }
+                self.settings.insert_one(default_settings)
+                print("✅ Default settings initialized")
+        except Exception as e:
+            print(f"⚠️ Error initializing default settings: {e}")
+
+# ==================== SETTINGS MANAGEMENT ====================
+
+    def get_settings(self):
+        """Get current system settings"""
+        try:
+            settings = self.settings.find_one({'_id': 'default'})
+            if settings:
+                settings.pop('_id', None)
+                if 'created_at' in settings:
+                    settings['created_at'] = settings['created_at'].isoformat()
+                if 'updated_at' in settings:
+                    settings['updated_at'] = settings['updated_at'].isoformat()
+                return {'success': True, 'settings': settings}
+            else:
+                return {'success': False, 'error': 'Settings not found'}
+        except Exception as e:
+            print(f"❌ Error getting settings: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def update_settings(self, settings_data):
+        """Update system settings"""
+        try:
+            # Validasi input
+            required_fields = ['startTime', 'endTime', 'syncFrequency']
+            for field in required_fields:
+                if field not in settings_data:
+                    return {'success': False, 'error': f'Missing required field: {field}'}
+            
+            # Validasi waktu
+            start_time = settings_data['startTime']
+            end_time = settings_data['endTime']
+            
+            if start_time >= end_time:
+                return {'success': False, 'error': 'End time must be after start time'}
+            
+            # Validasi sync frequency
+            sync_freq = int(settings_data['syncFrequency'])
+            if sync_freq < 1:
+                return {'success': False, 'error': 'Sync frequency must be at least 1 minute'}
+            
+            # Update settings
+            update_data = {
+                'startTime': start_time,
+                'endTime': end_time,
+                'syncFrequency': sync_freq,
+                'lateThreshold': settings_data.get('lateThreshold', 15),
+                'earlyLeaveThreshold': settings_data.get('earlyLeaveThreshold', 30),
+                'updated_at': datetime.now()
+            }
+            
+            result = self.settings.update_one(
+                {'_id': 'default'},
+                {'$set': update_data},
+                upsert=True
+            )
+            
+            if result.modified_count > 0 or result.upserted_id:
+                print(f"✅ Settings updated successfully")
+                return {'success': True, 'message': 'Settings updated successfully'}
+            else:
+                return {'success': False, 'error': 'No changes made'}
+                
+        except Exception as e:
+            print(f"❌ Error updating settings: {e}")
+            traceback.print_exc()
+            return {'success': False, 'error': str(e)}
+
+    def get_work_schedule(self):
+        """Get work schedule for attendance validation"""
+        try:
+            settings = self.settings.find_one({'_id': 'default'})
+            if settings:
+                return {
+                    'start_time': settings.get('startTime', '08:00'),
+                    'end_time': settings.get('endTime', '17:00'),
+                    'late_threshold': settings.get('lateThreshold', 15),
+                    'early_leave_threshold': settings.get('earlyLeaveThreshold', 30)
+                }
+            return None
+        except Exception as e:
+            print(f"❌ Error getting work schedule: {e}")
+            return None
     
     def _create_indexes(self):
         """Create necessary indexes"""
@@ -65,7 +170,6 @@ class MongoDBManager:
                 'name': name,
                 'department': department,
                 'face_embeddings': face_embedding,
-                'is_active': True,
                 'created_at': datetime.now(),
                 'last_updated': datetime.now()
             }
@@ -93,7 +197,7 @@ class MongoDBManager:
     def get_all_employees(self):
         """Get all active employees"""
         try:
-            employees = list(self.employees.find({'is_active': True}))
+            employees = list(self.employees.find())
             for emp in employees:
                 emp['_id'] = str(emp['_id'])
                 if 'created_at' in emp and emp['created_at']:
@@ -130,7 +234,7 @@ class MongoDBManager:
     def recognize_face(self, face_embedding, threshold=0.6):
         """Recognize face from embedding dengan similarity threshold"""
         try:
-            employees = list(self.employees.find({'is_active': True}))
+            employees = list(self.employees.find())
             
             best_match = None
             highest_similarity = 0
@@ -451,7 +555,7 @@ class MongoDBManager:
         try:
             start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             
-            total_employees = self.employees.count_documents({'is_active': True})
+            total_employees = self.employees.count_documents()
             
             # Count unique employees yang check-in hari ini
             present_today = len(self.attendance.distinct('employee_id', {
