@@ -323,10 +323,6 @@ class MongoDBManager:
     def recognize_face(self, face_embedding, threshold=0.6):
         """Recognize face from embedding dengan similarity threshold"""
         try:
-<<<<<<< HEAD
-            # Ambil semua employee (tanpa filter is_active)
-=======
->>>>>>> hans
             employees = list(self.employees.find())
             
             best_match = None
@@ -383,51 +379,14 @@ class MongoDBManager:
 
     # ==================== ATTENDANCE RECORDING ====================
     
-<<<<<<< HEAD
-    def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in', action=None):
-        """
-        Record attendance dengan type (check_in/check_out)
-        Compatible dengan struktur frontend
-        """
-=======
     def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
     
->>>>>>> hans
         try:
         # 🧩 Ambil data karyawan
             existing_employee = self.employees.find_one({'employee_id': employee_id})
             if not existing_employee:
                 print(f"❌ Employee with ID {employee_id} not found")
                 return None
-<<<<<<< HEAD
-            
-            # Tentukan status berdasarkan waktu untuk frontend
-            current_time = datetime.now()
-            hour = current_time.hour
-            
-            # Logic untuk menentukan status (ontime, late, early)
-            if attendance_type == 'check_in':
-                if hour < 9:
-                    status = 'ontime'
-                elif hour < 10:
-                    status = 'late'
-                else:
-                    status = 'late'
-            else:  # check_out
-                if hour > 17:
-                    status = 'ontime'
-                elif hour > 16:
-                    status = 'early'
-                else:
-                    status = 'early'
-            
-            attendance_data = {
-                'employee_id': employee_id,
-                'employees': existing_employee['name'],  # Field 'employees' berisi nama
-                'action': action or attendance_type,  # 'check_in' atau 'check_out'
-                'status': status,  # 'ontime', 'late', 'early'
-                'timestamp': current_time,
-=======
 
             current_timestamp = datetime.now()
             schedule = self.get_work_schedule()
@@ -473,16 +432,10 @@ class MongoDBManager:
                 'department': department,
                 'work_duration': work_duration,       # menit
                 'lateness_minutes': lateness_minutes, # menit
->>>>>>> hans
                 'confidence': float(confidence)
             }
 
             result = self.attendance.insert_one(attendance_data)
-<<<<<<< HEAD
-            print(f"✅ {attendance_type.upper()} recorded for {employee_id} ({existing_employee['name']}) - Status: {status}")
-            return str(result.inserted_id)
-            
-=======
 
             # 🟢 Logging
             emoji = {'ontime': '✅', 'late': '⏰', 'early': '⚡'}.get(status, '📝')
@@ -497,7 +450,6 @@ class MongoDBManager:
                 'work_duration': work_duration
             }
 
->>>>>>> hans
         except Exception as e:
             print(f"❌ Error recording attendance: {e}")
             traceback.print_exc()
@@ -505,8 +457,6 @@ class MongoDBManager:
 
     # ==================== ATTENDANCE QUERIES ====================
     
-<<<<<<< HEAD
-=======
     def get_attendance_with_checkout(self, date_str=None):
         """Get attendance data dengan pairing check-in/check-out"""
         try:
@@ -671,7 +621,6 @@ class MongoDBManager:
             traceback.print_exc()
             return []
     
->>>>>>> hans
     def get_attendance_by_date(self, date_str=None):
         """Get raw attendance records by date"""
         try:
@@ -690,10 +639,6 @@ class MongoDBManager:
             
             results = list(self.attendance.find(query).sort('timestamp', -1))
             
-<<<<<<< HEAD
-            # Format untuk frontend - SESUAI DENGAN TABLE UTILS
-=======
->>>>>>> hans
             formatted_results = []
             for r in results:
                 # Dapatkan nama employee yang konsisten
@@ -706,17 +651,10 @@ class MongoDBManager:
                 formatted_record = {
                     '_id': str(r.get('_id')),
                     'employeeId': r.get('employee_id', 'N/A'),
-<<<<<<< HEAD
-                    'name': employee_name,
-                    'employees': employee_name,
-                    'action': r.get('action', 'check_in'),  # 'check_in' atau 'check_out'
-                    'status': r.get('status', 'ontime'),    # 'ontime', 'late', 'early'
-=======
                     'name': r.get('employees', 'Unknown'),
                     'employees': r.get('employees', 'Unknown'),
                     'action': r.get('action', 'check_in'),
                     'status': r.get('status', 'ontime'),
->>>>>>> hans
                     'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
                     'confidence': float(r.get('confidence', 0)),
                     # Field tambahan untuk compatibility
@@ -726,15 +664,6 @@ class MongoDBManager:
                 
                 formatted_results.append(formatted_record)
             
-<<<<<<< HEAD
-            print(f"✅ Formatted {len(formatted_results)} attendance records")
-            
-            # Debug: print sample data
-            if formatted_results and len(formatted_results) > 0:
-                print(f"📋 Sample record: {formatted_results[0]}")
-            
-=======
->>>>>>> hans
             return formatted_results
 
         except Exception as e:
@@ -924,10 +853,6 @@ class MongoDBManager:
         try:
             start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             
-<<<<<<< HEAD
-            # Hitung semua employee (tanpa filter is_active)
-=======
->>>>>>> hans
             total_employees = self.employees.count_documents({})
             
             present_today = len(self.attendance.distinct('employee_id', {
@@ -999,10 +924,6 @@ class MongoDBManager:
                 },
                 {
                     '$project': {
-<<<<<<< HEAD
-                        '_id': 1,
-=======
->>>>>>> hans
                         'employees': 1,
                         'action': 1,
                         'status': 1,

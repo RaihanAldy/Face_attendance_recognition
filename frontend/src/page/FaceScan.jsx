@@ -7,9 +7,6 @@ import {
   XCircle,
   UserPlus,
   Users,
-  Mail,
-  Phone,
-  Briefcase,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
@@ -24,22 +21,13 @@ export default function FaceScan() {
   const [registrationData, setRegistrationData] = useState({
     name: "",
     department: "General",
-<<<<<<< HEAD
-    position: "",
-    email: "",
-    phone: ""
-=======
->>>>>>> hans
   });
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const isStartingRef = useRef(false);
-<<<<<<< HEAD
-=======
   const MySwal = withReactContent(Swal);
->>>>>>> hans
 
   useEffect(() => {
     return () => {
@@ -47,37 +35,15 @@ export default function FaceScan() {
     };
   }, []);
 
-<<<<<<< HEAD
-  const startCamera = async () => {
-=======
   // ✅ FIXED: Proper async/await camera initialization
   const startCamera = async () => {
     // Prevent concurrent calls
->>>>>>> hans
     if (isStartingRef.current) {
       console.log("⏳ Camera already starting, skipping...");
-      return false;
+      isStartingRef.current = true;
     }
-
-    isStartingRef.current = true;
-
     try {
-      setErrorMessage("");
       console.log("🎥 Requesting camera access...");
-<<<<<<< HEAD
-      
-      if (streamRef.current) {
-        console.log("🛑 Stopping existing stream first");
-        stopCamera();
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      let retries = 0;
-      const maxRetries = 10;
-      while (!videoRef.current && retries < maxRetries) {
-        console.log(`⏳ Waiting for video element... (${retries + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, 100));
-=======
 
       // Stop existing camera first
       if (streamRef.current) {
@@ -94,7 +60,6 @@ export default function FaceScan() {
           `⏳ Waiting for video element... (${retries + 1}/${maxRetries})`
         );
         await new Promise((resolve) => setTimeout(resolve, 100));
->>>>>>> hans
         retries++;
       }
 
@@ -104,31 +69,11 @@ export default function FaceScan() {
 
       console.log("✅ Video element found!");
 
-<<<<<<< HEAD
-=======
       // Request camera with constraints
->>>>>>> hans
       const constraints = {
         video: {
           facingMode: "user",
           width: { ideal: 1280 },
-<<<<<<< HEAD
-          height: { ideal: 720 }
-        }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      if (!stream) {
-        throw new Error("No stream returned from camera");
-      }
-
-      console.log("✅ Stream obtained:", stream.id);
-
-      videoRef.current.srcObject = stream;
-      streamRef.current = stream;
-
-=======
           height: { ideal: 720 },
         },
       };
@@ -146,21 +91,14 @@ export default function FaceScan() {
       streamRef.current = stream;
 
       // ✅ Wait for video to load and play
->>>>>>> hans
       await new Promise((resolve, reject) => {
         const video = videoRef.current;
         let resolved = false;
 
         const cleanup = () => {
-<<<<<<< HEAD
-          video.removeEventListener('loadedmetadata', onLoadedMetadata);
-          video.removeEventListener('canplay', onCanPlay);
-          video.removeEventListener('error', onError);
-=======
           video.removeEventListener("loadedmetadata", onLoadedMetadata);
           video.removeEventListener("canplay", onCanPlay);
           video.removeEventListener("error", onError);
->>>>>>> hans
         };
 
         const onLoadedMetadata = () => {
@@ -171,11 +109,6 @@ export default function FaceScan() {
           if (!resolved) {
             resolved = true;
             cleanup();
-<<<<<<< HEAD
-            console.log("✅ Video can play - dimensions:", video.videoWidth, "x", video.videoHeight);
-            
-            video.play()
-=======
             console.log(
               "✅ Video can play - dimensions:",
               video.videoWidth,
@@ -185,16 +118,11 @@ export default function FaceScan() {
 
             video
               .play()
->>>>>>> hans
               .then(() => {
                 console.log("▶️ Video playing");
                 resolve();
               })
-<<<<<<< HEAD
-              .catch(err => {
-=======
               .catch((err) => {
->>>>>>> hans
                 console.error("❌ Play error:", err);
                 reject(err);
               });
@@ -206,16 +134,6 @@ export default function FaceScan() {
             resolved = true;
             cleanup();
             console.error("❌ Video error:", err);
-<<<<<<< HEAD
-            reject(new Error(`Video error: ${err.message || 'Unknown'}`));
-          }
-        };
-
-        video.addEventListener('loadedmetadata', onLoadedMetadata);
-        video.addEventListener('canplay', onCanPlay);
-        video.addEventListener('error', onError);
-
-=======
             reject(new Error(`Video error: ${err.message || "Unknown"}`));
           }
         };
@@ -225,16 +143,10 @@ export default function FaceScan() {
         video.addEventListener("error", onError);
 
         // Fallback timeout
->>>>>>> hans
         setTimeout(() => {
           if (!resolved) {
             resolved = true;
             cleanup();
-<<<<<<< HEAD
-            
-=======
-
->>>>>>> hans
             if (video.videoWidth > 0 && video.videoHeight > 0) {
               console.log("⏰ Timeout but video has dimensions, accepting");
               video.play().then(resolve).catch(reject);
@@ -249,22 +161,6 @@ export default function FaceScan() {
       isStartingRef.current = false;
       console.log("✅ Camera started successfully!");
       return true;
-<<<<<<< HEAD
-      
-    } catch (error) {
-      console.error("❌ Camera access failed:", error);
-      isStartingRef.current = false;
-      
-      let detailedError = "Tidak dapat mengakses kamera. ";
-      
-      if (error.name === 'NotAllowedError') {
-        detailedError += "Permission kamera ditolak. Silakan izinkan akses kamera di browser settings.";
-      } else if (error.name === 'NotFoundError') {
-        detailedError += "Tidak ada kamera yang ditemukan.";
-      } else if (error.name === 'NotSupportedError') {
-        detailedError += "Browser tidak mendukung akses kamera.";
-      } else if (error.name === 'NotReadableError') {
-=======
     } catch (error) {
       console.error("❌ Camera access failed:", error);
       isStartingRef.current = false;
@@ -279,23 +175,10 @@ export default function FaceScan() {
       } else if (error.name === "NotSupportedError") {
         detailedError += "Browser tidak mendukung akses kamera.";
       } else if (error.name === "NotReadableError") {
->>>>>>> hans
         detailedError += "Kamera sedang digunakan oleh aplikasi lain.";
       } else {
         detailedError += `Error: ${error.message}`;
       }
-<<<<<<< HEAD
-      
-      setErrorMessage(detailedError);
-      setScanStatus("failed");
-      setIsScanning(false);
-      
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-      
-=======
 
       setErrorMessage(detailedError);
       setScanStatus("failed");
@@ -307,7 +190,6 @@ export default function FaceScan() {
         streamRef.current = null;
       }
 
->>>>>>> hans
       return false;
     }
   };
@@ -346,17 +228,10 @@ export default function FaceScan() {
   // Face Recognition Function
   const recognizeFace = async () => {
     const faceEmbedding = generateFaceEmbedding();
-<<<<<<< HEAD
-    
-    try {
-      console.log("🔍 Sending REAL recognition request...");
-      
-=======
 
     try {
       console.log("🔍 Sending REAL recognition request...");
 
->>>>>>> hans
       const response = await fetch("http://localhost:5000/api/recognize-face", {
         method: "POST",
         headers: {
@@ -365,34 +240,13 @@ export default function FaceScan() {
         body: JSON.stringify({ faceEmbedding: faceEmbedding }),
       });
 
-<<<<<<< HEAD
-      if (!response.ok) throw new Error(`Recognition API error: ${response.status}`);
-      
-=======
       if (!response.ok)
         throw new Error(`Recognition API error: ${response.status}`);
 
->>>>>>> hans
       const result = await response.json();
       console.log("✅ REAL Recognition result:", result);
 
       if (result.success) {
-<<<<<<< HEAD
-        setEmployeeData({
-          name: result.employee.name,
-          id: result.employee.employee_id,
-          department: result.employee.department,
-          position: result.employee.position || "-",
-          email: result.employee.email || "-",
-          phone: result.employee.phone || "-",
-          confidence: result.employee.similarity,
-          isExisting: true
-        });
-        setScanStatus("success");
-        
-        await recordAttendance(result.employee.employee_id, result.employee.similarity, attendanceType);
-      } else {
-=======
         // ✅ GUNAKAN DATA REAL DARI BACKEND
         setEmployeeData({
           name: result.employee.name,
@@ -410,21 +264,12 @@ export default function FaceScan() {
         );
       } else {
         // Karyawan tidak dikenali - TAMPILKAN FORM REGISTRASI
->>>>>>> hans
         setEmployeeData({
           name: "Karyawan Baru",
           id: "UNKNOWN",
           department: "Unknown",
-<<<<<<< HEAD
-          position: "",
-          email: "",
-          phone: "",
-          confidence: result.similarity || 0,
-          isExisting: false
-=======
           confidence: result.similarity || 0,
           isExisting: false,
->>>>>>> hans
         });
         setScanStatus("new_employee");
       }
@@ -435,42 +280,18 @@ export default function FaceScan() {
     }
   };
 
-<<<<<<< HEAD
-  // Employee Registration Function - REAL DATA dengan field baru
-=======
   // Employee Registration Function - REAL DATA
->>>>>>> hans
   const registerEmployee = async () => {
     if (!registrationData.name) {
       setErrorMessage("Nama harus diisi");
       return;
     }
 
-<<<<<<< HEAD
-    if (!registrationData.email) {
-      setErrorMessage("Email harus diisi");
-      return;
-    }
-
-    // Validasi format email sederhana
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(registrationData.email)) {
-      setErrorMessage("Format email tidak valid");
-      return;
-    }
-
-    try {
-      const faceEmbedding = generateFaceEmbedding();
-      
-      console.log("📝 Sending REAL registration request...");
-      
-=======
     try {
       const faceEmbedding = generateFaceEmbedding();
 
       console.log("📝 Sending REAL registration request...");
 
->>>>>>> hans
       const response = await fetch("http://localhost:5000/api/register", {
         method: "POST",
         headers: {
@@ -479,17 +300,6 @@ export default function FaceScan() {
         body: JSON.stringify({
           name: registrationData.name,
           department: registrationData.department,
-<<<<<<< HEAD
-          position: registrationData.position,
-          email: registrationData.email,
-          phone: registrationData.phone,
-          faceEmbedding: faceEmbedding
-        }),
-      });
-
-      if (!response.ok) throw new Error(`Registration API error: ${response.status}`);
-      
-=======
           faceEmbedding: faceEmbedding,
         }),
       });
@@ -497,25 +307,10 @@ export default function FaceScan() {
       if (!response.ok)
         throw new Error(`Registration API error: ${response.status}`);
 
->>>>>>> hans
       const result = await response.json();
       console.log("✅ REAL Registration result:", result);
 
       if (result.success) {
-<<<<<<< HEAD
-        setEmployeeData({
-          name: registrationData.name,
-          id: result.employee_id,
-          department: registrationData.department,
-          position: registrationData.position,
-          email: registrationData.email,
-          phone: registrationData.phone,
-          confidence: 0.95,
-          isExisting: true
-        });
-        setScanStatus("registration_success");
-        console.log("✅ Employee registered successfully with REAL ID:", result.employee_id);
-=======
         // ✅ GUNAKAN DATA REAL DARI BACKEND
         setEmployeeData({
           name: registrationData.name,
@@ -529,7 +324,6 @@ export default function FaceScan() {
           "✅ Employee registered successfully with REAL ID:",
           result.employee_id
         );
->>>>>>> hans
       } else {
         setScanStatus("failed");
         setErrorMessage(result.error || "Registrasi gagal");
@@ -540,11 +334,8 @@ export default function FaceScan() {
       setErrorMessage("Gagal melakukan registrasi");
     }
   };
-<<<<<<< HEAD
-=======
 
   // ✅ Update recordAttendance function di FaceScan.jsx
->>>>>>> hans
 
   const recordAttendance = async (employeeId, confidence, type) => {
     try {
@@ -696,12 +487,12 @@ export default function FaceScan() {
     setScanStatus("idle");
     setEmployeeData(null);
     setErrorMessage("");
-    setRegistrationData({ 
-      name: "", 
+    setRegistrationData({
+      name: "",
       department: "General",
       position: "",
       email: "",
-      phone: ""
+      phone: "",
     });
   };
 
@@ -755,21 +546,12 @@ export default function FaceScan() {
           <div className="w-4/5 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
             {/* Camera Preview */}
             <div className="relative bg-slate-950 aspect-video flex items-center justify-center">
-<<<<<<< HEAD
-=======
               {/* ✅ Video element ALWAYS rendered, just hidden when not scanning */}
->>>>>>> hans
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-<<<<<<< HEAD
-                className={`w-full h-full object-cover ${!isScanning ? 'hidden' : ''}`}
-              />
-              <canvas ref={canvasRef} className="hidden" />
-
-=======
                 className={`w-full h-full object-cover ${
                   !isScanning ? "hidden" : ""
                 }`}
@@ -777,19 +559,14 @@ export default function FaceScan() {
               <canvas ref={canvasRef} className="hidden" />
 
               {/* ✅ Placeholder - shown when NOT scanning */}
->>>>>>> hans
               {!isScanning && (
                 <div className="text-center absolute inset-0 flex items-center justify-center">
                   <div>
                     <ScanFace className="h-24 w-24 text-slate-700 mx-auto mb-4" />
                     <p className="text-slate-500">
-<<<<<<< HEAD
-                      {mode === "recognition" ? "Face Recognition" : "Employee Registration"}
-=======
                       {mode === "recognition"
                         ? "Face Recognition"
                         : "Employee Registration"}
->>>>>>> hans
                     </p>
                     <p className="text-slate-600 text-sm mt-2">
                       Klik "Mulai Scan" untuk memulai
@@ -797,17 +574,6 @@ export default function FaceScan() {
                   </div>
                 </div>
               )}
-<<<<<<< HEAD
-
-              {isScanning && (
-                <>
-                  <div className="absolute inset-0 border-4 border-blue-500 rounded-lg opacity-50 pointer-events-none"></div>
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-80 border-2 border-green-500 rounded-lg pointer-events-none"></div>
-                </>
-              )}
-            </div>
-
-=======
 
               {/* ✅ Scan Overlay - shown when IS scanning */}
               {isScanning && (
@@ -817,7 +583,6 @@ export default function FaceScan() {
                 </>
               )}
             </div>
->>>>>>> hans
             {/* Status Bar */}
             <div className="p-4 bg-slate-900 border-t border-slate-800">
               <div className="flex items-center justify-between">
@@ -945,88 +710,6 @@ export default function FaceScan() {
                         ? "Karyawan Baru Terdeteksi!"
                         : "Registrasi Karyawan Baru"}
                     </h3>
-<<<<<<< HEAD
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      {/* Kolom 1 */}
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-slate-400 text-sm mb-2">
-                            <Briefcase className="w-4 h-4 inline mr-1" />
-                            Nama Lengkap *
-                          </label>
-                          <input
-                            type="text"
-                            value={registrationData.name}
-                            onChange={(e) => setRegistrationData({...registrationData, name: e.target.value})}
-                            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                            placeholder="Masukkan nama lengkap"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-slate-400 text-sm mb-2">
-                            <Briefcase className="w-4 h-4 inline mr-1" />
-                            Posisi/Jabatan
-                          </label>
-                          <input
-                            type="text"
-                            value={registrationData.position}
-                            onChange={(e) => setRegistrationData({...registrationData, position: e.target.value})}
-                            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                            placeholder="Contoh: Software Engineer, Manager"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-slate-400 text-sm mb-2">Departemen</label>
-                          <select
-                            value={registrationData.department}
-                            onChange={(e) => setRegistrationData({...registrationData, department: e.target.value})}
-                            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="General">General</option>
-                            <option value="IT">IT</option>
-                            <option value="HR">HR</option>
-                            <option value="Finance">Finance</option>
-                            <option value="Marketing">Marketing</option>
-                            <option value="Operations">Operations</option>
-                            <option value="Sales">Sales</option>
-                            <option value="Engineering">Engineering</option>
-                            <option value="Design">Design</option>
-                            <option value="Product">Product</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Kolom 2 */}
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-slate-400 text-sm mb-2">
-                            <Mail className="w-4 h-4 inline mr-1" />
-                            Email *
-                          </label>
-                          <input
-                            type="email"
-                            value={registrationData.email}
-                            onChange={(e) => setRegistrationData({...registrationData, email: e.target.value})}
-                            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                            placeholder="email@perusahaan.com"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-slate-400 text-sm mb-2">
-                            <Phone className="w-4 h-4 inline mr-1" />
-                            Nomor Telepon
-                          </label>
-                          <input
-                            type="tel"
-                            value={registrationData.phone}
-                            onChange={(e) => setRegistrationData({...registrationData, phone: e.target.value})}
-                            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                            placeholder="+62 812-3456-7890"
-                          />
-                        </div>
-=======
                     <div className="grid grid-cols-1 gap-4 mb-4">
                       <div>
                         <label className="block text-slate-400 text-sm mb-2">
@@ -1073,7 +756,6 @@ export default function FaceScan() {
                         <p className="text-blue-400 text-sm">
                           💡 ID Karyawan akan dibuat otomatis oleh sistem
                         </p>
->>>>>>> hans
                       </div>
                     </div>
 
@@ -1088,14 +770,9 @@ export default function FaceScan() {
                         onClick={registerEmployee}
                         className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center"
                       >
-<<<<<<< HEAD
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        {mode === "recognition" ? "Daftarkan & Check-In" : "Daftarkan Karyawan"}
-=======
                         {mode === "recognition"
                           ? "Daftarkan & Check-In"
                           : "Daftarkan Karyawan"}
->>>>>>> hans
                       </button>
                       <button
                         onClick={handleStopScan}
@@ -1110,69 +787,6 @@ export default function FaceScan() {
             )}
 
             {/* Success Result Panel */}
-<<<<<<< HEAD
-            {(scanStatus === "success" || scanStatus === "registration_success") && employeeData && (
-              <div className="p-6 bg-green-900/20 border-t border-green-800">
-                <div className="flex items-start space-x-4">
-                  <CheckCircle className="h-12 w-12 text-green-500 shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      {scanStatus === "success" ? "Absensi Berhasil!" : "Registrasi Berhasil!"}
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                      <div>
-                        <p className="text-slate-400">Nama</p>
-                        <p className="text-white font-medium">{employeeData.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400">ID Karyawan</p>
-                        <p className="text-white font-medium">{employeeData.id}</p>
-                      </div>
-                      <div>
-                        <p className="text-slate-400">Departemen</p>
-                        <p className="text-white font-medium">{employeeData.department}</p>
-                      </div>
-                      {employeeData.position && (
-                        <div>
-                          <p className="text-slate-400">Posisi</p>
-                          <p className="text-white font-medium">{employeeData.position}</p>
-                        </div>
-                      )}
-                      {employeeData.email && (
-                        <div>
-                          <p className="text-slate-400">Email</p>
-                          <p className="text-white font-medium">{employeeData.email}</p>
-                        </div>
-                      )}
-                      {employeeData.phone && (
-                        <div>
-                          <p className="text-slate-400">Telepon</p>
-                          <p className="text-white font-medium">{employeeData.phone}</p>
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-slate-400">Waktu</p>
-                        <p className="text-white font-medium">
-                          {new Date().toLocaleTimeString("id-ID")}
-                        </p>
-                      </div>
-                      {scanStatus === "success" && (
-                        <>
-                          <div>
-                            <p className="text-slate-400">Status</p>
-                            <p className="text-white font-medium">
-                              {attendanceType === "check_in" ? "Check-In" : "Check-Out"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-slate-400">Confidence</p>
-                            <p className="text-white font-medium">
-                              {Math.round(employeeData.confidence * 100)}%
-                            </p>
-                          </div>
-                        </>
-                      )}
-=======
             {(scanStatus === "success" ||
               scanStatus === "registration_success") &&
               employeeData && (
@@ -1229,7 +843,6 @@ export default function FaceScan() {
                           </>
                         )}
                       </div>
->>>>>>> hans
                     </div>
                   </div>
                 </div>
