@@ -33,19 +33,35 @@ export const useAttendanceData = (dateFilter = "today") => {
         throw new Error("Response data is not an array");
       }
 
-      // 🔄 Normalisasi data agar field sesuai backend baru
-      const normalizedData = data.map((item) => ({
-        _id: item._id,
-        employeeId: item.employeeId || item.employee_id || "-",
-        name: item.name || item.employees || "-",
-        status: item.status || "unknown", // "ontime", "late", "early", etc
-        action: item.action || item.status || "-",
-        timestamp: item.timestamp || null,
-        confidence: item.confidence ?? 0,
-      }));
+      // 🔄 Normalisasi data berdasarkan struktur database sebenarnya
+      const normalizedData = data.map((item) => {
+        // Field 'action' dari database adalah check_in/check_out
+        // Field 'status' adalah ontime/late/early
+        const normalized = {
+          _id: item._id,
+          employeeId: item.employeeId || item.employee_id || "-",
+          name: item.name || item.employees || "-",
+
+          // ✅ PENTING: Gunakan field yang benar dari backend
+          // Dari JSON sample: "action": "check_in" atau "check_out"
+          action: item.action || "-", // Ini adalah "check_in"/"check_out"
+
+          // Status adalah "ontime", "late", "early"
+          status: item.status || "-",
+
+          timestamp: item.timestamp || null,
+          confidence: item.confidence ?? 0,
+        };
+
+        return normalized;
+      });
 
       if (normalizedData.length > 0) {
         console.log("🔍 First normalized record:", normalizedData[0]);
+        console.log(
+          "🔍 Sample actions:",
+          normalizedData.map((r) => r.action)
+        );
       }
 
       setAttendanceData(normalizedData);

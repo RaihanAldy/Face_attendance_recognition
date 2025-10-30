@@ -25,6 +25,7 @@ const AttendanceLog = () => {
 
   const filteredData = attendanceData
     .filter((record) => {
+      // Filter berdasarkan tanggal (all atau today)
       if (filter === "all") return true;
 
       const today = new Date();
@@ -39,48 +40,87 @@ const AttendanceLog = () => {
       const employeeId = record.employeeId;
       const employeeName = record.name;
 
-      const isCheckIn = record.action === "check-in";
-      const isCheckOut = record.action === "check-out";
+      // ✅ Ambil action dari field 'action' di database
+      const recordAction = record.action; // "check_in" atau "check_out"
+      const recordStatus = record.status; // "ontime", "late", "early"
+      const recordTimestamp = record.timestamp;
 
-      // Jika checkin + checkout filter aktif, gabungkan records per employee
+      // Normalisasi action format
+      const isCheckIn =
+        recordAction === "check-in" || recordAction === "check_in";
+      const isCheckOut =
+        recordAction === "check-out" || recordAction === "check_out";
+
+      console.log("🔍 Processing record:", {
+        employeeId,
+        action: recordAction,
+        status: recordStatus,
+        isCheckIn,
+        isCheckOut,
+      });
+
+      // ✅ Kasus 1: Kedua filter aktif (checkin + checkout)
       if (checkFilters.checkin && checkFilters.checkout) {
         let existing = acc.find((r) => r.employeeId === employeeId);
+
         if (!existing) {
           existing = {
             employeeId,
             name: employeeName,
             checkIn: null,
+            checkInStatus: null,
             checkOut: null,
+            checkOutStatus: null,
           };
           acc.push(existing);
         }
-        if (isCheckIn) existing.checkIn = record.timestamp;
-        if (isCheckOut) existing.checkOut = record.timestamp;
+
+        if (isCheckIn) {
+          existing.checkIn = recordTimestamp;
+          existing.checkInStatus = recordStatus;
+        }
+
+        if (isCheckOut) {
+          existing.checkOut = recordTimestamp;
+          existing.checkOutStatus = recordStatus;
+        }
+
         return acc;
       }
 
-      // Jika hanya check-in aktif
-      if (checkFilters.checkin && !checkFilters.checkout && isCheckIn) {
-        acc.push({ employeeId, name: employeeName, checkIn: record.timestamp });
+      // ✅ Kasus 2: Hanya filter check-in aktif
+      if (checkFilters.checkin && !checkFilters.checkout) {
+        if (isCheckIn) {
+          acc.push({
+            employeeId,
+            name: employeeName,
+            checkIn: recordTimestamp,
+            status: recordStatus,
+          });
+        }
         return acc;
       }
 
-      // Jika hanya check-out aktif
-      if (checkFilters.checkout && !checkFilters.checkin && isCheckOut) {
-        acc.push({
-          employeeId,
-          name: employeeName,
-          checkOut: record.timestamp,
-        });
+      // ✅ Kasus 3: Hanya filter check-out aktif
+      if (checkFilters.checkout && !checkFilters.checkin) {
+        if (isCheckOut) {
+          acc.push({
+            employeeId,
+            name: employeeName,
+            checkOut: recordTimestamp,
+            status: recordStatus,
+          });
+        }
         return acc;
       }
 
-      // Default: tampilkan semua records (untuk filter "all" atau "today")
+      // ✅ Kasus 4: Tidak ada filter checkin/checkout (tampilkan semua raw records)
       acc.push({
         employeeId,
         name: employeeName,
-        status: record.status, // ontime / late / early
-        timestamp: record.timestamp,
+        status: recordStatus,
+        action: recordAction, // Tampilkan action asli (check-in/check-out)
+        timestamp: recordTimestamp,
       });
 
       return acc;
@@ -96,7 +136,7 @@ const AttendanceLog = () => {
     <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
         <AttendanceHeader
-          onRefresh={fetchAttendanceData}
+          onRefresh={() => fetchAttendanceData(filter)}
           onExport={handleExportCSV}
           loading={loading}
           dataLength={attendanceData.length}
@@ -120,7 +160,7 @@ const AttendanceLog = () => {
         )}
         {!loading && !error && filteredData.length === 0 && (
           <p className="text-slate-300 text-center py-6">
-            Tidak ada data untuk filter "{filter}"
+            Tidak ada data untuk filter yang dipilih
           </p>
         )}
 

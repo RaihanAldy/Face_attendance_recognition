@@ -262,7 +262,7 @@ class MongoDBManager:
                 }
         
         def get_attendance_by_date(self, date_str=None):
-            """Get raw attendance records by date - SIMPLIFIED VERSION"""
+            """Get raw attendance records by date - FIXED VERSION"""
             try:
                 # ✅ FIXED: Jika date_str adalah 'all', ambil semua data tanpa filter tanggal
                 if date_str == 'all':
@@ -286,18 +286,30 @@ class MongoDBManager:
                 # Format untuk frontend
                 formatted_results = []
                 for r in results:
-                    formatted_results.append({
+                    formatted_record = {
                         '_id': str(r.get('_id')),
-                        'id': r.get('id', '-'),
                         'employeeId': r.get('employee_id', '-'),
                         'name': r.get('employees', '-'),
                         'employees': r.get('employees', '-'),
+                        
+                        # ✅ CRITICAL FIX: Kirim field 'action' yang benar
+                        # Field 'action' berisi "check_in" atau "check_out"
+                        'action': r.get('action', '-'),
+                        
+                        # Field 'status' berisi "ontime", "late", "early"
                         'status': r.get('status', '-'),
+                        
                         'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
                         'confidence': float(r.get('confidence', 0))
-                    })
+                    }
+                    
+                    formatted_results.append(formatted_record)
+                    
+                    # Debug log untuk melihat data yang dikirim
+                    if len(formatted_results) <= 2:  # Log first 2 records only
+                        print(f"📤 Sending record: {formatted_record['employeeId']} - action:{formatted_record['action']}, status:{formatted_record['status']}")
                 
-                print(f"✅ Fetched {len(formatted_results)} attendance records")
+                print(f"✅ Formatted {len(formatted_results)} attendance records")
                 return formatted_results
 
             except Exception as e:
