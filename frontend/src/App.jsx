@@ -6,6 +6,7 @@ import Analytics from "./page/Analytics";
 import AttendanceLog from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
 import Login from "./page/Login";
+import Settings from "./page/Settings";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/attendance" element={<AttendanceLog />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/face-scan" element={<FaceScan />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
         </div>
