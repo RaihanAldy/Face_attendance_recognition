@@ -1,9 +1,11 @@
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from mongo_db import db
 from face_engine import face_engine
 from sync_manager import sync_manager
 from datetime import datetime
+from datetime import timedelta
 import traceback
 import json
 import boto3
@@ -14,6 +16,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev_secret_key")  # Ganti di .env untuk produksi
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=3)  # Token aktif 3 jam
+
+jwt = JWTManager(app)
 CORS(app)
 
 # Start background tasks
@@ -60,6 +66,58 @@ def trigger_alert():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/admin/register', methods=['POST'])
+def register_admin():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({'success': False, 'message': 'Missing username or password'}), 400
+
+    result = db.register_admin(username, password)
+    return jsonify(result)
+
+@app.route('/admin/login', methods=['POST'])
+def login_admin():
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({'success': False, 'message': 'Missing username or password'}), 400
+
+    result = db.login_admin(username, password)
+
+    # ✅ Log aktivitas login ke MongoDB
+    log_data = {
+        "username": username,
+        "login_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "status": "success" if result["status"] == "success" else "failed",
+        "reason": result["message"]
+    }
+    db.login_logs.insert_one(log_data)
+
+    # ✅ Jika login berhasil → buat JWT token
+    if result["status"] == "success":
+        access_token = create_access_token(identity=username)
+        return jsonify({
+            "status": "success",
+            "message": "Login berhasil",
+            "token": access_token
+        }), 200
+    else:
+        return jsonify(result), 401
+    
+@app.route("/admin/dashboard", methods=["GET"])
+@jwt_required()
+def get_dashboard():
+    current_user = get_jwt_identity()
+    return jsonify({
+        "status": "success",
+        "message": f"Selamat datang, {current_user}!"
+    }), 200
 
 
 if __name__ == "__main__":

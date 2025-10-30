@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 import json
 import traceback
+import bcrypt
+
 
 load_dotenv()
 
@@ -11,11 +13,14 @@ class MongoDBManager:
     def __init__(self):
         self.client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://localhost:27017'))
         self.db = self.client[os.getenv('DATABASE_NAME', 'attendance_system')]
+        self.db = self.client["faceRecognition"]
         
+        self.admins = self.db.admins
         self.employees = self.db.employees
         self.attendance = self.db.attendance
         self.analytics = self.db.analytics
         self.system_logs = self.db.system_logs
+        self.login_logs = self.db["login_logs"]
         
         self._create_indexes()
     
@@ -24,6 +29,28 @@ class MongoDBManager:
         self.attendance.create_index('employee_id')
         self.attendance.create_index('timestamp')
         self.attendance.create_index([('timestamp', -1)])
+        
+    # ⚙️ REGISTER ADMIN
+    def register_admin(self, username, password):
+        existing = self.admins.find_one({"username": username})
+        if existing:
+            return {"status": "error", "message": "Admin sudah ada"}
+
+        hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+        self.admins.insert_one({"username": username, "password": hashed_pw})
+        return {"status": "success", "message": "Admin berhasil didaftarkan"}
+
+    # ⚙️ LOGIN ADMIN
+    def login_admin(self, username, password):
+        admin = self.admins.find_one({"username": username})
+        if not admin:
+            return {"status": "error", "message": "Admin tidak ditemukan"}
+
+        if bcrypt.checkpw(password.encode("utf-8"), admin["password"]):
+            return {"status": "success", "message": "Login berhasil"}
+        else:
+            return {"status": "error", "message": "Password salah"}
+        
     
     def register_employee(self, employee_id, name, department='General'):
         employee_data = {
