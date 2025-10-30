@@ -20,34 +20,42 @@ export const exportCSV = (
     headers = [
       "Nama",
       "ID Karyawan",
+      "Action",
       "Status",
       "Timestamp",
       "Tanggal",
       "Confidence",
     ];
 
-    csvData = filteredData.map((record) => [
-      record.name || "-",
-      record.employeeId || "-",
-      record.status === "check_in" || record.status === "check-in"
-        ? "Check In"
-        : "Check Out",
-      formatDateTime(record.timestamp) || "-",
-      record.timestamp
-        ? new Date(record.timestamp).toLocaleDateString("id-ID")
-        : "-",
-      record.confidence ? `${Math.round(record.confidence * 100)}%` : "-",
-    ]);
+    csvData = filteredData.map((record) => {
+      // Normalisasi action untuk display
+      const displayAction = record.action
+        ? record.action.replace(/_/g, "-")
+        : "-";
+
+      return [
+        record.name || "-",
+        record.employeeId || "-",
+        displayAction, // "check-in" atau "check-out"
+        record.status || "-", // "ontime", "late", "early"
+        formatDateTime(record.timestamp) || "-",
+        record.timestamp
+          ? new Date(record.timestamp).toLocaleDateString("id-ID")
+          : "-",
+        record.confidence ? `${Math.round(record.confidence * 100)}%` : "-",
+      ];
+    });
   }
 
   // Case 2: Check In only
   else if (checkFilters.checkin && !checkFilters.checkout) {
-    headers = ["Nama", "ID Karyawan", "Check In", "Tanggal"];
+    headers = ["Nama", "ID Karyawan", "Check In", "Status", "Tanggal"];
 
     csvData = filteredData.map((record) => [
       record.name || "-",
       record.employeeId || "-",
       formatDateTime(record.checkIn) || "-",
+      record.status || "-", // Status dari check-in
       record.checkIn
         ? new Date(record.checkIn).toLocaleDateString("id-ID")
         : "-",
@@ -56,12 +64,13 @@ export const exportCSV = (
 
   // Case 3: Check Out only
   else if (!checkFilters.checkin && checkFilters.checkout) {
-    headers = ["Nama", "ID Karyawan", "Check Out", "Tanggal"];
+    headers = ["Nama", "ID Karyawan", "Check Out", "Status", "Tanggal"];
 
     csvData = filteredData.map((record) => [
       record.name || "-",
       record.employeeId || "-",
       formatDateTime(record.checkOut) || "-",
+      record.status || "-", // Status dari check-out
       record.checkOut
         ? new Date(record.checkOut).toLocaleDateString("id-ID")
         : "-",
@@ -75,8 +84,9 @@ export const exportCSV = (
       "ID Karyawan",
       "Tanggal",
       "Check In",
+      "Status Check In",
       "Check Out",
-      "Status",
+      "Status Check Out",
       "Jam Kerja",
     ];
 
@@ -89,12 +99,9 @@ export const exportCSV = (
           )
         : "-",
       formatDateTime(record.checkIn) || "-",
+      record.checkInStatus || "-", // Status saat check-in (ontime/late)
       formatDateTime(record.checkOut) || "-",
-      record.checkOut
-        ? "Selesai"
-        : record.checkIn
-        ? "Sedang Bekerja"
-        : "Belum Check-In",
+      record.checkOutStatus || "-", // Status saat check-out (ontime/early)
       calculateWorkingHours(record.checkIn, record.checkOut) || "-",
     ]);
   }

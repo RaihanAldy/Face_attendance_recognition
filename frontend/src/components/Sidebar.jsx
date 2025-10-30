@@ -4,10 +4,7 @@ import {
   ScanFace,
   Users,
   Clock,
-  FileText,
   Settings,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 

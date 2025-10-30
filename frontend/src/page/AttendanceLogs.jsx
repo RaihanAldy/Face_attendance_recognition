@@ -20,9 +20,6 @@ const AttendanceLog = () => {
     fetchAttendanceData(filter);
   }, [filter]);
 
-  const handleExportCSV = () =>
-    exportCSV(attendanceData, formatDateTime, calculateWorkingHours);
-
   const filteredData = attendanceData
     .filter((record) => {
       // Filter berdasarkan tanggal (all atau today)
@@ -126,6 +123,17 @@ const AttendanceLog = () => {
       return acc;
     }, []);
 
+  // ✅ Handler export yang menggunakan filteredData dan semua parameter
+  const handleExportCSV = () => {
+    exportCSV(
+      filteredData,
+      filter,
+      checkFilters,
+      formatDateTime,
+      calculateWorkingHours
+    );
+  };
+
   console.group("🧩 Attendance Data Debug");
   console.log("Raw data from backend:", attendanceData);
   console.log("Filtered & reduced data:", filteredData);
@@ -139,7 +147,7 @@ const AttendanceLog = () => {
           onRefresh={() => fetchAttendanceData(filter)}
           onExport={handleExportCSV}
           loading={loading}
-          dataLength={attendanceData.length}
+          dataLength={filteredData.length}
         />
         <AttendanceFilter
           filter={filter}
