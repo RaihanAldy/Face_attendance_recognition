@@ -31,21 +31,44 @@ def employees():
         print(f"❌ Get employees error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/attendance', methods=['GET', 'POST'])
-def attendance():
-    if request.method == 'GET':
+@app.route('/api/attendance', methods=['GET'])
+def get_attendance():
+    """Get attendance data - compatible with both frontend calls"""
+    try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        print(f"📅 Fetching attendance for date: {date}")
+        
         attendance_data = db.get_attendance_by_date(date)
-        return jsonify(attendance_data)
-    
-    elif request.method == 'POST':
-        data = request.json
-        attendance_id = db.record_attendance(
-            employee_id=data.get('employeeId'),
-            confidence=data.get('confidence', 0.0)
-        )
-        return jsonify({'success': True, 'attendanceId': attendance_id})
-    
+        
+        # Format data untuk frontend
+        formatted_data = []
+        for record in attendance_data:
+            formatted_record = {
+                'id': str(record.get('_id', '')),
+                'employee_id': record.get('employee_id', ''),
+                'employee_name': record.get('employee_name', 'Unknown'),
+                'check_in': record.get('check_in', ''),
+                'check_out': record.get('check_out', ''),
+                'status': record.get('status', 'present'),
+                'department': record.get('department', 'General'),
+                'confidence': record.get('confidence', 0.0)
+            }
+            
+            # Ensure all fields are properly formatted
+            if formatted_record['check_in'] and isinstance(formatted_record['check_in'], datetime):
+                formatted_record['check_in'] = formatted_record['check_in'].isoformat()
+            if formatted_record['check_out'] and isinstance(formatted_record['check_out'], datetime):
+                formatted_record['check_out'] = formatted_record['check_out'].isoformat()
+                
+            formatted_data.append(formatted_record)
+        
+        print(f"✅ Returning {len(formatted_data)} records")
+        return jsonify(formatted_data)
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return jsonify({'error': str(e)}), 500   
+
 @app.route('/api/attendance/checkin', methods=['POST'])
 def check_in():
     try:
@@ -93,7 +116,6 @@ def check_out():
         print(f"❌ Check-out error: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @app.route('/api/attendance', methods=['GET'])
 def get_attendance_log():
