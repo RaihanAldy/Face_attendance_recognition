@@ -1,129 +1,156 @@
 import { formatDateTime } from "./timeUtils";
 
-// Helper function untuk mendapatkan nama employee
-const getEmployeeName = (record) => {
-  return (
-    record.name || record.employees || record.employeeName || "Unknown Employee"
-  );
-};
+// Helper untuk nama employee
+export const getEmployeeName = (record) =>
+  record.name || record.employees || "Unknown Employee";
 
-// Fungsi untuk menentukan kolom tabel berdasarkan filter
+// Fungsi menentukan kolom tabel berdasarkan filter
 export const getTableHeaders = (filter, checkFilters) => {
-  // ✅ Filter "all" tanpa check filters
-  if (filter === "all" && !checkFilters.checkin && !checkFilters.checkout) {
-    return ["ID", "Nama", "Status", "Timestamp"];
+  const { checkin, checkout } = checkFilters;
+
+  // Jika kedua filter aktif: tampilkan Check In & Check Out
+  if (checkin && checkout) {
+    return ["Employee ID", "Nama", "Check In", "Check Out"];
   }
 
-  // ✅ Filter "all" + checkin + checkout
-  if (filter === "all" && checkFilters.checkin && checkFilters.checkout) {
-    return ["ID", "Nama", "Check In", "Check Out"];
+  // Jika hanya checkin aktif
+  if (checkin && !checkout) {
+    return ["Employee ID", "Nama", "Check In", "Status"];
   }
 
-  // ✅ Filter "all" + checkin only
-  if (filter === "all" && checkFilters.checkin && !checkFilters.checkout) {
-    return ["ID", "Nama", "Check In"];
+  // Jika hanya checkout aktif
+  if (!checkin && checkout) {
+    return ["Employee ID", "Nama", "Check Out", "Status"];
   }
 
-  // ✅ Filter "all" + checkout only
-  if (filter === "all" && !checkFilters.checkin && checkFilters.checkout) {
-    return ["ID", "Nama", "Check Out"];
-  }
-
-  // Filter "today" tanpa check filters
-  if (filter === "today" && !checkFilters.checkin && !checkFilters.checkout) {
-    return ["ID", "Nama", "Status", "Timestamp"];
-  }
-
-  // Today + checkin only
-  if (filter === "today" && checkFilters.checkin && !checkFilters.checkout) {
-    return ["ID", "Nama", "Check In"];
-  }
-
-  // Today + checkout only
-  if (filter === "today" && !checkFilters.checkin && checkFilters.checkout) {
-    return ["ID", "Nama", "Check Out"];
-  }
-
-  // Today + checkin + checkout
-  if (filter === "today" && checkFilters.checkin && checkFilters.checkout) {
-    return ["ID", "Nama", "Check In", "Check Out"];
-  }
-
-  return ["ID", "Nama", "Status", "Timestamp"];
+  // Default: tampilkan semua kolom
+  return ["Employee ID", "Nama", "Status", "Action", "Timestamp"];
 };
 
 // Fungsi untuk render isi setiap sel tabel
 export const renderTableCell = (record, header, index) => {
   const baseClass = "px-6 py-4 text-slate-300";
 
-  // ✅ Common cells yang dipakai di semua filter
-  if (header === "ID") {
-    return (
-      <td key={index} className={`${baseClass} font-mono text-sm`}>
-        {record.employeeId}
-      </td>
-    );
-  }
+  switch (header) {
+    case "Employee ID":
+      return (
+        <td key={index} className={`${baseClass} font-mono text-sm`}>
+          {record.employeeId}
+        </td>
+      );
 
-  if (header === "Nama") {
-    return (
-      <td key={index} className={baseClass}>
-        {getEmployeeName(record)}
-      </td>
-    );
-  }
+    case "Nama":
+      return (
+        <td key={index} className={baseClass}>
+          {getEmployeeName(record)}
+        </td>
+      );
 
-  // ✅ Handle Status column (untuk filter "all" dan "today" tanpa check filters)
-  if (header === "Status") {
-    return (
-      <td key={index} className={`${baseClass} capitalize`}>
-        <span
-          className={`px-2 py-1 rounded-full text-xs ${
-            record.status === "check_in" || record.status === "check-in"
-              ? "bg-green-500/20 text-green-400"
-              : "bg-blue-500/20 text-blue-400"
-          }`}
-        >
-          {record.status === "check_in" || record.status === "check-in"
-            ? "Check In"
-            : "Check Out"}
-        </span>
-      </td>
-    );
-  }
-
-  // ✅ Handle Timestamp column (untuk filter "all" dan "today" tanpa check filters)
-  if (header === "Timestamp") {
-    return (
-      <td key={index} className={baseClass}>
-        {formatDateTime(record.timestamp)}
-      </td>
-    );
-  }
-
-  // ✅ Handle Check In column
-  if (header === "Check In") {
-    return (
-      <td key={index} className={baseClass}>
-        {formatDateTime(record.checkIn)}
-      </td>
-    );
-  }
-
-  // ✅ Handle Check Out column
-  if (header === "Check Out") {
-    return (
-      <td key={index} className={baseClass}>
-        {record.checkOut ? (
-          formatDateTime(record.checkOut)
-        ) : (
-          <span className="px-2 py-1 rounded-full text-xs bg-yellow-500/20 text-yellow-400">
-            Working
+    case "Status":
+      return (
+        <td key={index} className={`${baseClass} capitalize`}>
+          <span
+            className={`px-2 py-1 rounded-full text-xs ${
+              record.status === "ontime"
+                ? "bg-green-500/20 text-green-400"
+                : record.status === "late"
+                ? "bg-red-500/20 text-red-400"
+                : record.status === "early"
+                ? "bg-yellow-500/20 text-yellow-400"
+                : "bg-gray-500/20 text-gray-400"
+            }`}
+          >
+            {record.status || "-"}
           </span>
-        )}
-      </td>
-    );
-  }
+        </td>
+      );
 
-  return null;
+    case "Action": {
+      // Normalisasi action untuk display (ganti underscore dengan dash)
+      const displayAction = record.action
+        ? record.action.replace(/_/g, "-")
+        : "-";
+
+      return (
+        <td key={index} className={`${baseClass} capitalize`}>
+          <span
+            className={`px-2 py-1 rounded-full text-xs ${
+              displayAction === "check-in"
+                ? "bg-green-500/20 text-green-400"
+                : displayAction === "check-out"
+                ? "bg-blue-500/20 text-blue-400"
+                : "bg-gray-500/20 text-gray-400"
+            }`}
+          >
+            {displayAction}
+          </span>
+        </td>
+      );
+    }
+    case "Timestamp":
+      return (
+        <td key={index} className={baseClass}>
+          {formatDateTime(record.timestamp)}
+        </td>
+      );
+
+    case "Check In":
+      return (
+        <td key={index} className={baseClass}>
+          {record.checkIn ? (
+            <div className="flex flex-row items-center justify-baseline space-x-1">
+              <span className="bg-blue-600 rounded-full px-2 py-0.5 text-slate-200">
+                {formatDateTime(record.checkIn)}
+              </span>
+              {record.checkInStatus && (
+                <span
+                  className={`px-2 py-0.5 rounded-full capitalize ${
+                    record.checkInStatus === "ontime"
+                      ? "bg-green-500/20 text-green-400"
+                      : record.checkInStatus === "late"
+                      ? "bg-red-500/20 text-red-400"
+                      : "bg-yellow-500/20 text-yellow-400"
+                  }`}
+                >
+                  {record.checkInStatus}
+                </span>
+              )}
+            </div>
+          ) : (
+            "-"
+          )}
+        </td>
+      );
+
+    case "Check Out":
+      return (
+        <td key={index} className={baseClass}>
+          {record.checkOut ? (
+            <div className="flex flex-row items-center justify-baseline space-x-1">
+              <span className="bg-blue-600 rounded-full px-2 py-0.5 text-slate-200">
+                {formatDateTime(record.checkOut)}
+              </span>
+              {record.checkOutStatus && (
+                <span
+                  className={`px-2 py-0.5 rounded-full capitalize ${
+                    record.checkOutStatus === "ontime"
+                      ? "bg-green-500/20 text-green-400"
+                      : record.checkOutStatus === "early"
+                      ? "bg-yellow-500/20 text-yellow-400"
+                      : "bg-blue-500/20 text-blue-400"
+                  }`}
+                >
+                  {record.checkOutStatus}
+                </span>
+              )}
+            </div>
+          ) : (
+            "-"
+          )}
+        </td>
+      );
+
+    default:
+      return null;
+  }
 };

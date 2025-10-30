@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAttendanceData } from "../utils/attendanceData";
 import AttendanceFilter from "../components/attendance/AttendanceFilter";
 import AttendanceHeader from "../components/attendance/AttendanceHeader";
@@ -13,150 +13,126 @@ const AttendanceLog = () => {
     checkout: false,
   });
 
-  // ✅ Pass filter ke hook dan re-fetch ketika filter berubah
-  const { attendanceData, loading, error, refetch } =
+  const { attendanceData, loading, error, fetchAttendanceData } =
     useAttendanceData(filter);
 
-  // ✅ Fetch data ketika filter berubah
-/*   React.useEffect(() => {
+  useEffect(() => {
     fetchAttendanceData(filter);
   }, [filter]);
- */
-  const handleExportCSV = () => {
-    if (attendanceData && attendanceData.length > 0) {
-      exportCSV(attendanceData, formatDateTime, calculateWorkingHours);
-    } else {
-      alert("Tidak ada data untuk di-export");
-    }
-  };
 
-  // ✅ FIX: Handle data transformation dengan lebih aman
-  const filteredData = React.useMemo(() => {
-    if (!attendanceData || !Array.isArray(attendanceData)) return [];
+  const filteredData = attendanceData
+    .filter((record) => {
+      // Filter berdasarkan tanggal (all atau today)
+      if (filter === "all") return true;
 
-    return attendanceData
-      .filter((record) => {
-        // Filter berdasarkan tanggal
-        if (filter === "all") {
-          return true; // Tampilkan semua data
-        }
+      const today = new Date();
+      const recordDate = new Date(record.timestamp);
+      return (
+        recordDate.getDate() === today.getDate() &&
+        recordDate.getMonth() === today.getMonth() &&
+        recordDate.getFullYear() === today.getFullYear()
+      );
+    })
+    .reduce((acc, record) => {
+      const employeeId = record.employeeId;
+      const employeeName = record.name;
 
-        // Filter "today" - handle berbagai format timestamp
-        try {
-          const today = new Date();
-          const recordDate = new Date(record.timestamp || record.check_in || record.checkIn);
-          
-          return (
-            recordDate.getDate() === today.getDate() &&
-            recordDate.getMonth() === today.getMonth() &&
-            recordDate.getFullYear() === today.getFullYear()
-          );
-        } catch (err) {
-          console.warn("Error parsing date:", record);
-          return false;
-        }
-      })
-      .reduce((acc, record) => {
-        try {
-          const employeeId = record.employee_id || record.employeeId || `emp-${acc.length}`;
-          const employeeName = record.employee_name || record.name || "Unknown Employee";
-          const timestamp = record.timestamp || record.check_in || record.checkIn;
+      // ✅ Ambil action dari field 'action' di database
+      const recordAction = record.action; // "check_in" atau "check_out"
+      const recordStatus = record.status; // "ontime", "late", "early"
+      const recordTimestamp = record.timestamp;
 
-          // Jika checkin + checkout keduanya aktif, gabungkan records
-          if (checkFilters.checkin && checkFilters.checkout) {
-            const existing = acc.find((r) => r.employeeId === employeeId);
+      // Normalisasi action format
+      const isCheckIn =
+        recordAction === "check-in" || recordAction === "check_in";
+      const isCheckOut =
+        recordAction === "check-out" || recordAction === "check_out";
 
-            if (existing) {
-              if (record.attendance_type === 'check_in' || record.status === "check_in" || record.status === "check-in") {
-                existing.checkIn = timestamp;
-                existing.checkInTime = formatDateTime(timestamp);
-              }
-              if (record.attendance_type === 'check_out' || record.status === "check_out" || record.status === "check-out") {
-                existing.checkOut = timestamp;
-                existing.checkOutTime = formatDateTime(timestamp);
-              }
-            } else {
-              const newRecord = {
-                id: record.id || record._id || `record-${acc.length}`,
-                employeeId: employeeId,
-                name: employeeName,
-                department: record.department || "General",
-                status: record.status || "present",
-                confidence: record.confidence || 0,
-                checkIn: null,
-                checkOut: null,
-                checkInTime: "",
-                checkOutTime: ""
-              };
+      console.log("🔍 Processing record:", {
+        employeeId,
+        action: recordAction,
+        status: recordStatus,
+        isCheckIn,
+        isCheckOut,
+      });
 
-              if (record.attendance_type === 'check_in' || record.status === "check_in" || record.status === "check-in") {
-                newRecord.checkIn = timestamp;
-                newRecord.checkInTime = formatDateTime(timestamp);
-              }
-              if (record.attendance_type === 'check_out' || record.status === "check_out" || record.status === "check-out") {
-                newRecord.checkOut = timestamp;
-                newRecord.checkOutTime = formatDateTime(timestamp);
-              }
+      // ✅ Kasus 1: Kedua filter aktif (checkin + checkout)
+      if (checkFilters.checkin && checkFilters.checkout) {
+        let existing = acc.find((r) => r.employeeId === employeeId);
 
-              acc.push(newRecord);
-            }
-            return acc;
-          }
-
-          // Jika hanya checkin aktif
-          if (checkFilters.checkin && !checkFilters.checkout) {
-            if (record.attendance_type === 'check_in' || record.status === "check_in" || record.status === "check-in") {
-              acc.push({
-                id: record.id || record._id || `record-${acc.length}`,
-                employeeId: employeeId,
-                name: employeeName,
-                department: record.department || "General",
-                checkIn: timestamp,
-                checkInTime: formatDateTime(timestamp),
-                status: record.status || "check_in"
-              });
-            }
-            return acc;
-          }
-
-          // Jika hanya checkout aktif
-          if (checkFilters.checkout && !checkFilters.checkin) {
-            if (record.attendance_type === 'check_out' || record.status === "check_out" || record.status === "check-out") {
-              acc.push({
-                id: record.id || record._id || `record-${acc.length}`,
-                employeeId: employeeId,
-                name: employeeName,
-                department: record.department || "General",
-                checkOut: timestamp,
-                checkOutTime: formatDateTime(timestamp),
-                status: record.status || "check_out"
-              });
-            }
-            return acc;
-          }
-
-          // ✅ Default: tampilkan semua records
-          acc.push({
-            id: record.id || record._id || `record-${acc.length}`,
-            employeeId: employeeId,
+        if (!existing) {
+          existing = {
+            employeeId,
             name: employeeName,
-            department: record.department || "General",
-            status: record.status || "present",
-            confidence: record.confidence || 0,
-            timestamp: timestamp,
-            formattedTime: formatDateTime(timestamp),
-            checkIn: record.check_in || record.checkIn,
-            checkOut: record.check_out || record.checkOut,
-            attendance_type: record.attendance_type
-          });
-
-          return acc;
-        } catch (err) {
-          console.error("Error processing record:", record, err);
-          return acc;
+            checkIn: null,
+            checkInStatus: null,
+            checkOut: null,
+            checkOutStatus: null,
+          };
+          acc.push(existing);
         }
-      }, []);
-  }, [attendanceData, filter, checkFilters]);
+
+        if (isCheckIn) {
+          existing.checkIn = recordTimestamp;
+          existing.checkInStatus = recordStatus;
+        }
+
+        if (isCheckOut) {
+          existing.checkOut = recordTimestamp;
+          existing.checkOutStatus = recordStatus;
+        }
+
+        return acc;
+      }
+
+      // ✅ Kasus 2: Hanya filter check-in aktif
+      if (checkFilters.checkin && !checkFilters.checkout) {
+        if (isCheckIn) {
+          acc.push({
+            employeeId,
+            name: employeeName,
+            checkIn: recordTimestamp,
+            status: recordStatus,
+          });
+        }
+        return acc;
+      }
+
+      // ✅ Kasus 3: Hanya filter check-out aktif
+      if (checkFilters.checkout && !checkFilters.checkin) {
+        if (isCheckOut) {
+          acc.push({
+            employeeId,
+            name: employeeName,
+            checkOut: recordTimestamp,
+            status: recordStatus,
+          });
+        }
+        return acc;
+      }
+
+      // ✅ Kasus 4: Tidak ada filter checkin/checkout (tampilkan semua raw records)
+      acc.push({
+        employeeId,
+        name: employeeName,
+        status: recordStatus,
+        action: recordAction, // Tampilkan action asli (check-in/check-out)
+        timestamp: recordTimestamp,
+      });
+
+      return acc;
+    }, []);
+
+  // ✅ Handler export yang menggunakan filteredData dan semua parameter
+  const handleExportCSV = () => {
+    exportCSV(
+      filteredData,
+      filter,
+      checkFilters,
+      formatDateTime,
+      calculateWorkingHours
+    );
+  };
 
   console.group("🧩 Attendance Data Debug");
   console.log("Raw data from backend:", attendanceData);
@@ -168,7 +144,7 @@ const AttendanceLog = () => {
     <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
         <AttendanceHeader
-          onRefresh={refetch}
+          onRefresh={() => fetchAttendanceData(filter)}
           onExport={handleExportCSV}
           loading={loading}
           dataLength={filteredData.length}
@@ -192,7 +168,7 @@ const AttendanceLog = () => {
         )}
         {!loading && !error && filteredData.length === 0 && (
           <p className="text-slate-300 text-center py-6">
-            Tidak ada data untuk filter "{filter}"
+            Tidak ada data untuk filter yang dipilih
           </p>
         )}
 
@@ -219,13 +195,7 @@ const AttendanceLog = () => {
                   >
                     {getTableHeaders(filter, checkFilters).map(
                       (header, cellIndex) =>
-                        renderTableCell(
-                          record,
-                          header,
-                          cellIndex,
-                          filter,
-                          checkFilters
-                        )
+                        renderTableCell(record, header, cellIndex)
                     )}
                   </tr>
                 ))}

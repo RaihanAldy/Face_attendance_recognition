@@ -10,93 +10,66 @@ export const useAttendanceData = (dateFilter = "today") => {
       setLoading(true);
       setError("");
 
-      // ✅ FIX: Gunakan endpoint yang benar - /api/attendance (bukan /api/attendance/log)
-      const dateParam = filter === "all" 
-        ? "" 
-        : new Date().toISOString().split("T")[0];
-      
-      // ✅ FIX: URL yang benar sesuai endpoint di Flask
-      const url = dateParam 
-        ? `http://localhost:5000/api/attendance?date=${dateParam}`
-        : `http://localhost:5000/api/attendance`;
+      // Kirim parameter date berdasarkan filter
+      const dateParam =
+        filter === "all" ? "all" : new Date().toISOString().split("T")[0];
+      const url = `http://localhost:5000/api/attendance?date=${dateParam}`;
 
       console.log(`📡 Fetching attendance data with filter: ${filter}`);
       console.log(`🔗 Request URL: ${url}`);
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(url);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ HTTP Error ${response.status}:`, errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
 
       console.log("📦 Raw response from backend:", data);
-      console.log(`📊 Response type: ${Array.isArray(data) ? 'Array' : typeof data}`);
-      console.log(`📈 Number of records: ${data.length}`);
-
-      // ✅ Debug: Check structure of first record
-      if (data.length > 0) {
-        console.log("🔍 First record structure:", data[0]);
-        console.log("👤 Employee name field:", {
-          'employee_name': data[0].employee_name,
-          'name': data[0].name,
-          'employeeName': data[0].employeeName
-        });
-        console.log("⏰ Check-in field:", {
-          'check_in': data[0].check_in,
-          'checkIn': data[0].checkIn,
-          'timestamp': data[0].timestamp
-        });
-      }
 
       if (!Array.isArray(data)) {
         console.error("❌ Invalid response format:", data);
         throw new Error("Response data is not an array");
       }
 
-      // ✅ FIX: Transform data untuk memastikan konsistensi
-      const transformedData = data.map((item, index) => ({
-        id: item.id || item._id || `temp-${index}`,
-        employee_id: item.employee_id || item.employeeId || 'Unknown',
-        employee_name: item.employee_name || item.name || item.employeeName || 'Unknown Employee',
-        check_in: item.check_in || item.checkIn || item.timestamp || '',
-        check_out: item.check_out || item.checkOut || '',
-        status: item.status || 'present',
-        department: item.department || 'General',
-        confidence: item.confidence || 0.0,
-        // Backup fields untuk debugging
-        _raw: item
-      }));
+      // 🔄 Normalisasi data berdasarkan struktur database sebenarnya
+      const normalizedData = data.map((item) => {
+        // Field 'action' dari database adalah check_in/check_out
+        // Field 'status' adalah ontime/late/early
+        const normalized = {
+          _id: item._id,
+          employeeId: item.employeeId || item.employee_id || "-",
+          name: item.name || item.employees || "-",
 
-      console.log("🔄 Transformed data sample:", transformedData[0]);
-      setAttendanceData(transformedData);
-      console.log(`✅ Successfully processed ${transformedData.length} attendance records`);
-      
+          // ✅ PENTING: Gunakan field yang benar dari backend
+          // Dari JSON sample: "action": "check_in" atau "check_out"
+          action: item.action || "-", // Ini adalah "check_in"/"check_out"
+
+          // Status adalah "ontime", "late", "early"
+          status: item.status || "-",
+
+          timestamp: item.timestamp || null,
+          confidence: item.confidence ?? 0,
+        };
+
+        return normalized;
+      });
+
+      if (normalizedData.length > 0) {
+        console.log("🔍 First normalized record:", normalizedData[0]);
+        console.log(
+          "🔍 Sample actions:",
+          normalizedData.map((r) => r.action)
+        );
+      }
+
+      setAttendanceData(normalizedData);
+      console.log(`✅ Fetched ${normalizedData.length} attendance records`);
     } catch (err) {
       console.error("🔥 Error fetching attendance data:", err);
-      
-      // Better error messages
-      let errorMessage = "Terjadi kesalahan saat mengambil data absensi.";
-      
-      if (err.message === 'Failed to fetch') {
-        errorMessage = "Tidak dapat terhubung ke server. Pastikan backend running di http://localhost:5000";
-      } else if (err.message.includes('HTTP error')) {
-        errorMessage = `Server error: ${err.message}`;
-      } else {
-        errorMessage = err.message;
-      }
-      
-      setError(errorMessage);
+      setError(err.message || "Terjadi kesalahan saat mengambil data absensi.");
       setAttendanceData([]);
-      
     } finally {
       setLoading(false);
     }
@@ -106,10 +79,5 @@ export const useAttendanceData = (dateFilter = "today") => {
     fetchAttendanceData(dateFilter);
   }, [dateFilter]);
 
-  return { 
-    attendanceData, 
-    loading, 
-    error, 
-    refetch: fetchAttendanceData 
-  };
+  return { attendanceData, loading, error, fetchAttendanceData };
 };

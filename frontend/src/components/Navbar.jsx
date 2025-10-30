@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { ScanFace, Wifi, WifiOff, Bell } from "lucide-react";
-
+import { Wifi, WifiOff, Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 const Navbar = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -16,6 +18,9 @@ const Navbar = () => {
       setCurrentTime(new Date());
     }, 1000);
 
+    const storedUser = localStorage.getItem("userData");
+    if (storedUser) setUser(JSON.parse(storedUser));
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
@@ -23,6 +28,13 @@ const Navbar = () => {
     };
   }, []);
 
+  const initials = user
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+    : "";
   return (
     <>
       <nav className="bg-slate-900 border-b border-slate-800">
@@ -65,15 +77,24 @@ const Navbar = () => {
                 {currentTime.toLocaleTimeString("id-ID")}
               </div>
 
-              {/* User Profile */}
-              <button className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
-                <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
-                  AD
-                </div>
-                <span className="text-slate-300 text-sm font-medium">
-                  Admin
-                </span>
-              </button>
+              {/* User Profile or Login */}
+              {user ? (
+                <button className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
+                  <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
+                    {initials}
+                  </div>
+                  <span className="text-slate-300 text-sm font-medium">
+                    {user.name}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate("/login")}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all"
+                >
+                  Login
+                </button>
+              )}
             </div>
           </div>
         </div>
