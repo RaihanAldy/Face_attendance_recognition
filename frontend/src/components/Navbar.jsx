@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, Bell } from "lucide-react";
+import { Wifi, WifiOff, Bell, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-const Navbar = () => {
+
+const Navbar = ({ onLogout, userRole }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [user, setUser] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,15 +20,45 @@ const Navbar = () => {
       setCurrentTime(new Date());
     }, 1000);
 
+    // Get user data from localStorage
     const storedUser = localStorage.getItem("userData");
-    if (storedUser) setUser(JSON.parse(storedUser));
+    const userName = localStorage.getItem("userName") || "User";
+    const userEmail = localStorage.getItem("userEmail") || "user@example.com";
+    
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      // Create default user data if not exists
+      const defaultUser = {
+        name: userName,
+        email: userEmail,
+        role: userRole || "employee"
+      };
+      setUser(defaultUser);
+      localStorage.setItem("userData", JSON.stringify(defaultUser));
+    }
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       clearInterval(timer);
     };
-  }, []);
+  }, [userRole]);
+
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      // Default logout behavior
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userData");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("userEmail");
+      navigate("/login", { replace: true });
+    }
+    setShowDropdown(false);
+  };
 
   const initials = user
     ? user.name
@@ -34,7 +66,16 @@ const Navbar = () => {
         .map((n) => n[0])
         .join("")
         .toUpperCase()
-    : "";
+    : "U";
+
+  const getUserRoleText = (role) => {
+    switch (role) {
+      case "admin": return "Administrator";
+      case "employee": return "Employee";
+      default: return "User";
+    }
+  };
+
   return (
     <>
       <nav className="bg-slate-900 border-b border-slate-800">
@@ -77,16 +118,46 @@ const Navbar = () => {
                 {currentTime.toLocaleTimeString("id-ID")}
               </div>
 
-              {/* User Profile or Login */}
+              {/* User Profile with Dropdown */}
               {user ? (
-                <button className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
-                  <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
-                    {initials}
-                  </div>
-                  <span className="text-slate-300 text-sm font-medium">
-                    {user.name}
-                  </span>
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
+                      {initials}
+                    </div>
+                    <div className="text-left">
+                      <span className="text-slate-300 text-sm font-medium block">
+                        {user.name}
+                      </span>
+                      <span className="text-slate-400 text-xs block">
+                        {getUserRoleText(user.role || userRole)}
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {showDropdown && (
+                    <div className="absolute right-0 top-12 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
+                      <div className="p-3 border-b border-slate-700">
+                        <p className="text-slate-300 text-sm font-medium">{user.name}</p>
+                        <p className="text-slate-400 text-xs">{user.email}</p>
+                        <p className="text-blue-400 text-xs mt-1">
+                          {getUserRoleText(user.role || userRole)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center space-x-2 px-3 py-2 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors text-sm"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button
                   onClick={() => navigate("/login")}
@@ -112,6 +183,14 @@ const Navbar = () => {
             </span>
           </div>
         </div>
+      )}
+
+      {/* Overlay untuk menutup dropdown ketika klik di luar */}
+      {showDropdown && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowDropdown(false)}
+        />
       )}
     </>
   );

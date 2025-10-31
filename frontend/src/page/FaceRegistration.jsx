@@ -5,26 +5,37 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
-  Clock,
   UserCheck,
   X,
+  UserPlus,
+  Mail,
+  Phone,
+  Briefcase,
+  ArrowLeft,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-export default function FaceScan() {
+export default function FaceRegistration() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("idle");
   const [employeeData, setEmployeeData] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [attendanceType, setAttendanceType] = useState("check_in");
-  const [lastAttendance, setLastAttendance] = useState(null);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [registrationData, setRegistrationData] = useState({
+    name: "",
+    department: "IT",
+    position: "",
+    email: "",
+    phone: ""
+  });
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const isStartingRef = useRef(false);
   const alertTimeoutRef = useRef(null);
   const cameraTimeoutRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     return () => {
@@ -134,124 +145,108 @@ export default function FaceScan() {
     }, 3000);
   };
 
-  // Face Recognition dengan API Backend
-  const recognizeFace = async () => {
-    try {
-      // Generate face embedding (simulasi)
-      const faceEmbedding = Array.from({ length: 512 }, () => Math.random());
-      
-      console.log("🔍 Sending face recognition request...");
+  // Simulasi face registration
+  const simulateFaceRegistration = async () => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const success = Math.random() > 0.05; // 95% success rate
+        
+        if (success) {
+          resolve({
+            success: true,
+            message: "Wajah berhasil diregistrasi",
+            employeeId: "EMP" + Math.random().toString(36).substr(2, 9).toUpperCase()
+          });
+        } else {
+          resolve({
+            success: false,
+            error: "Gagal meregistrasi wajah"
+          });
+        }
+      }, 2000);
+    });
+  };
 
-      const response = await fetch("http://localhost:5000/api/recognize-face", {
+// Di bagian registerFace function, ganti dengan:
+
+    const registerFace = async () => {
+    if (!registrationData.name || !registrationData.email) {
+        setErrorMessage("Nama dan email harus diisi");
+        setShowErrorAlert(true);
+        alertTimeoutRef.current = setTimeout(() => {
+        setShowErrorAlert(false);
+        }, 3000);
+        return;
+    }
+
+    try {
+        // Generate face embedding (simulasi)
+        const faceEmbedding = Array.from({ length: 512 }, () => Math.random());
+        
+        console.log("📝 Sending REAL registration request to backend...");
+        
+        const response = await fetch("http://localhost:5000/api/register", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+            "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          faceEmbedding: faceEmbedding 
+        body: JSON.stringify({
+            name: registrationData.name,
+            department: registrationData.department,
+            position: registrationData.position,
+            email: registrationData.email,
+            phone: registrationData.phone,
+            faceEmbedding: faceEmbedding  // Pastikan key-nya sesuai
         }),
-      });
+        });
 
-      console.log("📥 Response status:", response.status);
+        if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log("✅ REAL Registration result:", result);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ Recognition result:", result);
-
-      if (result.success) {
+        if (result.success) {
         setEmployeeData({
-          ...result.employee,
-          confidence: result.employee.similarity
+            name: registrationData.name,
+            id: result.employee_id,
+            department: registrationData.department,
+            position: registrationData.position,
+            email: registrationData.email,
+            phone: registrationData.phone,
+            confidence: 0.95
         });
         setScanStatus("success");
         
-        // Record attendance to backend
-        await recordAttendance(result.employee.employee_id, result.employee.similarity);
-        
-        const attendanceRecord = {
-          type: attendanceType,
-          time: new Date().toLocaleTimeString("id-ID"),
-          date: new Date().toLocaleDateString("id-ID"),
-          confidence: result.employee.similarity,
-          employeeName: result.employee.name,
-          employeeId: result.employee.employee_id
-        };
-        
-        setLastAttendance(attendanceRecord);
-        localStorage.setItem('lastAttendance', JSON.stringify(attendanceRecord));
-        
         setShowSuccessAlert(true);
         alertTimeoutRef.current = setTimeout(() => {
-          setShowSuccessAlert(false);
+            setShowSuccessAlert(false);
         }, 3000);
         
         autoStopCamera();
         
-      } else {
+        } else {
         setScanStatus("failed");
-        setErrorMessage(result.message || "Wajah tidak dikenali");
+        setErrorMessage(result.error || "Gagal meregistrasi wajah");
         setShowErrorAlert(true);
         alertTimeoutRef.current = setTimeout(() => {
-          setShowErrorAlert(false);
+            setShowErrorAlert(false);
         }, 3000);
         autoStopCamera();
-      }
+        }
     } catch (error) {
-      console.error("Recognition error:", error);
-      setScanStatus("failed");
-      setErrorMessage(`Gagal memindai wajah: ${error.message}`);
-      setShowErrorAlert(true);
-      alertTimeoutRef.current = setTimeout(() => {
+        console.error("Registration error:", error);
+        setScanStatus("failed");
+        setErrorMessage(`Gagal melakukan registrasi: ${error.message}`);
+        setShowErrorAlert(true);
+        alertTimeoutRef.current = setTimeout(() => {
         setShowErrorAlert(false);
-      }, 3000);
-      autoStopCamera();
+        }, 3000);
+        autoStopCamera();
     }
-  };
-
-  // Record Attendance to Backend
-  const recordAttendance = async (employeeId, confidence) => {
-    try {
-      const endpoint = attendanceType === "check_in" 
-        ? "/api/attendance/checkin" 
-        : "/api/attendance/checkout";
-      
-      console.log(`📝 Recording ${attendanceType} for: ${employeeId}`);
-
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          employeeId: employeeId,
-          confidence: confidence
-        }),
-      });
-
-      console.log("📥 Attendance response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log(`✅ ${attendanceType} recorded:`, result);
-      
-      if (!result.success) {
-        throw new Error(result.error || `Failed to record ${attendanceType}`);
-      }
-      
-      return result;
-      
-    } catch (error) {
-      console.error(`❌ Failed to record ${attendanceType}:`, error);
-      throw error;
-    }
-  };
+    };
 
   const handleStartScan = async () => {
     if (isStartingRef.current || isScanning) return;
@@ -273,7 +268,7 @@ export default function FaceScan() {
     }
 
     setTimeout(async () => {
-      await recognizeFace();
+      await registerFace();
     }, 2000);
   };
 
@@ -300,13 +295,9 @@ export default function FaceScan() {
     if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
   };
 
-  // Load last attendance on component mount
-  useEffect(() => {
-    const lastAtt = localStorage.getItem('lastAttendance');
-    if (lastAtt) {
-      setLastAttendance(JSON.parse(lastAtt));
-    }
-  }, []);
+  const handleBack = () => {
+    navigate(-1);
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto">
@@ -319,8 +310,27 @@ export default function FaceScan() {
             </div>
 
             <h2 className="text-2xl font-bold text-center text-white mb-2">
-              {attendanceType === "check_in" ? "Check-In Berhasil!" : "Check-Out Berhasil!"}
+              Registrasi Berhasil!
             </h2>
+
+            <div className="bg-slate-700 rounded-lg p-4 space-y-2 mb-4">
+              <div className="flex justify-between">
+                <span className="text-slate-300">Nama</span>
+                <span className="text-white font-medium">{employeeData.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-300">ID Karyawan</span>
+                <span className="text-white font-medium">{employeeData.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-300">Departemen</span>
+                <span className="text-white font-medium">{employeeData.department}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-300">Email</span>
+                <span className="text-white font-medium">{employeeData.email}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -345,41 +355,18 @@ export default function FaceScan() {
 
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Face Recognition</h1>
-        <p className="text-slate-300">Scan wajah Anda untuk absensi</p>
+        <button
+          onClick={handleBack}
+          className="flex items-center text-slate-400 hover:text-white mb-4 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Kembali
+        </button>
+        <h1 className="text-3xl font-bold text-white mb-2">Registrasi Wajah</h1>
+        <p className="text-slate-300">Registrasi wajah karyawan baru</p>
       </div>
 
-      {/* Attendance Type Selection */}
-      <div className="flex justify-center mb-6">
-        <div className="bg-slate-800 rounded-lg p-1 flex">
-          <button
-            onClick={() => setAttendanceType("check_in")}
-            disabled={isScanning}
-            className={`px-6 py-3 rounded-md transition-all flex items-center space-x-2 ${
-              attendanceType === "check_in"
-                ? "bg-green-600 text-white shadow-lg"
-                : "text-slate-300 hover:text-white bg-slate-700"
-            } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <Clock className="w-5 h-5" />
-            <span>Check-In</span>
-          </button>
-          <button
-            onClick={() => setAttendanceType("check_out")}
-            disabled={isScanning}
-            className={`px-6 py-3 rounded-md transition-all flex items-center space-x-2 ${
-              attendanceType === "check_out"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "text-slate-300 hover:text-white bg-slate-700"
-            } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            <Clock className="w-5 h-5" />
-            <span>Check-Out</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Camera Preview */}
+      {/* Camera Preview - DI ATAS */}
       <div className="bg-slate-800 rounded-2xl p-6 mb-6">
         <div className="relative bg-slate-900 rounded-xl overflow-hidden aspect-video mb-4 border-2 border-slate-700">
           <video
@@ -396,7 +383,7 @@ export default function FaceScan() {
                 <ScanFace className="h-16 w-16 text-slate-600 mx-auto mb-3" />
                 <p className="text-slate-500">Kamera Siap</p>
                 <p className="text-slate-600 text-sm mt-1">
-                  Klik "Mulai Scan" untuk memindai wajah
+                  Klik "Registrasi Wajah" untuk memindai
                 </p>
               </div>
             </div>
@@ -416,13 +403,13 @@ export default function FaceScan() {
             {!isScanning && (
               <>
                 <div className="w-2 h-2 bg-slate-500 rounded-full"></div>
-                <span className="text-slate-400 text-sm">Siap Memindai</span>
+                <span className="text-slate-400 text-sm">Siap Registrasi</span>
               </>
             )}
             {isScanning && scanStatus === "scanning" && (
               <>
                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-blue-400 text-sm">Memindai Wajah...</span>
+                <span className="text-blue-400 text-sm">Meregistrasi Wajah...</span>
               </>
             )}
             {isScanning && scanStatus === "success" && (
@@ -443,11 +430,11 @@ export default function FaceScan() {
             {!isScanning ? (
               <button
                 onClick={handleStartScan}
-                disabled={isStartingRef.current}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50"
+                disabled={isStartingRef.current || !registrationData.name || !registrationData.email}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Camera className="w-4 h-4" />
-                <span>Mulai Scan</span>
+                <UserPlus className="w-4 h-4" />
+                <span>Registrasi Wajah</span>
               </button>
             ) : (
               <button
@@ -458,6 +445,92 @@ export default function FaceScan() {
               </button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Registration Form - DI BAWAH KAMERA */}
+      <div className="bg-slate-800 rounded-2xl p-6">
+        <h3 className="text-white font-semibold mb-4 flex items-center">
+          <Briefcase className="w-4 h-4 mr-2" />
+          Data Karyawan
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-slate-300 text-sm font-medium mb-2">
+              Nama Lengkap *
+            </label>
+            <input
+              type="text"
+              value={registrationData.name}
+              onChange={(e) => setRegistrationData({...registrationData, name: e.target.value})}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              placeholder="Masukkan nama lengkap"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-slate-300 text-sm font-medium mb-2">
+              Departemen
+            </label>
+            <select
+              value={registrationData.department}
+              onChange={(e) => setRegistrationData({...registrationData, department: e.target.value})}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+            >
+              <option value="IT">IT</option>
+              <option value="HR">HR</option>
+              <option value="Finance">Finance</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Operations">Operations</option>
+              <option value="Sales">Sales</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-slate-300 text-sm font-medium mb-2">
+              Posisi/Jabatan
+            </label>
+            <input
+              type="text"
+              value={registrationData.position}
+              onChange={(e) => setRegistrationData({...registrationData, position: e.target.value})}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              placeholder="Contoh: Software Engineer"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-slate-300 text-sm font-medium mb-2">
+              Email *
+            </label>
+            <input
+              type="email"
+              value={registrationData.email}
+              onChange={(e) => setRegistrationData({...registrationData, email: e.target.value})}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              placeholder="email@company.com"
+            />
+          </div>
+          
+          <div className="md:col-span-2">
+            <label className="block text-slate-300 text-sm font-medium mb-2">
+              Nomor Telepon
+            </label>
+            <input
+              type="tel"
+              value={registrationData.phone}
+              onChange={(e) => setRegistrationData({...registrationData, phone: e.target.value})}
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+              placeholder="+62 812-3456-7890"
+            />
+          </div>
+        </div>
+
+        <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+          <p className="text-blue-400 text-sm text-center">
+            💡 Isi data karyawan sebelum melakukan registrasi wajah
+          </p>
         </div>
       </div>
     </div>
