@@ -1,8 +1,8 @@
 import { formatDateTime } from "./timeUtils";
 
-// Helper untuk nama employee
+// Helper untuk nama employee - DIPERBAIKI sesuai struktur MongoDB
 export const getEmployeeName = (record) =>
-  record.name || record.employees || "Unknown Employee";
+  record.employees || record.nama || record.name || "Unknown Employee";
 
 // Fungsi menentukan kolom tabel berdasarkan filter
 export const getTableHeaders = (filter, checkFilters) => {
@@ -10,32 +10,32 @@ export const getTableHeaders = (filter, checkFilters) => {
 
   // Jika kedua filter aktif: tampilkan Check In & Check Out
   if (checkin && checkout) {
-    return ["Employee ID", "Nama", "Check In", "Check Out"];
+    return ["Employee ID", "Nama", "Check In", "Status", "Check Out", "Status", "Working Hours"];
   }
 
   // Jika hanya checkin aktif
   if (checkin && !checkout) {
-    return ["Employee ID", "Nama", "Check In", "Status"];
+    return ["Employee ID", "Nama", "Check In", "Status", "Action"];
   }
 
   // Jika hanya checkout aktif
   if (!checkin && checkout) {
-    return ["Employee ID", "Nama", "Check Out", "Status"];
+    return ["Employee ID", "Nama", "Check Out", "Status", "Action"];
   }
 
   // Default: tampilkan semua kolom
   return ["Employee ID", "Nama", "Status", "Action", "Timestamp"];
 };
 
-// Fungsi untuk render isi setiap sel tabel
-export const renderTableCell = (record, header, index) => {
+// Fungsi untuk render isi setiap sel tabel - DIPERBAIKI
+export const renderTableCell = (record, header, index, formatDateTime, calculateWorkingHours) => {
   const baseClass = "px-6 py-4 text-slate-300";
 
   switch (header) {
     case "Employee ID":
       return (
         <td key={index} className={`${baseClass} font-mono text-sm`}>
-          {record.employeeId}
+          {record.employee_id || record.employeeId || "-"}
         </td>
       );
 
@@ -47,15 +47,16 @@ export const renderTableCell = (record, header, index) => {
       );
 
     case "Status":
+      const status = record.status || record.checkInStatus || record.checkOutStatus;
       return (
         <td key={index} className={`${baseClass} capitalize`}>
           <span
-            className={`px-2 py-1 rounded-full text-xs ${
-              record.status === "ontime"
+            className={`px-2 py-1 rounded-full ${
+              status === "ontime"
                 ? "bg-green-500/20 text-green-400"
-                : record.status === "late"
+                : status === "late"
                 ? "bg-red-500/20 text-red-400"
-                : record.status === "early"
+                : status === "early"
                 ? "bg-yellow-500/20 text-yellow-400"
                 : "bg-gray-500/20 text-gray-400"
             }`}
@@ -66,18 +67,14 @@ export const renderTableCell = (record, header, index) => {
       );
 
     case "Action": {
-      // Normalisasi action untuk display (ganti underscore dengan dash)
-      const displayAction = record.action
-        ? record.action.replace(/_/g, "-")
-        : "-";
-
+      const displayAction = record.action || "-";
       return (
         <td key={index} className={`${baseClass} capitalize`}>
           <span
-            className={`px-2 py-1 rounded-full text-xs ${
-              displayAction === "check-in"
+            className={`px-2 py-1 rounded-full ${
+              displayAction.includes("Check In")
                 ? "bg-green-500/20 text-green-400"
-                : displayAction === "check-out"
+                : displayAction.includes("Check Out")
                 ? "bg-blue-500/20 text-blue-400"
                 : "bg-gray-500/20 text-gray-400"
             }`}
@@ -87,10 +84,11 @@ export const renderTableCell = (record, header, index) => {
         </td>
       );
     }
+
     case "Timestamp":
       return (
         <td key={index} className={baseClass}>
-          {formatDateTime(record.timestamp)}
+          {record.timestamp ? formatDateTime(record.timestamp) : "-"}
         </td>
       );
 
@@ -98,13 +96,13 @@ export const renderTableCell = (record, header, index) => {
       return (
         <td key={index} className={baseClass}>
           {record.checkIn ? (
-            <div className="flex flex-row items-center justify-baseline space-x-1">
-              <span className="bg-blue-600 rounded-full px-2 py-0.5 text-slate-200">
+            <div className="flex flex-col space-y-1">
+              <span className="bg-blue-600 rounded-full px-2 py-1 text-slate-200 text-sm w-fit">
                 {formatDateTime(record.checkIn)}
               </span>
               {record.checkInStatus && (
                 <span
-                  className={`px-2 py-0.5 rounded-full capitalize ${
+                  className={`px-2 py-0.5 rounded-full capitalize text-xs w-fit ${
                     record.checkInStatus === "ontime"
                       ? "bg-green-500/20 text-green-400"
                       : record.checkInStatus === "late"
@@ -117,7 +115,7 @@ export const renderTableCell = (record, header, index) => {
               )}
             </div>
           ) : (
-            "-"
+            <span className="text-gray-500">-</span>
           )}
         </td>
       );
@@ -126,18 +124,20 @@ export const renderTableCell = (record, header, index) => {
       return (
         <td key={index} className={baseClass}>
           {record.checkOut ? (
-            <div className="flex flex-row items-center justify-baseline space-x-1">
-              <span className="bg-blue-600 rounded-full px-2 py-0.5 text-slate-200">
+            <div className="flex flex-col space-y-1">
+              <span className="bg-purple-600 rounded-full px-2 py-1 text-slate-200 text-sm w-fit">
                 {formatDateTime(record.checkOut)}
               </span>
               {record.checkOutStatus && (
                 <span
-                  className={`px-2 py-0.5 rounded-full capitalize ${
+                  className={`px-2 py-0.5 rounded-full capitalize text-xs w-fit ${
                     record.checkOutStatus === "ontime"
                       ? "bg-green-500/20 text-green-400"
                       : record.checkOutStatus === "early"
                       ? "bg-yellow-500/20 text-yellow-400"
-                      : "bg-blue-500/20 text-blue-400"
+                      : record.checkOutStatus === "late"
+                      ? "bg-red-500/20 text-red-400"
+                      : "bg-gray-500/20 text-gray-400"
                   }`}
                 >
                   {record.checkOutStatus}
@@ -153,6 +153,6 @@ export const renderTableCell = (record, header, index) => {
       );
 
     default:
-      return null;
+      return <td key={index} className={baseClass}>-</td>;
   }
 };

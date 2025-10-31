@@ -3,7 +3,7 @@ import { useAttendanceData } from "../utils/attendanceData";
 import AttendanceFilter from "../components/attendance/AttendanceFilter";
 import AttendanceHeader from "../components/attendance/AttendanceHeader";
 import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
-import { exportCSV } from "../utils/cvsExport";
+import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
 
 const AttendanceLog = () => {
@@ -22,11 +22,10 @@ const AttendanceLog = () => {
 
   const filteredData = attendanceData
     .filter((record) => {
-      // Filter berdasarkan tanggal (all atau today)
       if (filter === "all") return true;
 
       const today = new Date();
-      const recordDate = new Date(record.timestamp);
+      const recordDate = new Date(record.timestamp || record.date);
       return (
         recordDate.getDate() === today.getDate() &&
         recordDate.getMonth() === today.getMonth() &&
@@ -34,26 +33,24 @@ const AttendanceLog = () => {
       );
     })
     .reduce((acc, record) => {
-      const employeeId = record.employeeId;
-      const employeeName = record.name;
-
-      // ✅ Ambil action dari field 'action' di database
-      const recordAction = record.action; // "check_in" atau "check_out"
-      const recordStatus = record.status; // "ontime", "late", "early"
-      const recordTimestamp = record.timestamp;
-
-      // Normalisasi action format
-      const isCheckIn =
-        recordAction === "check-in" || recordAction === "check_in";
-      const isCheckOut =
-        recordAction === "check-out" || recordAction === "check_out";
+      // ✅ Ambil data dari struktur MongoDB yang sesuai
+      const employeeId = record.employee_id || record.employeeId;
+      const nama = record.employees || record.nama;
+      const checkInTime = record.check_in_time;
+      const checkOutTime = record.check_out_time;
+      const checkInStatus = record.check_in_status;
+      const checkOutStatus = record.check_out_status;
+      const overallStatus = record.status;
+      const timestamp = record.timestamp || record.date;
 
       console.log("🔍 Processing record:", {
         employeeId,
-        action: recordAction,
-        status: recordStatus,
-        isCheckIn,
-        isCheckOut,
+        nama,
+        checkInTime,
+        checkOutTime,
+        checkInStatus,
+        checkOutStatus,
+        overallStatus
       });
 
       // ✅ Kasus 1: Kedua filter aktif (checkin + checkout)
@@ -63,23 +60,30 @@ const AttendanceLog = () => {
         if (!existing) {
           existing = {
             employeeId,
-            name: employeeName,
-            checkIn: null,
-            checkInStatus: null,
-            checkOut: null,
-            checkOutStatus: null,
+            nama,
+            checkIn: checkInTime,
+            checkInStatus: checkInStatus,
+            checkOut: checkOutTime,
+            checkOutStatus: checkOutStatus,
+            workingHours: record.work_duration ? 
+              `${Math.floor(record.work_duration / 60)}h ${record.work_duration % 60}m` : 
+              (checkInTime && checkOutTime ? calculateWorkingHours(checkInTime, checkOutTime) : null),
+            status: overallStatus
           };
           acc.push(existing);
-        }
-
-        if (isCheckIn) {
-          existing.checkIn = recordTimestamp;
-          existing.checkInStatus = recordStatus;
-        }
-
-        if (isCheckOut) {
-          existing.checkOut = recordTimestamp;
-          existing.checkOutStatus = recordStatus;
+        } else {
+          // Update existing record jika ada data baru
+          if (checkInTime && !existing.checkIn) {
+            existing.checkIn = checkInTime;
+            existing.checkInStatus = checkInStatus;
+          }
+          if (checkOutTime && !existing.checkOut) {
+            existing.checkOut = checkOutTime;
+            existing.checkOutStatus = checkOutStatus;
+            if (existing.checkIn) {
+              existing.workingHours = calculateWorkingHours(existing.checkIn, checkOutTime);
+            }
+          }
         }
 
         return acc;
@@ -87,12 +91,14 @@ const AttendanceLog = () => {
 
       // ✅ Kasus 2: Hanya filter check-in aktif
       if (checkFilters.checkin && !checkFilters.checkout) {
-        if (isCheckIn) {
+        if (checkInTime) {
           acc.push({
             employeeId,
-            name: employeeName,
-            checkIn: recordTimestamp,
-            status: recordStatus,
+            nama,
+            checkIn: checkInTime,
+            status: checkInStatus,
+            action: "Check In",
+            timestamp: checkInTime
           });
         }
         return acc;
@@ -100,30 +106,44 @@ const AttendanceLog = () => {
 
       // ✅ Kasus 3: Hanya filter check-out aktif
       if (checkFilters.checkout && !checkFilters.checkin) {
-        if (isCheckOut) {
+        if (checkOutTime) {
           acc.push({
             employeeId,
-            name: employeeName,
-            checkOut: recordTimestamp,
-            status: recordStatus,
+            nama,
+            checkOut: checkOutTime,
+            status: checkOutStatus,
+            action: "Check Out",
+            timestamp: checkOutTime
           });
         }
         return acc;
       }
 
-      // ✅ Kasus 4: Tidak ada filter checkin/checkout (tampilkan semua raw records)
-      acc.push({
-        employeeId,
-        name: employeeName,
-        status: recordStatus,
-        action: recordAction, // Tampilkan action asli (check-in/check-out)
-        timestamp: recordTimestamp,
-      });
+      // ✅ Kasus 4: Tidak ada filter checkin/checkout (tampilkan semua records)
+      // Tampilkan sebagai record terpisah untuk check-in dan check-out
+      if (checkInTime) {
+        acc.push({
+          employeeId,
+          nama,
+          status: checkInStatus,
+          action: "Check In",
+          timestamp: checkInTime
+        });
+      }
+      
+      if (checkOutTime) {
+        acc.push({
+          employeeId,
+          nama,
+          status: checkOutStatus,
+          action: "Check Out", 
+          timestamp: checkOutTime
+        });
+      }
 
       return acc;
     }, []);
 
-  // ✅ Handler export yang menggunakan filteredData dan semua parameter
   const handleExportCSV = () => {
     exportCSV(
       filteredData,
@@ -180,7 +200,7 @@ const AttendanceLog = () => {
                   {getTableHeaders(filter, checkFilters).map((header, i) => (
                     <th
                       key={i}
-                      className="px-6 py-4 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider"
+                      className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider"
                     >
                       {header}
                     </th>
@@ -190,12 +210,12 @@ const AttendanceLog = () => {
               <tbody className="divide-y divide-slate-700/50">
                 {filteredData.map((record, rowIndex) => (
                   <tr
-                    key={record._id || rowIndex}
+                    key={record._id || `${record.employeeId}-${record.timestamp}-${rowIndex}`}
                     className="hover:bg-slate-700/30 transition-colors"
                   >
                     {getTableHeaders(filter, checkFilters).map(
                       (header, cellIndex) =>
-                        renderTableCell(record, header, cellIndex)
+                        renderTableCell(record, header, cellIndex, formatDateTime, calculateWorkingHours)
                     )}
                   </tr>
                 ))}

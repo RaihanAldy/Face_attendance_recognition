@@ -24,7 +24,6 @@ export default function FaceScan() {
   });
 
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const isStartingRef = useRef(false);
   const MySwal = withReactContent(Swal);
@@ -32,6 +31,8 @@ export default function FaceScan() {
   useEffect(() => {
     return () => {
       stopCamera();
+      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
+      if (cameraTimeoutRef.current) clearTimeout(cameraTimeoutRef.current);
     };
   }, []);
 
@@ -40,18 +41,13 @@ export default function FaceScan() {
     // Prevent concurrent calls
     if (isStartingRef.current) {
       console.log("⏳ Camera already starting, skipping...");
-      return false;
+      isStartingRef.current = true;
     }
-
-    isStartingRef.current = true;
-
     try {
-      setErrorMessage("");
       console.log("🎥 Requesting camera access...");
 
       // Stop existing camera first
       if (streamRef.current) {
-        console.log("🛑 Stopping existing stream first");
         stopCamera();
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -151,7 +147,6 @@ export default function FaceScan() {
           if (!resolved) {
             resolved = true;
             cleanup();
-
             if (video.videoWidth > 0 && video.videoHeight > 0) {
               console.log("⏰ Timeout but video has dimensions, accepting");
               video.play().then(resolve).catch(reject);
@@ -164,10 +159,9 @@ export default function FaceScan() {
 
       setIsScanning(true);
       isStartingRef.current = false;
-      console.log("✅ Camera started successfully!");
       return true;
     } catch (error) {
-      console.error("❌ Camera access failed:", error);
+      console.error("Camera access failed:", error);
       isStartingRef.current = false;
 
       let detailedError = "Tidak dapat mengakses kamera. ";
@@ -217,20 +211,25 @@ export default function FaceScan() {
 
       setIsScanning(false);
       isStartingRef.current = false;
-      console.log("✅ Camera fully stopped");
     } catch (error) {
-      console.error("Error in stopCamera:", error);
+      console.error("Error stopping camera:", error);
       setIsScanning(false);
       isStartingRef.current = false;
     }
   };
 
-  // Generate mock face embedding
-  const generateFaceEmbedding = () => {
-    return Array.from({ length: 512 }, () => Math.random());
+  const autoStopCamera = () => {
+    if (cameraTimeoutRef.current) {
+      clearTimeout(cameraTimeoutRef.current);
+    }
+    
+    cameraTimeoutRef.current = setTimeout(() => {
+      stopCamera();
+      setScanStatus("idle");
+    }, 3000);
   };
 
-  // Face Recognition Function
+  // Face Recognition dengan API Backend
   const recognizeFace = async () => {
     const faceEmbedding = generateFaceEmbedding();
 
@@ -242,14 +241,18 @@ export default function FaceScan() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ faceEmbedding: faceEmbedding }),
+        body: JSON.stringify({ 
+          faceEmbedding: faceEmbedding 
+        }),
       });
+
+      console.log("📥 Response status:", response.status);
 
       if (!response.ok)
         throw new Error(`Recognition API error: ${response.status}`);
 
       const result = await response.json();
-      console.log("✅ REAL Recognition result:", result);
+      console.log("✅ Recognition result:", result);
 
       if (result.success) {
         // ✅ GUNAKAN DATA REAL DARI BACKEND
@@ -331,10 +334,15 @@ export default function FaceScan() {
         );
       } else {
         setScanStatus("failed");
-        setErrorMessage(result.error || "Registrasi gagal");
+        setErrorMessage(result.message || "Wajah tidak dikenali");
+        setShowErrorAlert(true);
+        alertTimeoutRef.current = setTimeout(() => {
+          setShowErrorAlert(false);
+        }, 3000);
+        autoStopCamera();
       }
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("Recognition error:", error);
       setScanStatus("failed");
       setErrorMessage("Gagal melakukan registrasi");
     }
@@ -372,9 +380,11 @@ export default function FaceScan() {
         },
         body: JSON.stringify({
           employeeId: employeeId,
-          confidence: confidence,
+          confidence: confidence
         }),
       });
+
+      console.log("📥 Attendance response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -437,6 +447,7 @@ export default function FaceScan() {
       });
 
       return result;
+      
     } catch (error) {
       console.error(`❌ Failed to record ${type}:`, error);
 
@@ -454,13 +465,11 @@ export default function FaceScan() {
     }
   };
 
-  // ✅ FIXED: Better scan handler with proper state management
   const handleStartScan = async () => {
-    // Prevent multiple clicks
-    if (isStartingRef.current || isScanning) {
-      console.log("⏳ Already scanning or starting, ignoring click");
-      return;
-    }
+    if (isStartingRef.current || isScanning) return;
+
+    if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
+    if (cameraTimeoutRef.current) clearTimeout(cameraTimeoutRef.current);
 
     setErrorMessage("");
     setEmployeeData(null);
@@ -471,39 +480,36 @@ export default function FaceScan() {
     const cameraStarted = await startCamera();
 
     if (!cameraStarted) {
-      console.log("❌ Camera failed to start, reverting state");
       setScanStatus("idle");
       return;
     }
 
-    console.log("📸 Camera active, waiting before recognition...");
-
-    // Wait for camera to stabilize
     setTimeout(async () => {
-      console.log("🔍 Starting recognition process");
-      if (mode === "recognition") {
-        await recognizeFace();
-      } else {
-        setScanStatus("ready_for_registration");
-      }
+      await recognizeFace();
     }, 2000);
   };
 
   const handleStopScan = () => {
-    console.log("🛑 User requested stop");
+    if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
+    if (cameraTimeoutRef.current) clearTimeout(cameraTimeoutRef.current);
+    
     stopCamera();
     setScanStatus("idle");
     setEmployeeData(null);
     setErrorMessage("");
-    setRegistrationData({ name: "", department: "General" });
+    setRegistrationData({
+      name: "",
+      department: "General",
+      position: "",
+      email: "",
+      phone: "",
+    });
   };
 
-  // Reset when mode changes
   useEffect(() => {
     handleStopScan();
   }, [mode]);
 
-  // Debug state changes
   useEffect(() => {
     console.log(
       "🔍 State update - isScanning:",
@@ -514,37 +520,75 @@ export default function FaceScan() {
   }, [isScanning, scanStatus]);
 
   return (
-    <div className="bg-slate-950 px-6 py-2 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        {/* Mode Selection */}
-        <div className="flex justify-center mb-6">
-          <div className="bg-slate-800 rounded-lg p-1 flex">
+    <div className="w-full max-w-4xl mx-auto">
+      {/* SUCCESS ALERT MODAL */}
+      {showSuccessAlert && employeeData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 border border-slate-600">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="w-16 h-16 text-green-500" />
+            </div>
+
+            <h2 className="text-2xl font-bold text-center text-white mb-2">
+              {attendanceType === "check_in" ? "Check-In Berhasil!" : "Check-Out Berhasil!"}
+            </h2>
+          </div>
+        </div>
+      )}
+
+      {/* ERROR ALERT */}
+      {showErrorAlert && errorMessage && (
+        <div className="fixed top-6 right-6 z-50 bg-red-900 border border-red-700 rounded-lg p-4 max-w-md">
+          <div className="flex items-center space-x-3">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <div className="flex-1">
+              <p className="text-red-200 text-sm">{errorMessage}</p>
+            </div>
             <button
-              onClick={() => setMode("recognition")}
-              disabled={isScanning}
-              className={`px-4 py-2 rounded-md transition-all ${
-                mode === "recognition"
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "text-slate-300 hover:text-white"
-              } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
+              onClick={closeErrorAlert}
+              className="text-red-300 hover:text-white"
             >
-              <Users className="w-4 h-4 inline mr-2" />
-              Recognition
-            </button>
-            <button
-              onClick={() => setMode("registration")}
-              disabled={isScanning}
-              className={`px-4 py-2 rounded-md transition-all ${
-                mode === "registration"
-                  ? "bg-green-600 text-white shadow-lg"
-                  : "text-slate-300 hover:text-white"
-              } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              <UserPlus className="w-4 h-4 inline mr-2" />
-              Registration
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
+      )}
+
+      {/* Header */}
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">Face Recognition</h1>
+        <p className="text-slate-300">Scan wajah Anda untuk absensi</p>
+      </div>
+
+      {/* Attendance Type Selection */}
+      <div className="flex justify-center mb-6">
+        <div className="bg-slate-800 rounded-lg p-1 flex">
+          <button
+            onClick={() => setAttendanceType("check_in")}
+            disabled={isScanning}
+            className={`px-6 py-3 rounded-md transition-all flex items-center space-x-2 ${
+              attendanceType === "check_in"
+                ? "bg-green-600 text-white shadow-lg"
+                : "text-slate-300 hover:text-white bg-slate-700"
+            } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <Clock className="w-5 h-5" />
+            <span>Check-In</span>
+          </button>
+          <button
+            onClick={() => setAttendanceType("check_out")}
+            disabled={isScanning}
+            className={`px-6 py-3 rounded-md transition-all flex items-center space-x-2 ${
+              attendanceType === "check_out"
+                ? "bg-blue-600 text-white shadow-lg"
+                : "text-slate-300 hover:text-white bg-slate-700"
+            } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <Clock className="w-5 h-5" />
+            <span>Check-Out</span>
+          </button>
+        </div>
+      </div>
 
         <div className="flex items-center justify-center flex-col">
           <div className="w-4/5 bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
@@ -762,10 +806,17 @@ export default function FaceScan() {
                         </p>
                       </div>
                     </div>
+
+                    <div className="bg-blue-900/20 p-3 rounded-lg mb-4">
+                      <p className="text-blue-400 text-sm">
+                        💡 ID Karyawan akan dibuat otomatis oleh sistem
+                      </p>
+                    </div>
+
                     <div className="flex space-x-3">
                       <button
                         onClick={registerEmployee}
-                        className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                        className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center"
                       >
                         {mode === "recognition"
                           ? "Daftarkan & Check-In"
