@@ -6,7 +6,7 @@ import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
 import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
 
-const AttendanceLog = () => {
+const AttendanceLogs = () => {
   const [filter, setFilter] = useState("today");
   const [checkFilters, setCheckFilters] = useState({
     checkin: false,
@@ -50,7 +50,7 @@ const AttendanceLog = () => {
         checkOutTime,
         checkInStatus,
         checkOutStatus,
-        overallStatus
+        overallStatus,
       });
 
       // ✅ Kasus 1: Kedua filter aktif (checkin + checkout)
@@ -65,10 +65,14 @@ const AttendanceLog = () => {
             checkInStatus: checkInStatus,
             checkOut: checkOutTime,
             checkOutStatus: checkOutStatus,
-            workingHours: record.work_duration ? 
-              `${Math.floor(record.work_duration / 60)}h ${record.work_duration % 60}m` : 
-              (checkInTime && checkOutTime ? calculateWorkingHours(checkInTime, checkOutTime) : null),
-            status: overallStatus
+            workingHours: record.work_duration
+              ? `${Math.floor(record.work_duration / 60)}h ${
+                  record.work_duration % 60
+                }m`
+              : checkInTime && checkOutTime
+              ? calculateWorkingHours(checkInTime, checkOutTime)
+              : null,
+            status: overallStatus,
           };
           acc.push(existing);
         } else {
@@ -81,7 +85,10 @@ const AttendanceLog = () => {
             existing.checkOut = checkOutTime;
             existing.checkOutStatus = checkOutStatus;
             if (existing.checkIn) {
-              existing.workingHours = calculateWorkingHours(existing.checkIn, checkOutTime);
+              existing.workingHours = calculateWorkingHours(
+                existing.checkIn,
+                checkOutTime
+              );
             }
           }
         }
@@ -98,7 +105,7 @@ const AttendanceLog = () => {
             checkIn: checkInTime,
             status: checkInStatus,
             action: "Check In",
-            timestamp: checkInTime
+            timestamp: checkInTime,
           });
         }
         return acc;
@@ -113,7 +120,7 @@ const AttendanceLog = () => {
             checkOut: checkOutTime,
             status: checkOutStatus,
             action: "Check Out",
-            timestamp: checkOutTime
+            timestamp: checkOutTime,
           });
         }
         return acc;
@@ -127,17 +134,17 @@ const AttendanceLog = () => {
           nama,
           status: checkInStatus,
           action: "Check In",
-          timestamp: checkInTime
+          timestamp: checkInTime,
         });
       }
-      
+
       if (checkOutTime) {
         acc.push({
           employeeId,
           nama,
           status: checkOutStatus,
-          action: "Check Out", 
-          timestamp: checkOutTime
+          action: "Check Out",
+          timestamp: checkOutTime,
         });
       }
 
@@ -210,12 +217,21 @@ const AttendanceLog = () => {
               <tbody className="divide-y divide-slate-700/50">
                 {filteredData.map((record, rowIndex) => (
                   <tr
-                    key={record._id || `${record.employeeId}-${record.timestamp}-${rowIndex}`}
+                    key={
+                      record._id ||
+                      `${record.employeeId}-${record.timestamp}-${rowIndex}`
+                    }
                     className="hover:bg-slate-700/30 transition-colors"
                   >
                     {getTableHeaders(filter, checkFilters).map(
                       (header, cellIndex) =>
-                        renderTableCell(record, header, cellIndex, formatDateTime, calculateWorkingHours)
+                        renderTableCell(
+                          record,
+                          header,
+                          cellIndex,
+                          formatDateTime,
+                          calculateWorkingHours
+                        )
                     )}
                   </tr>
                 ))}
@@ -228,4 +244,4 @@ const AttendanceLog = () => {
   );
 };
 
-export default AttendanceLog;
+export default AttendanceLogs;
