@@ -908,6 +908,5 @@ export default function FaceScan() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
