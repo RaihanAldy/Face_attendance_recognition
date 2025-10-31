@@ -20,122 +20,6 @@ def health_check():
         'database': 'connected',
         'face_model': 'loaded' if face_engine.model else 'error'
     })
-# ==================== LOGINS ENDPOINTS ====================
-# ==================== ADMIN ENDPOINTS ====================
-
-@app.route('/api/admin/register', methods=['POST'])
-def admin_register():
-    """
-    Register new admin.
-    Request JSON: { "username": "...", "password": "..." }
-    """
-    try:
-        data = request.json
-        username = data.get('username')
-        password = data.get('password')
-
-        if not username or not password:
-            return jsonify({'success': False, 'error': 'Username and password are required'}), 400
-
-        result = db.register_admin(username, password)
-        if result['status'] == 'success':
-            print(f"✅ Admin registered: {username}")
-            return jsonify({'success': True, 'message': result['message']}), 201
-        else:
-            print(f"❌ Admin registration failed: {result['message']}")
-            return jsonify({'success': False, 'error': result['message']}), 400
-
-    except Exception as e:
-        print(f"❌ Admin registration error: {e}")
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/admin/login', methods=['POST'])
-def admin_login():
-    """
-    Admin login.
-    Request JSON: { "username": "...", "password": "..." }
-    """
-    try:
-        data = request.json
-        username = data.get('username')
-        password = data.get('password')
-
-        if not username or not password:
-            return jsonify({'success': False, 'error': 'Username and password are required'}), 400
-
-        result = db.login_admin(username, password)
-        if result['status'] == 'success':
-            print(f"✅ Admin logged in: {username}")
-            return jsonify({'success': True, 'message': result['message']}), 200
-        else:
-            print(f"❌ Admin login failed: {result['message']}")
-            return jsonify({'success': False, 'error': result['message']}), 401
-
-    except Exception as e:
-        print(f"❌ Admin login error: {e}")
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-# ==================== SETTINGS ENDPOINTS ====================
-
-@app.route('/api/settings', methods=['GET', 'POST'])
-def settings():
-    """
-    GET: Retrieve current settings
-    POST: Update settings
-    """
-    if request.method == 'GET':
-        try:
-            result = db.get_settings()
-            if result.get('success'):
-                return jsonify(result['settings'])
-            else:
-                return jsonify({'error': result.get('error', 'Failed to get settings')}), 500
-                
-        except Exception as e:
-            print(f"❌ Error getting settings: {e}")
-            traceback.print_exc()
-            return jsonify({'error': str(e)}), 500
-    
-    elif request.method == 'POST':
-        try:
-            data = request.json
-            
-            if not data:
-                return jsonify({'error': 'No data provided'}), 400
-            
-            print(f"📝 Updating settings: {data}")
-            
-            result = db.update_settings(data)
-            
-            if result.get('success'):
-                print(f"✅ Settings updated successfully")
-                return jsonify(result), 200
-            else:
-                print(f"❌ Failed to update settings: {result.get('error')}")
-                return jsonify(result), 400
-                
-        except Exception as e:
-            print(f"❌ Error updating settings: {e}")
-            traceback.print_exc()
-            return jsonify({'error': str(e)}), 500
-
-@app.route('/api/settings/schedule', methods=['GET'])
-def get_schedule():
-    """Get work schedule for validation"""
-    try:
-        schedule = db.get_work_schedule()
-        if schedule:
-            return jsonify(schedule)
-        else:
-            return jsonify({'error': 'Schedule not found'}), 404
-            
-    except Exception as e:
-        print(f"❌ Error getting schedule: {e}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/employees', methods=['GET'])
 def get_employees():
@@ -197,7 +81,7 @@ def attendance():
 
 @app.route('/api/attendance/checkin', methods=['POST'])
 def check_in():
-    """Record check-in with punctuality status"""
+    """Record check-in"""
     try:
         data = request.json
         employee_id = data.get('employeeId')
@@ -208,22 +92,15 @@ def check_in():
         
         print(f"📥 Check-in request for: {employee_id}, confidence: {confidence}")
         
-        # ✅ record_attendance now returns dict with 'id' and 'punctuality'
-        result = db.record_attendance(
+        attendance_id = db.record_attendance(
             employee_id=employee_id,
             confidence=confidence,
             attendance_type='check_in'
         )
         
-        if result:
-            punctuality = result.get('punctuality', 'on-time')
-            print(f"✅ Check-in recorded: {employee_id} - Punctuality: {punctuality}")
-            
-            return jsonify({
-                'success': True,
-                'attendanceId': result['id'],
-                'punctuality': punctuality  # ✅ Send punctuality to frontend
-            })
+        if attendance_id:
+            print(f"✅ Check-in recorded: {employee_id}, ID: {attendance_id}")
+            return jsonify({'success': True, 'attendanceId': attendance_id})
         else:
             print(f"❌ Failed to record check-in for: {employee_id}")
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
@@ -235,7 +112,7 @@ def check_in():
 
 @app.route('/api/attendance/checkout', methods=['POST'])
 def check_out():
-    """Record check-out with punctuality status"""
+    """Record check-out"""
     try:
         data = request.json
         employee_id = data.get('employeeId')
@@ -246,22 +123,15 @@ def check_out():
         
         print(f"📤 Check-out request for: {employee_id}, confidence: {confidence}")
         
-        # ✅ record_attendance now returns dict with 'id' and 'punctuality'
-        result = db.record_attendance(
+        attendance_id = db.record_attendance(
             employee_id=employee_id,
             confidence=confidence,
             attendance_type='check_out'
         )
         
-        if result:
-            punctuality = result.get('punctuality', 'on-time')
-            print(f"✅ Check-out recorded: {employee_id} - Punctuality: {punctuality}")
-            
-            return jsonify({
-                'success': True,
-                'attendanceId': result['id'],
-                'punctuality': punctuality  # ✅ Send punctuality to frontend
-            })
+        if attendance_id:
+            print(f"✅ Check-out recorded: {employee_id}, ID: {attendance_id}")
+            return jsonify({'success': True, 'attendanceId': attendance_id})
         else:
             print(f"❌ Failed to record check-out for: {employee_id}")
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500

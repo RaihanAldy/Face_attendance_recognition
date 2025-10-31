@@ -14,6 +14,7 @@ import Employees from "./page/Employees";
 import Login from "./page/Login";
 import UserLayout from "./components/UserLayout";
 import FaceRegistration from "./page/FaceRegistration";
+import Settings from "./page/Settings";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -96,14 +97,7 @@ export default function App() {
                       <Route path="/analytics" element={<Analytics />} />
                       <Route path="/attendance" element={<AttendanceLogs />} />
                       <Route path="/employees" element={<Employees />} />
-                      <Route
-                        path="/settings"
-                        element={
-                          <div className="text-white p-6">
-                            Settings Page - Coming Soon
-                          </div>
-                        }
-                      />
+                      <Route path="/settings" element={<Settings />} />
                       <Route
                         path="*"
                         element={<Navigate to="/analytics" replace />}
