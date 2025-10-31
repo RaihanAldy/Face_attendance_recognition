@@ -1,302 +1,152 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 
 const Employees = () => {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newEmployee, setNewEmployee] = useState({
-    name: "",
-    employeeId: "",
-    department: "",
-    position: "",
-    email: "",
-    phone: "",
-  });
+  const [employeesData, setEmployeesData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  // Mock data - replace with actual API call
-  const employeesData = [
-    {
-      id: 1,
-      name: "John Doe",
-      employeeId: "EMP001",
-      department: "IT",
-      position: "Software Engineer",
-      email: "john.doe@company.com",
-      phone: "123-456-7890",
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      employeeId: "EMP002",
-      department: "HR",
-      position: "HR Manager",
-      email: "jane.smith@company.com",
-      phone: "234-567-8901",
-    },
-    {
-      id: 3,
-      name: "Michael Johnson",
-      employeeId: "EMP003",
-      department: "Finance",
-      position: "Accountant",
-      email: "michael.johnson@company.com",
-      phone: "345-678-9012",
-    },
-    {
-      id: 4,
-      name: "Emily Davis",
-      employeeId: "EMP004",
-      department: "Marketing",
-      position: "Marketing Specialist",
-      email: "emily.davis@company.com",
-      phone: "456-789-0123",
-    },
-    {
-      id: 5,
-      name: "William Brown",
-      employeeId: "EMP005",
-      department: "IT",
-      position: "Frontend Developer",
-      email: "william.brown@company.com",
-      phone: "567-890-1234",
-    },
-    {
-      id: 6,
-      name: "Olivia Wilson",
-      employeeId: "EMP006",
-      department: "IT",
-      position: "Backend Developer",
-      email: "olivia.wilson@company.com",
-      phone: "678-901-2345",
-    },
-    {
-      id: 7,
-      name: "James Taylor",
-      employeeId: "EMP007",
-      department: "Sales",
-      position: "Sales Executive",
-      email: "james.taylor@company.com",
-      phone: "789-012-3456",
-    },
-    {
-      id: 8,
-      name: "Sophia Martinez",
-      employeeId: "EMP008",
-      department: "Customer Support",
-      position: "Support Agent",
-      email: "sophia.martinez@company.com",
-      phone: "890-123-4567",
-    },
-    {
-      id: 9,
-      name: "Benjamin Anderson",
-      employeeId: "EMP009",
-      department: "Finance",
-      position: "Financial Analyst",
-      email: "benjamin.anderson@company.com",
-      phone: "901-234-5678",
-    },
-    {
-      id: 10,
-      name: "Isabella Thomas",
-      employeeId: "EMP010",
-      department: "Marketing",
-      position: "Content Writer",
-      email: "isabella.thomas@company.com",
-      phone: "012-345-6789",
-    },
-    {
-      id: 11,
-      name: "Lucas White",
-      employeeId: "EMP011",
-      department: "IT",
-      position: "DevOps Engineer",
-      email: "lucas.white@company.com",
-      phone: "123-456-7891",
-    },
-  ];
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewEmployee((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  // Fetch employees dari API
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get("http://localhost:5000/api/employees");
+      setEmployeesData(res.data);
+    } catch (error) {
+      console.error("❌ Error fetching employees:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Add API call to save new employee
-    setShowAddModal(false);
-    setNewEmployee({
-      name: "",
-      employeeId: "",
-      department: "",
-      position: "",
-      email: "",
-      phone: "",
-    });
-  };
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  if (loading)
+    return <div className="text-sky-200 p-6">Loading employees...</div>;
 
   return (
     <div className="p-6 bg-gray-950 rounded-lg shadow-md">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-200">Employees</h1>
-      </div>
-
-      <div className="overflow-x-auto rounded-lg border border-blue-500">
-        <table className="min-w-full bg-gray-900">
-          <thead className="bg-gray-800">
-            <tr>
-              <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
-                ID
-              </th>
-              <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
-                Department
-              </th>
-              <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
-                Position
-              </th>
-              <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
-                Email
-              </th>
-              <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
-                Phone
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {employeesData.map((employee) => (
-              <tr
-                key={employee.id}
-                className="hover:bg-gray-800 transition-colors"
-              >
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.employeeId}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.department}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.position}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.email}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.phone}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {showAddModal && (
-        <div className="fixed inset-0 bg-gray-950/80 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-gray-200 p-6 rounded-lg w-full max-w-md border border-gray-200">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-sky-300">
+      <h1 className="text-3xl font-bold text-gray-200 mb-6">Employees</h1>
+      <div className="space-y-6">
+        <div className="overflow-x-auto rounded-lg border border-blue-500">
+          <table className="min-w-full bg-gray-900">
+            <thead className="bg-gray-800">
+              <tr>
+                <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
                   Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={newEmployee.name}
-                  onChange={handleInputChange}
-                  className="mt-1 w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sky-100 placeholder-sky-600"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-sky-300">
-                  Employee ID
-                </label>
-                <input
-                  type="text"
-                  name="employeeId"
-                  value={newEmployee.employeeId}
-                  onChange={handleInputChange}
-                  className="mt-1 w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sky-100 placeholder-sky-600"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-sky-300">
+                </th>
+                <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
                   Department
-                </label>
-                <input
-                  type="text"
-                  name="department"
-                  value={newEmployee.department}
-                  onChange={handleInputChange}
-                  className="mt-1 w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sky-100 placeholder-sky-600"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-sky-300">
+                </th>
+                <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
                   Position
-                </label>
-                <input
-                  type="text"
-                  name="position"
-                  value={newEmployee.position}
-                  onChange={handleInputChange}
-                  className="mt-1 w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sky-100 placeholder-sky-600"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-sky-300">
+                </th>
+                <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
                   Email
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={newEmployee.email}
-                  onChange={handleInputChange}
-                  className="mt-1 w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sky-100 placeholder-sky-600"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-sky-300">
+                </th>
+                <th className="px-6 py-3 text-left font-medium text-blue-500 uppercase tracking-wider">
                   Phone
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={newEmployee.phone}
-                  onChange={handleInputChange}
-                  className="mt-1 w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-sky-100 placeholder-sky-600"
-                  required
-                />
-              </div>
-              <div className="flex gap-4 justify-end">
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-800">
+              {employeesData
+                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                .map((employee) => (
+                  <tr
+                    key={employee.employee_id}
+                    className="hover:bg-gray-800 transition-colors"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                      {employee.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                      {employee.employee_id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                      {employee.department}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                      {employee.position}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                      {employee.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                      {employee.phone}
+                    </td>
+                  </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg">
+          {/* Items per page info */}
+          <div className="flex items-center text-sm text-gray-400">
+            <span>
+              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, employeesData.length)} to{" "}
+              {Math.min(currentPage * itemsPerPage, employeesData.length)} of{" "}
+              {employeesData.length} entries
+            </span>
+          </div>
+
+          {/* Pagination buttons */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                currentPage === 1
+                  ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
+            >
+              Previous
+            </button>
+
+            {/* Page numbers */}
+            <div className="flex items-center space-x-2">
+              {[...Array(Math.ceil(employeesData.length / itemsPerPage))].map((_, index) => (
                 <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-sky-400 hover:text-sky-300 transition-colors"
+                  key={index + 1}
+                  onClick={() => setCurrentPage(index + 1)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm transition-colors ${
+                    currentPage === index + 1
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-white hover:bg-gray-600"
+                  }`}
                 >
-                  Cancel
+                  {index + 1}
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-colors"
-                >
-                  Save Employee
-                </button>
-              </div>
-            </form>
+              ))}
+            </div>
+
+            <button
+              onClick={() =>
+                setCurrentPage((prev) =>
+                  Math.min(prev + 1, Math.ceil(employeesData.length / itemsPerPage))
+                )
+              }
+              disabled={currentPage >= Math.ceil(employeesData.length / itemsPerPage)}
+              className={`px-4 py-2 text-sm rounded-lg transition-colors ${
+                currentPage >= Math.ceil(employeesData.length / itemsPerPage)
+                  ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
+            >
+              Next
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -4,10 +4,7 @@ import {
   ScanFace,
   Users,
   Clock,
-  FileText,
   Settings,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -26,7 +23,6 @@ export default function Sidebar() {
       path: "/attendance",
     },
     { id: "employees", label: "Employees", icon: Users, path: "/employees" },
-    // { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
     { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
   ];
 

@@ -1,40 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { ScanFace, Wifi, WifiOff, Bell } from "lucide-react";
+import { Wifi, WifiOff, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [user, setUser] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  
-  const handleLogout = () => {
-    // Clear all authentication data
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('userData');
-    
-    // Close the profile menu
-    setShowProfileMenu(false);
-    
-    // Use React Router navigation
-    navigate('/login');
-  };
-
-  const [notifications] = useState([
-    {
-      message: "Your attendance has been recorded",
-      time: "Just now"
-    },
-    {
-      message: "System update scheduled for tomorrow",
-      time: "2 hours ago"
-    },
-    {
-      message: "Welcome to Face Attendance System",
-      time: "1 day ago"
-    }
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -47,12 +21,29 @@ const Navbar = () => {
       setCurrentTime(new Date());
     }, 1000);
 
+    const storedUser = localStorage.getItem("userData");
+    if (storedUser) setUser(JSON.parse(storedUser));
+
+    // contoh notifikasi (bisa diganti dengan data dinamis)
+    setNotifications([
+      { message: "Sistem berhasil disinkronkan", time: "Baru saja" },
+      { message: "Koneksi jaringan stabil", time: "1 menit lalu" },
+    ]);
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       clearInterval(timer);
     };
   }, []);
+
+  const initials = user
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+    : "";
 
   return (
     <>
@@ -64,11 +55,9 @@ const Navbar = () => {
 
             {/* Right Side - Search, Status & User */}
             <div className="flex items-center space-x-4">
-              {/* Search */}
-
               {/* Notifications */}
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
                 >
@@ -80,7 +69,9 @@ const Navbar = () => {
                 {showNotifications && (
                   <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-lg shadow-lg py-2 z-50">
                     <div className="px-4 py-2 border-b border-slate-700">
-                      <h3 className="text-sm font-semibold text-slate-200">Notifications</h3>
+                      <h3 className="text-sm font-semibold text-slate-200">
+                        Notifications
+                      </h3>
                     </div>
                     <div className="max-h-96 overflow-y-auto">
                       {notifications.map((notification, index) => (
@@ -88,8 +79,12 @@ const Navbar = () => {
                           key={index}
                           className="px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0"
                         >
-                          <p className="text-sm text-slate-200">{notification.message}</p>
-                          <p className="text-xs text-slate-400 mt-1">{notification.time}</p>
+                          <p className="text-sm text-slate-200">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {notification.time}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -121,38 +116,24 @@ const Navbar = () => {
                 {currentTime.toLocaleTimeString("id-ID")}
               </div>
 
-              {/* User Profile */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
-                    AD
+              {/* User Profile or Login */}
+              {user ? (
+                <button className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors">
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
+                    {initials}
                   </div>
                   <span className="text-slate-300 text-sm font-medium">
-                    Admin
+                    {user.name}
                   </span>
                 </button>
-
-                {/* Profile Dropdown */}
-                {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-slate-800 rounded-lg shadow-lg py-2 z-50">
-                    <a
-                      href="/settings"
-                      className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
-                    >
-                      Settings
-                    </a>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
+              ) : (
+                <button
+                  onClick={() => navigate("/login")}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all"
+                >
+                  Login
+                </button>
+              )}
             </div>
           </div>
         </div>
