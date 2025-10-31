@@ -1,0 +1,28 @@
+# Virtual Environment
+venv/
+*.venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# File Rahasia
+.env
+*.env
+
+# Node modules
+frontend/node_modules/
+
+# Build files
+frontend/dist/
+build/
+dist/
+*.egg-info/
+
+# Editor
+.vscode/
+
+# AI Models (jika besar)
+*.onnx
+*.pth
+*.pb
