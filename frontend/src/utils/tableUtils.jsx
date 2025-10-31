@@ -61,7 +61,7 @@ export const renderTableCell = (record, header, index, formatDateTime, calculate
                 : "bg-gray-500/20 text-gray-400"
             }`}
           >
-            {status || "-"}
+            {record.status || "Working"}
           </span>
         </td>
       );
@@ -107,9 +107,7 @@ export const renderTableCell = (record, header, index, formatDateTime, calculate
                       ? "bg-green-500/20 text-green-400"
                       : record.checkInStatus === "late"
                       ? "bg-red-500/20 text-red-400"
-                      : record.checkInStatus === "early"
-                      ? "bg-yellow-500/20 text-yellow-400"
-                      : "bg-gray-500/20 text-gray-400"
+                      : "bg-green-500/20 text-green-400"
                   }`}
                 >
                   {record.checkInStatus}
@@ -147,24 +145,9 @@ export const renderTableCell = (record, header, index, formatDateTime, calculate
               )}
             </div>
           ) : (
-            <span className="text-gray-500">-</span>
-          )}
-        </td>
-      );
-
-    case "Working Hours":
-      const workingHours = record.workingHours || 
-        (record.work_duration ? 
-          `${Math.floor(record.work_duration / 60)}h ${record.work_duration % 60}m` : 
-          null);
-      return (
-        <td key={index} className={baseClass}>
-          {workingHours ? (
-            <span className="bg-green-600 rounded-full px-2 py-1 text-slate-200 text-sm">
-              {workingHours}
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400  capitalize">
+              Working
             </span>
-          ) : (
-            <span className="text-gray-500">-</span>
           )}
         </td>
       );

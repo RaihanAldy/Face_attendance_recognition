@@ -24,7 +24,6 @@ export const exportCSV = (
       "Status",
       "Timestamp",
       "Tanggal",
-      "Confidence",
     ];
 
     csvData = filteredData.map((record) => {
@@ -42,7 +41,6 @@ export const exportCSV = (
         record.timestamp
           ? new Date(record.timestamp).toLocaleDateString("id-ID")
           : "-",
-        record.confidence ? `${Math.round(record.confidence * 100)}%` : "-",
       ];
     });
   }
