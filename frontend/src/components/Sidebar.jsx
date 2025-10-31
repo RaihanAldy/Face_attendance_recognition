@@ -1,34 +1,51 @@
 import React, { useState } from "react";
 import {
   LayoutDashboard,
-  ScanFace,
   Users,
   Clock,
-  FileText,
   Settings,
-  ChevronLeft,
-  ChevronRight,
+  LogOut,
+  ScanFace,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-export default function Sidebar() {
+export default function Sidebar({ userRole, onLogout }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-
   const navigate = useNavigate();
   const location = useLocation();
+
   const menuItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
-    { id: "face-scan", label: "Face Scan", icon: ScanFace, path: "/face-scan" },
-    {
-      id: "attendance",
-      label: "Attendance Log",
-      icon: Clock,
-      path: "/attendance",
+    { 
+      id: "analytics", 
+      label: "Analytics", 
+      icon: LayoutDashboard, 
+      path: "/analytics", 
     },
-    { id: "employees", label: "Employees", icon: Users, path: "/employees" },
-    { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
-    { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
+    { 
+      id: "attendance", 
+      label: "Attendance Log", 
+      icon: Clock, 
+      path: "/attendance", 
+    },
+    { 
+      id: "employees", 
+      label: "Employees", 
+      icon: Users, 
+      path: "/employees", 
+    },
+    { 
+      id: "settings", 
+      label: "Settings", 
+      icon: Settings, 
+      path: "/settings", 
+    },
   ];
+
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    }
+  };
 
   return (
     <aside
@@ -42,17 +59,18 @@ export default function Sidebar() {
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="h-12 w-12 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
         >
-          {isCollapsed ? (
-            <ScanFace className="h-8 w-8 text-blue-500" />
-          ) : (
-            <ScanFace className="h-8 w-8 text-blue-500" />
-          )}
+          <ScanFace className="h-8 w-8 text-blue-500" />
         </button>
 
         {!isCollapsed && (
-          <h2 className="text-gray-200 text-xl uppercase tracking-wider font-semibold">
-            Recca
-          </h2>
+          <div className="ml-3">
+            <h2 className="text-gray-200 text-xl uppercase tracking-wider font-semibold">
+              Admin Panel
+            </h2>
+            <div className="text-slate-400 text-xs mt-1">
+              Administrator System
+            </div>
+          </div>
         )}
       </div>
 
@@ -92,6 +110,32 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Logout Button */}
+      <div className="p-4 border-t border-slate-800">
+        <button
+          onClick={handleLogout}
+          className={`w-full flex items-center ${
+            isCollapsed ? "justify-center" : "justify-start"
+          } px-3 py-3 rounded-lg text-sm font-medium text-slate-300 hover:bg-red-600 hover:text-white transition-all group`}
+          title={isCollapsed ? "Logout" : ""}
+        >
+          <LogOut className={`h-5 w-5 ${!isCollapsed && "mr-3"}`} />
+          {!isCollapsed && <span>Logout</span>}
+        </button>
+        
+        {/* User Info */}
+        {!isCollapsed && (
+          <div className="mt-4 p-3 bg-slate-800 rounded-lg">
+            <p className="text-slate-300 text-sm font-medium">
+              {localStorage.getItem("userName") || "Administrator"}
+            </p>
+            <p className="text-blue-400 text-xs mt-1 font-medium">
+              ADMIN
+            </p>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }

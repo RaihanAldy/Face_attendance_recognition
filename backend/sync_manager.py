@@ -9,13 +9,6 @@ class SyncManager:
         self.setup_schedules()
     
     def setup_schedules(self):
-        # Update analytics every minute
-        self.scheduler.add_job(
-            self.update_analytics,
-            'interval',
-            minutes=1,
-            id='analytics_update'
-        )
         
         # Cleanup old data daily at 2 AM
         self.scheduler.add_job(
@@ -29,13 +22,6 @@ class SyncManager:
     def start(self):
         self.scheduler.start()
         print("✅ Background tasks started")
-    
-    def update_analytics(self):
-        try:
-            db.get_daily_analytics()  # This updates the analytics
-            print(f"📊 Analytics updated at {datetime.now().strftime('%H:%M:%S')}")
-        except Exception as e:
-            print(f"❌ Analytics update failed: {e}")
     
     def cleanup_old_data(self):
         try:
