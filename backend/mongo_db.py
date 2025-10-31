@@ -407,6 +407,53 @@ class MongoDBManager:
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
 
+    def get_all_attendance(self):
+        """Get semua attendance records tanpa filter"""
+        try:
+            print("📊 Fetching ALL attendance records...")
+            
+            # Ambil semua data dari collection attendance
+            attendance_records = list(self.attendance.find().sort('timestamp', -1))
+            
+            print(f"✅ Found {len(attendance_records)} raw records in database")
+            
+            formatted_results = []
+            for record in attendance_records:
+                try:
+                    formatted_record = {
+                        '_id': str(record.get('_id')),
+                        'employee_id': record.get('employee_id'),
+                        'employees': record.get('employees'),
+                        'department': record.get('department'),
+                        'date': record.get('date'),
+                        'day_of_week': record.get('day_of_week'),
+                        'timestamp': record.get('timestamp').isoformat() if record.get('timestamp') else None,
+                        'last_updated': record.get('last_updated').isoformat() if record.get('last_updated') else None,
+                        'lateness_minutes': record.get('lateness_minutes', 0),
+                        'confidence': record.get('confidence', 0),
+                        'check_in_time': record.get('check_in_time').isoformat() if record.get('check_in_time') else None,
+                        'check_in_status': record.get('check_in_status'),
+                        'check_in_confidence': record.get('check_in_confidence', 0),
+                        'status': record.get('status'),
+                        'check_out_time': record.get('check_out_time').isoformat() if record.get('check_out_time') else None,
+                        'check_out_status': record.get('check_out_status'),
+                        'check_out_confidence': record.get('check_out_confidence', 0),
+                        'work_duration': record.get('work_duration', 0)
+                    }
+                    formatted_results.append(formatted_record)
+                    
+                except Exception as e:
+                    print(f"⚠️ Error formatting record {record.get('_id')}: {e}")
+                    continue
+            
+            print(f"🎯 Successfully formatted {len(formatted_results)} records")
+            return formatted_results
+            
+        except Exception as e:
+            print(f"❌ Error getting all attendance: {e}")
+            traceback.print_exc()
+            return []
+
     # ==================== ATTENDANCE QUERIES ====================
     
     def get_attendance_with_checkout(self, date_str=None):
@@ -574,39 +621,44 @@ class MongoDBManager:
             return []
     
     def get_attendance_by_date(self, date_str=None):
-        """Get raw attendance records by date"""
+        """Get attendance logs by date - dengan improvement"""
         try:
             if date_str == 'all':
-                query = {}
+                # 🔥 PAKAI METHOD BARU untuk get all
+                return self.get_all_attendance()
             elif date_str:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-                query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
+                query = {'date': date_str}
             else:
-                date_obj = datetime.now()
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-                query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
+                date_str = datetime.now().strftime('%Y-%m-%d')
+                query = {'date': date_str}
             
+            print(f"🔍 Querying attendance for date: {date_str}")
             results = list(self.attendance.find(query).sort('timestamp', -1))
             
+            print(f"✅ Found {len(results)} records for date {date_str}")
+            
             formatted_results = []
-            for r in results:
+            for record in results:
                 formatted_record = {
-                    '_id': str(r.get('_id')),
-                    'employeeId': r.get('employee_id', 'N/A'),
-                    'name': r.get('employees', 'Unknown'),
-                    'employees': r.get('employees', 'Unknown'),
-                    'action': r.get('action', 'check_in'),
-                    'status': r.get('status', 'ontime'),
-                    'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
-                    'confidence': float(r.get('confidence', 0)),
-                    # Field tambahan untuk compatibility
-                    'employee_id': r.get('employee_id', 'N/A'),
-                    'employee_name': employee_name
+                    '_id': str(record.get('_id')),
+                    'employee_id': record.get('employee_id'),
+                    'employees': record.get('employees'),
+                    'department': record.get('department'),
+                    'date': record.get('date'),
+                    'day_of_week': record.get('day_of_week'),
+                    'timestamp': record.get('timestamp').isoformat() if record.get('timestamp') else None,
+                    'last_updated': record.get('last_updated').isoformat() if record.get('last_updated') else None,
+                    'lateness_minutes': record.get('lateness_minutes', 0),
+                    'confidence': record.get('confidence', 0),
+                    'check_in_time': record.get('check_in_time').isoformat() if record.get('check_in_time') else None,
+                    'check_in_status': record.get('check_in_status'),
+                    'check_in_confidence': record.get('check_in_confidence', 0),
+                    'status': record.get('status'),
+                    'check_out_time': record.get('check_out_time').isoformat() if record.get('check_out_time') else None,
+                    'check_out_status': record.get('check_out_status'),
+                    'check_out_confidence': record.get('check_out_confidence', 0),
+                    'work_duration': record.get('work_duration', 0)
                 }
-                
                 formatted_results.append(formatted_record)
             
             return formatted_results
