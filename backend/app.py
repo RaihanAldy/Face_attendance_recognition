@@ -20,6 +20,64 @@ def health_check():
         'database': 'connected',
         'face_model': 'loaded' if face_engine.model else 'error'
     })
+# ==================== LOGINS ENDPOINTS ====================
+# ==================== ADMIN ENDPOINTS ====================
+
+@app.route('/api/admin/register', methods=['POST'])
+def admin_register():
+    """
+    Register new admin.
+    Request JSON: { "username": "...", "password": "..." }
+    """
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'Username and password are required'}), 400
+
+        result = db.register_admin(username, password)
+        if result['status'] == 'success':
+            print(f"✅ Admin registered: {username}")
+            return jsonify({'success': True, 'message': result['message']}), 201
+        else:
+            print(f"❌ Admin registration failed: {result['message']}")
+            return jsonify({'success': False, 'error': result['message']}), 400
+
+    except Exception as e:
+        print(f"❌ Admin registration error: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    """
+    Admin login.
+    Request JSON: { "username": "...", "password": "..." }
+    """
+    try:
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'Username and password are required'}), 400
+
+        result = db.login_admin(username, password)
+        if result['status'] == 'success':
+            print(f"✅ Admin logged in: {username}")
+            return jsonify({'success': True, 'message': result['message']}), 200
+        else:
+            print(f"❌ Admin login failed: {result['message']}")
+            return jsonify({'success': False, 'error': result['message']}), 401
+
+    except Exception as e:
+        print(f"❌ Admin login error: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # ==================== SETTINGS ENDPOINTS ====================
 

@@ -1,48 +1,51 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios"; // pastikan axios sudah diinstall
 
 const Login = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
 
-  // Check if user is already logged in
+  // Redirect jika sudah login
   useEffect(() => {
     const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
-    if (isAuthenticated) {
-      navigate("/"); // Changed from /dashboard to / since that's our protected root route
-    }
+    if (isAuthenticated) navigate("/");
   }, [navigate]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    // Mock login validation - replace with actual API call
-    if (formData.username === "admin" && formData.password === "admin123") {
-      // Store auth token/user data
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem(
-        "userData",
-        JSON.stringify({
-          name: "Admin User",
-          role: "Administrator",
-        })
-      );
-      navigate("/"); // Changed from /dashboard to / since that's our protected root route
-    } else {
-      setError("Invalid username or password");
-    }
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError("");
   };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    setError(""); // Clear error when user types
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/admin/login",
+        {
+          username: formData.username,
+          password: formData.password,
+        }
+      );
+
+      if (response.data.success) {
+        // Simpan status login
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem(
+          "userData",
+          JSON.stringify({ username: formData.username, role: "Administrator" })
+        );
+        navigate("/"); // redirect ke protected route
+      } else {
+        setError(response.data.error || "Login failed");
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      const msg = err.response?.data?.error || "Failed to connect to server";
+      setError(msg);
+    }
   };
 
   return (

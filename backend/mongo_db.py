@@ -4,7 +4,6 @@ import calendar
 import os
 from dotenv import load_dotenv
 import traceback
-import uuid
 
 load_dotenv()
 

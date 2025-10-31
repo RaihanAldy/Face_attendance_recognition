@@ -28,13 +28,15 @@ const Navbar = () => {
     };
   }, []);
 
-  const initials = user
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-    : "";
+  const initials =
+    user && user.name
+      ? user.name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+      : "";
+
   return (
     <>
       <nav className="bg-slate-900 border-b border-slate-800">
