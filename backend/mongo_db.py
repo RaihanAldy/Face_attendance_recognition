@@ -249,19 +249,49 @@ class MongoDBManager:
             return {'success': False, 'error': str(e)}
 
     def get_all_employees(self):
-        """Get all employees"""
+        """Get all employees - output compatible versi 2"""
         try:
             employees = list(self.employees.find())
+            formatted = []
             for emp in employees:
-                emp['_id'] = str(emp['_id'])
-                if 'created_at' in emp and emp['created_at']:
-                    emp['created_at'] = emp['created_at'].isoformat()
-                if 'last_updated' in emp and emp['last_updated']:
-                    emp['last_updated'] = emp['last_updated'].isoformat()
-            return employees
+                formatted.append({
+                    'employeeId': emp.get('employee_id'),
+                    'name': emp.get('name'),
+                    'department': emp.get('department', 'General'),
+                    'position': emp.get('position', ''),
+                    'email': emp.get('email', ''),
+                    'phone': emp.get('phone', ''),
+                    'created_at': emp['created_at'].isoformat() if emp.get('created_at') else None,
+                    'last_updated': emp['last_updated'].isoformat() if emp.get('last_updated') else None
+                })
+            return formatted
         except Exception as e:
             print(f"❌ Error getting employees: {e}")
             return []
+        
+    def get_employee_by_id(self, employee_id):
+        """Get employee by ID - compatible versi 2"""
+        try:
+            emp = self.employees.find_one({'employee_id': employee_id})
+            if not emp:
+                return {'success': False, 'message': 'Employee not found'}
+            
+            return {
+                'success': True,
+                'employee': {
+                    'employeeId': emp.get('employee_id'),
+                    'name': emp.get('name'),
+                    'department': emp.get('department', 'General'),
+                    'position': emp.get('position', ''),
+                    'email': emp.get('email', ''),
+                    'phone': emp.get('phone', ''),
+                    'created_at': emp['created_at'].isoformat() if emp.get('created_at') else None
+                }
+            }
+        except Exception as e:
+            print(f"❌ Error getting employee by ID: {e}")
+            return {'success': False, 'error': str(e)}
+
 
     # ==================== FACE RECOGNITION ====================
 
@@ -573,7 +603,7 @@ class MongoDBManager:
             return []
     
     def get_attendance_by_date(self, date_str=None):
-        """Get raw attendance records by date"""
+        """Get attendance logs by date - compatible versi 2"""
         try:
             if date_str == 'all':
                 query = {}
@@ -583,36 +613,26 @@ class MongoDBManager:
                 end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
                 query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
             else:
-                date_obj = datetime.now()
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+                today = datetime.now()
+                start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
                 query = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
             
             results = list(self.attendance.find(query).sort('timestamp', -1))
-            
-            formatted_results = []
+            formatted = []
             for r in results:
-                formatted_record = {
+                formatted.append({
                     '_id': str(r.get('_id')),
-                    'employeeId': r.get('employee_id', 'N/A'),
+                    'employeeId': r.get('employee_id'),
                     'name': r.get('employees', 'Unknown'),
-                    'employees': r.get('employees', 'Unknown'),
-                    'action': r.get('action', 'check_in'),
-                    'status': r.get('status', 'ontime'),
+                    'action': r.get('action', r.get('status', 'check-in')),
+                    'status': r.get('status', 'check-in'),
                     'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
-                    'confidence': float(r.get('confidence', 0)),
-                    # Field tambahan untuk compatibility
-                    'employee_id': r.get('employee_id', 'N/A'),
-                    'employee_name': employee_name
-                }
-                
-                formatted_results.append(formatted_record)
-            
-            return formatted_results
-
+                    'confidence': float(r.get('confidence', 0))
+                })
+            return formatted
         except Exception as e:
             print(f"❌ Error getting attendance by date: {e}")
-            traceback.print_exc()
             return []
 
     def get_attendance_with_checkout(self, date_str=None):
@@ -767,25 +787,28 @@ class MongoDBManager:
             return "0h 0m"
 
     def get_attendance_by_employee_id(self, employee_id, date_str=None):
-        """Get attendance data untuk employee tertentu"""
+        """Get attendance for specific employee - compatible versi 2"""
         try:
             query = {'employee_id': employee_id}
-            
-            if date_str and date_str != 'all':
+            if date_str:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                 start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
                 query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
             
-            attendance_records = list(self.attendance.find(query).sort('timestamp', -1))
-            
-            for record in attendance_records:
-                record['_id'] = str(record['_id'])
-                if 'timestamp' in record:
-                    record['timestamp'] = record['timestamp'].isoformat()
-                    
-            return attendance_records
-            
+            records = list(self.attendance.find(query).sort('timestamp', -1))
+            formatted = []
+            for r in records:
+                formatted.append({
+                    '_id': str(r.get('_id')),
+                    'employeeId': r.get('employee_id'),
+                    'name': r.get('employees', 'Unknown'),
+                    'action': r.get('action', r.get('status', 'check-in')),
+                    'status': r.get('status', 'check-in'),
+                    'timestamp': r.get('timestamp').isoformat() if r.get('timestamp') else None,
+                    'confidence': float(r.get('confidence', 0))
+                })
+            return formatted
         except Exception as e:
             print(f"❌ Error getting employee attendance: {e}")
             return []

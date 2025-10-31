@@ -41,7 +41,6 @@ const AttendanceLogs = () => {
       const checkInStatus = record.check_in_status;
       const checkOutStatus = record.check_out_status;
       const overallStatus = record.status;
-      const timestamp = record.timestamp || record.date;
 
       console.log("🔍 Processing record:", {
         employeeId,
