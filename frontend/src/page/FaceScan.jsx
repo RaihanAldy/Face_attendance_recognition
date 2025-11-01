@@ -143,9 +143,66 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     }
   };
 
-  // Generate dummy face embedding
-  const generateFaceEmbedding = () => {
-    return Array.from({ length: 128 }, () => 0.1);
+  // ✅ NEW: Capture image dari video dan kirim ke backend
+  const captureAndExtractFace = async () => {
+    try {
+      if (!videoRef.current) {
+        throw new Error("Video element not available");
+      }
+
+      const video = videoRef.current;
+      
+      // Create canvas untuk capture
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Convert to base64
+      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+      
+      console.log("📸 Image captured from video");
+      console.log(`   Size: ${canvas.width}x${canvas.height}`);
+      console.log("🔍 Sending to backend for face extraction...");
+      
+      // Send ke backend untuk extract face
+      const response = await fetch("http://localhost:5000/api/extract-face", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          image: imageData 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to extract face");
+      }
+      
+      console.log("✅ Face extracted successfully");
+      console.log(`   Embedding length: ${result.embedding.length}`);
+      console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+      
+      return {
+        embedding: result.embedding,
+        confidence: result.confidence,
+        face_detected: result.face_detected
+      };
+      
+    } catch (error) {
+      console.error("❌ Error capturing/extracting face:", error);
+      throw error;
+    }
   };
 
   // Start camera
@@ -327,24 +384,67 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     }
   };
 
-  // Recognize face
+  // ✅ UPDATED: Recognize face dengan real image capture
   const recognizeFace = async () => {
-    const faceEmbedding = generateFaceEmbedding();
-
     try {
+      console.log("🔍 Starting face recognition...");
+      
+      // Capture dan extract face dari video
+      const faceData = await captureAndExtractFace();
+      
+      if (!faceData.face_detected) {
+        setScanStatus("failed");
+        setErrorMessage("Tidak ada wajah terdeteksi. Posisikan wajah di tengah frame.");
+        
+        await MySwal.fire({
+          title: "Wajah Tidak Terdeteksi",
+          text: "Pastikan wajah Anda berada di tengah frame dengan pencahayaan yang baik.",
+          icon: "warning",
+          timer: 3000,
+          timerProgressBar: true,
+          showConfirmButton: true,
+          confirmButtonText: "Coba Lagi",
+        });
+        
+        return;
+      }
+      
       console.log("🔍 Sending recognition request...");
 
+      // Recognize menggunakan embedding
       const response = await fetch("http://localhost:5000/api/recognize-face", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ 
-          faceEmbedding: faceEmbedding 
+          faceEmbedding: faceData.embedding 
         }),
       });
 
       if (!response.ok) {
+        if (response.status === 404) {
+          // Wajah tidak dikenali
+          setScanStatus("failed");
+          setErrorMessage("Wajah tidak dikenali. Silakan registrasi terlebih dahulu.");
+
+          await MySwal.fire({
+            title: "Wajah Tidak Dikenali",
+            text: "Silakan hubungi admin untuk registrasi atau coba lagi.",
+            icon: "warning",
+            timer: 3000,
+            timerProgressBar: true,
+            showConfirmButton: true,
+            confirmButtonText: "Coba Lagi",
+          });
+
+          setTimeout(() => {
+            handleStopScan();
+          }, 1000);
+          
+          return;
+        }
+        
         throw new Error(`Recognition API error: ${response.status}`);
       }
 
@@ -352,18 +452,25 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       console.log("✅ Recognition result:", result);
 
       if (result.success) {
+        const employee = result.employee;
+        
         setEmployeeData({
-          name: result.employee.name,
-          id: result.employee.employee_id,
-          department: result.employee.department,
-          confidence: result.employee.similarity,
+          name: employee.name,
+          id: employee.employee_id,
+          department: employee.department,
+          confidence: employee.confidence || employee.similarity,
         });
+        
         setScanStatus("success");
+
+        console.log(`✅ Face recognized: ${employee.name}`);
+        console.log(`   Similarity: ${(employee.similarity * 100).toFixed(1)}%`);
+        console.log(`   Final Confidence: ${((employee.confidence || employee.similarity) * 100).toFixed(1)}%`);
 
         // Record attendance automatically
         await recordAttendance(
-          result.employee.employee_id,
-          result.employee.similarity
+          employee.employee_id,
+          employee.confidence || employee.similarity
         );
       } else {
         setScanStatus("failed");
@@ -386,11 +493,22 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     } catch (error) {
       console.error("Recognition error:", error);
       setScanStatus("failed");
-      setErrorMessage("Server tidak merespon. Pastikan backend running.");
+      
+      let errorMsg = "Terjadi kesalahan saat mengenali wajah.";
+      
+      if (error.message.includes("No face detected")) {
+        errorMsg = "Tidak ada wajah terdeteksi. Posisikan wajah dengan benar.";
+      } else if (error.message.includes("Failed to fetch")) {
+        errorMsg = "Backend tidak merespon. Pastikan server running di http://localhost:5000";
+      } else {
+        errorMsg = error.message;
+      }
+      
+      setErrorMessage(errorMsg);
       
       MySwal.fire({
-        title: "Koneksi Gagal",
-        text: "Server tidak merespon. Pastikan backend running di http://localhost:5000",
+        title: "Kesalahan",
+        text: errorMsg,
         icon: "error",
         timer: 5000,
         timerProgressBar: true,
@@ -403,11 +521,15 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
   const recordAttendance = async (employeeId, confidence) => {
     try {
       console.log(`📝 Recording attendance for ${employeeId}...`);
+      console.log(`   Confidence: ${(confidence * 100).toFixed(1)}%`);
       
       const response = await fetch(`http://localhost:5000/api/attendance/auto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId, confidence }),
+        body: JSON.stringify({ 
+          employeeId, 
+          confidence: confidence
+        }),
       });
 
       if (!response.ok) {
@@ -418,7 +540,6 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       const result = await response.json();
       console.log("✅ Attendance recorded:", result);
 
-      // Dapatkan nama employee dari result backend, bukan dari state employeeData
       const employeeName = result.employee?.name || employeeData?.name || "Unknown";
 
       const statusConfig = {
@@ -465,7 +586,6 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         confirmButtonText: "OK",
       });
 
-      // Auto stop after delay
       setTimeout(() => {
         handleStopScan();
       }, 1500);
@@ -488,7 +608,6 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       });
 
       handleStopScan();
-      stopcamera();
       throw error;
     }
   };
@@ -686,7 +805,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           {errorMessage && (
             <div className="p-4 bg-red-900/20 border-t border-red-800">
               <div className="flex items-center space-x-2 text-red-400">
-                <AlertCircle className="h-5 h-5" />
+                <AlertCircle className="h-5" />
                 <span>{errorMessage}</span>
               </div>
             </div>

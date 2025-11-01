@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from "react";
 import { Camera, ArrowLeft, UserPlus, CheckCircle, XCircle, AlertCircle, RotateCcw } from "lucide-react";
 import Swal from "sweetalert2";
@@ -36,9 +37,68 @@ export default function FaceRegistration({ onBack }) {
     };
   }, []);
 
-  // Generate face embedding (dummy for now)
-  const generateFaceEmbedding = () => {
-    return Array.from({ length: 512 }, () => Math.random() * 2 - 1);
+  // ✅ NEW: Extract face embedding from video (same as FaceScan)
+  const captureAndExtractFace = async () => {
+    try {
+      if (!videoRef.current) {
+        throw new Error("Video element not available");
+      }
+
+      const video = videoRef.current;
+      
+      // Create canvas untuk capture
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Convert to base64
+      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+      
+      console.log("📸 Image captured from video");
+      console.log(`   Size: ${canvas.width}x${canvas.height}`);
+      console.log(`   Angle: ${angles[currentAngle].name}`);
+      console.log("🔍 Sending to backend for face extraction...");
+      
+      // Send ke backend untuk extract face
+      const response = await fetch("http://localhost:5000/api/extract-face", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          image: imageData 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to extract face");
+      }
+      
+      console.log("✅ Face extracted successfully");
+      console.log(`   Embedding length: ${result.embedding.length}`);
+      console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+      
+      return {
+        embedding: result.embedding,
+        confidence: result.confidence,
+        face_detected: result.face_detected,
+        image: imageData
+      };
+      
+    } catch (error) {
+      console.error("❌ Error capturing/extracting face:", error);
+      throw error;
+    }
   };
 
   // Start camera
@@ -168,51 +228,89 @@ export default function FaceRegistration({ onBack }) {
     }
   };
 
-  // Capture face for current angle
-  const captureFace = () => {
+  // ✅ UPDATED: Capture face with real embedding extraction
+  const captureFace = async () => {
     if (!videoRef.current || !isScanning) return;
 
-    const video = videoRef.current;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0);
-
-    const imageData = canvas.toDataURL("image/jpeg");
-    
-    // Add capture to array
-    const newCapture = {
-      angle: currentAngle,
-      angleName: angles[currentAngle].name,
-      image: imageData,
-      timestamp: new Date().toISOString()
-    };
-
-    setFaceCaptures(prev => [...prev, newCapture]);
-    
-    // Move to next angle or finish
-    if (currentAngle < angles.length - 1) {
-      setCurrentAngle(currentAngle + 1);
-      
+    try {
+      // Show loading
       MySwal.fire({
-        title: `Posisi ${angles[currentAngle].name} Terekam!`,
-        text: `Sekarang ${angles[currentAngle + 1].description}`,
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
+        title: 'Memproses Wajah...',
+        html: 'Mengekstrak face embedding...',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
       });
-    } else {
-      setScanStatus("captured");
-      stopCamera();
+
+      // Extract face from video using backend
+      const faceData = await captureAndExtractFace();
+      
+      if (!faceData.face_detected) {
+        MySwal.fire({
+          title: "Wajah Tidak Terdeteksi",
+          text: "Pastikan wajah Anda terlihat jelas di tengah frame.",
+          icon: "warning",
+          confirmButtonText: "Coba Lagi",
+        });
+        return;
+      }
+
+      // Add capture to array with real embedding
+      const newCapture = {
+        angle: currentAngle,
+        angleName: angles[currentAngle].name,
+        image: faceData.image,
+        embedding: faceData.embedding,
+        confidence: faceData.confidence,
+        timestamp: new Date().toISOString()
+      };
+
+      setFaceCaptures(prev => [...prev, newCapture]);
+      
+      // Move to next angle or finish
+      if (currentAngle < angles.length - 1) {
+        setCurrentAngle(currentAngle + 1);
+        
+        MySwal.fire({
+          title: `Posisi ${angles[currentAngle].name} Terekam!`,
+          html: `
+            <div style="text-align: center;">
+              <p>Confidence: ${(faceData.confidence * 100).toFixed(1)}%</p>
+              <p style="margin-top: 8px;">Sekarang ${angles[currentAngle + 1].description}</p>
+            </div>
+          `,
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        setScanStatus("captured");
+        stopCamera();
+        
+        MySwal.fire({
+          title: "Semua Posisi Terekam!",
+          text: "Silakan lengkapi form data karyawan.",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error capturing face:", error);
+      
+      let errorMsg = "Gagal mengambil foto wajah.";
+      if (error.message.includes("No face detected")) {
+        errorMsg = "Tidak ada wajah terdeteksi. Posisikan wajah dengan benar.";
+      } else if (error.message.includes("Failed to fetch")) {
+        errorMsg = "Backend tidak merespon. Pastikan server running.";
+      }
       
       MySwal.fire({
-        title: "Semua Posisi Terekam!",
-        text: "Silakan lengkapi form data karyawan.",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
+        title: "Kesalahan",
+        text: errorMsg,
+        icon: "error",
+        confirmButtonText: "Coba Lagi",
       });
     }
   };
@@ -271,7 +369,7 @@ export default function FaceRegistration({ onBack }) {
     }
   };
 
-  // Submit registration
+  // ✅ UPDATED: Submit with real embeddings
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -298,8 +396,16 @@ export default function FaceRegistration({ onBack }) {
     try {
       setScanStatus("submitting");
 
-      // Generate multiple embeddings for different angles
-      const faceEmbeddings = faceCaptures.map(() => generateFaceEmbedding());
+      // Extract embeddings from captures (REAL embeddings from backend)
+      const faceEmbeddings = faceCaptures.map(capture => capture.embedding);
+      
+      console.log("📤 Submitting registration with real embeddings:");
+      console.log(`   Name: ${formData.name}`);
+      console.log(`   Embeddings count: ${faceEmbeddings.length}`);
+      console.log(`   Embedding length: ${faceEmbeddings[0].length}`);
+      faceCaptures.forEach((capture, idx) => {
+        console.log(`   ${capture.angleName}: ${(capture.confidence * 100).toFixed(1)}% confidence`);
+      });
 
       const response = await fetch("http://localhost:5000/api/register", {
         method: "POST",
@@ -312,13 +418,14 @@ export default function FaceRegistration({ onBack }) {
           position: formData.position.trim(),
           email: formData.email.trim(),
           phone: formData.phone.trim(),
-          faceEmbeddings: faceEmbeddings, // Send multiple embeddings
+          faceEmbeddings: faceEmbeddings, // Real embeddings from backend
           captureCount: faceCaptures.length
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
@@ -345,7 +452,10 @@ export default function FaceRegistration({ onBack }) {
                   Department: ${formData.department}
                 </p>
                 <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                  Posisi wajah: ${faceCaptures.length} angle
+                  Face angles: ${faceCaptures.length}
+                </p>
+                <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
+                  Avg confidence: ${(faceCaptures.reduce((sum, c) => sum + c.confidence, 0) / faceCaptures.length * 100).toFixed(1)}%
                 </p>
               </div>
             </div>
@@ -411,7 +521,7 @@ export default function FaceRegistration({ onBack }) {
           <div className="space-y-6">
             {/* Camera Preview */}
             <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-              <div className="relative bg-slate-950 aspect-[4/3] flex items-center justify-center">
+              <div className="relative bg-slate-950 aspect-4/3 flex items-center justify-center">
                 {/* Video Preview */}
                 {isScanning && (
                   <>
@@ -700,7 +810,7 @@ export default function FaceRegistration({ onBack }) {
             {/* Info Box */}
             <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800 rounded-lg">
               <p className="text-blue-400 text-sm flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
                   <strong>Panduan Pengambilan Foto:</strong> Ambil wajah dari 3 angle berbeda (depan, kiri, kanan) untuk meningkatkan akurasi recognition. Pastikan wajah terlihat jelas dengan pencahayaan yang baik.
                 </span>

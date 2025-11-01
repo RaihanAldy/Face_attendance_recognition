@@ -223,9 +223,37 @@ class MongoDBManager:
             return f"EMP-{int(datetime.now().timestamp())}"
     
     def register_employee_face(self, name, face_embeddings, department='General', position='', email='', phone=''):
-        """Register new employee dengan multiple face embeddings"""
         try:
             employee_id = self.get_next_employee_id()
+            
+            # Handle both single dan multiple embeddings
+            if isinstance(face_embeddings, list):
+                if len(face_embeddings) > 0 and isinstance(face_embeddings[0], list):
+                    # Multiple embeddings: [[512], [512], ...]
+                    embeddings_to_store = face_embeddings
+                    embedding_count = len(face_embeddings)
+                elif len(face_embeddings) == 512 or len(face_embeddings) == 128:
+                    # Single embedding: [512] atau [128]
+                    embeddings_to_store = [face_embeddings]
+                    embedding_count = 1
+                else:
+                    return {
+                        'success': False,
+                        'error': f'Invalid embedding format. Expected 512 dimensions, got {len(face_embeddings)}'
+                    }
+            else:
+                return {
+                    'success': False,
+                    'error': 'face_embeddings must be a list'
+                }
+            
+            # Validate embedding dimensions
+            for i, emb in enumerate(embeddings_to_store):
+                if len(emb) not in [128, 512]:  # Support both DeepFace (128) and InsightFace (512)
+                    return {
+                        'success': False,
+                        'error': f'Embedding {i+1} has invalid dimensions: {len(emb)}. Expected 128 or 512.'
+                    }
             
             employee_data = {
                 'employee_id': employee_id,
@@ -234,8 +262,9 @@ class MongoDBManager:
                 'position': position,
                 'email': email,
                 'phone': phone,
-                'face_embeddings': face_embeddings,  # ✅ Simpan sebagai array
-                'embedding_count': len(face_embeddings),
+                'face_embeddings': embeddings_to_store,  # Store as array of arrays
+                'embedding_count': embedding_count,
+                'embedding_dimensions': len(embeddings_to_store[0]),
                 'created_at': datetime.now(),
                 'last_updated': datetime.now()
             }
@@ -243,58 +272,22 @@ class MongoDBManager:
             result = self.employees.insert_one(employee_data)
             
             if result.inserted_id:
-                print(f"✅ New employee registered: {employee_id} - {name} with {len(face_embeddings)} embeddings")
+                print(f"✅ Employee registered: {employee_id} - {name}")
+                print(f"   Embeddings: {embedding_count} x {len(embeddings_to_store[0])}D")
                 return {
                     'success': True,
                     'message': 'Employee registered successfully',
                     'employee_id': employee_id,
-                    'embedding_count': len(face_embeddings)
+                    'embedding_count': embedding_count
                 }
             else:
                 return {'success': False, 'error': 'Failed to insert employee'}
                 
         except Exception as e:
             print(f"❌ Error registering employee: {e}")
+            traceback.print_exc()
             return {'success': False, 'error': str(e)}
 
-        def recognize_face(self, face_embedding, threshold=0.6):
-            """Recognize face dengan multiple embeddings"""
-            try:
-                employees = list(self.employees.find())
-                
-                best_match = None
-                highest_similarity = 0
-                
-                for employee in employees:
-                    if 'face_embeddings' in employee and employee['face_embeddings']:
-                        # Jika multiple embeddings, hitung similarity dengan masing-masing
-                        embeddings = employee['face_embeddings']
-                        if isinstance(embeddings, list) and len(embeddings) > 0:
-                            # Gunakan embedding pertama atau average semua
-                            target_embedding = embeddings[0]  # atau calculate_average_embedding(embeddings)
-                            similarity = self.calculate_similarity(face_embedding, target_embedding)
-                            
-                            if similarity > highest_similarity and similarity >= threshold:
-                                highest_similarity = similarity
-                                best_match = employee
-                
-                if best_match:
-                    return {
-                        'success': True,
-                        'employee': {
-                            'employee_id': best_match['employee_id'],
-                            'name': best_match['name'],
-                            'department': best_match.get('department', 'General'),
-                            'similarity': highest_similarity,
-                            'embedding_count': best_match.get('embedding_count', 1)
-                        }
-                    }
-                else:
-                    return {'success': False, 'message': 'No matching employee found'}
-                    
-            except Exception as e:
-                return {'success': False, 'error': str(e)}
-    
     def get_all_employees(self):
         """Get all employees"""
         try:
@@ -311,25 +304,111 @@ class MongoDBManager:
             return []
 
     # ==================== FACE RECOGNITION ====================
-
-    def recognize_face(self, face_embedding, threshold=0.6):
-        """Recognize face from embedding dengan similarity threshold"""
+    
+    def calculate_similarity(self, embedding1, embedding2):
+        """
+        Calculate cosine similarity between two embeddings
+        Works for both DeepFace (128D) and InsightFace (512D)
+        
+        Args:
+            embedding1: List [N]
+            embedding2: List [N]
+            
+        Returns:
+            float: Similarity score (0-1)
+        """
         try:
+            if len(embedding1) != len(embedding2):
+                print(f"⚠️ Embedding dimension mismatch: {len(embedding1)} vs {len(embedding2)}")
+                # Trim to same length
+                min_length = min(len(embedding1), len(embedding2))
+                embedding1 = embedding1[:min_length]
+                embedding2 = embedding2[:min_length]
+            
+            # Convert to numpy for efficiency
+            import numpy as np
+            emb1 = np.array(embedding1)
+            emb2 = np.array(embedding2)
+            
+            # Calculate norms
+            norm1 = np.linalg.norm(emb1)
+            norm2 = np.linalg.norm(emb2)
+            
+            # Avoid division by zero
+            if norm1 == 0 or norm2 == 0:
+                print("⚠️ Zero norm detected in embedding")
+                return 0.0
+            
+            # Normalize
+            emb1_normalized = emb1 / norm1
+            emb2_normalized = emb2 / norm2
+            
+            # Cosine similarity (dot product of normalized vectors)
+            similarity = np.dot(emb1_normalized, emb2_normalized)
+            
+            # Clip to 0-1 range (cosine can be -1 to 1, but for faces should be 0-1)
+            similarity = float(np.clip(similarity, 0.0, 1.0))
+            
+            return similarity
+            
+        except Exception as e:
+            print(f"❌ Error calculating similarity: {e}")
+            traceback.print_exc()
+            return 0.0
+        
+    def recognize_face(self, face_embedding, threshold=0.6):
+        try:
+            print(f"🔍 Recognizing face - embedding size: {len(face_embedding)}")
+            
             employees = list(self.employees.find())
+            
+            if len(employees) == 0:
+                print("⚠️ No employees registered in database")
+                return {
+                    'success': False,
+                    'message': 'No employees registered in database',
+                    'similarity': 0
+                }
             
             best_match = None
             highest_similarity = 0
             
             for employee in employees:
-                if 'face_embeddings' in employee and employee['face_embeddings']:
-                    similarity = self.calculate_similarity(face_embedding, employee['face_embeddings'])
+                if 'face_embeddings' not in employee or not employee['face_embeddings']:
+                    continue
+                
+                embeddings = employee['face_embeddings']
+                
+                # Handle both old format (single embedding) and new format (array of embeddings)
+                if not isinstance(embeddings[0], list):
+                    # Old format: single embedding as flat list
+                    embeddings = [embeddings]
+                
+                # Calculate similarity dengan setiap stored embedding
+                max_similarity_for_employee = 0
+                
+                for stored_embedding in embeddings:
+                    # Validate dimensions match
+                    if len(stored_embedding) != len(face_embedding):
+                        print(f"⚠️ Dimension mismatch for {employee['employee_id']}: {len(stored_embedding)} vs {len(face_embedding)}")
+                        continue
                     
-                    if similarity > highest_similarity and similarity >= threshold:
-                        highest_similarity = similarity
-                        best_match = employee
+                    similarity = self.calculate_similarity(face_embedding, stored_embedding)
+                    
+                    if similarity > max_similarity_for_employee:
+                        max_similarity_for_employee = similarity
+                
+                print(f"   {employee['employee_id']} ({employee['name']}): similarity = {max_similarity_for_employee:.3f}")
+                
+                # Update best match jika similarity lebih tinggi DAN melebihi threshold
+                if max_similarity_for_employee > highest_similarity and max_similarity_for_employee >= threshold:
+                    highest_similarity = max_similarity_for_employee
+                    best_match = employee
             
             if best_match:
-                print(f"✅ Face recognized: {best_match['name']} ({best_match['employee_id']})")
+                print(f"✅ Match found: {best_match['name']} ({best_match['employee_id']})")
+                print(f"   Similarity: {highest_similarity:.3f} (threshold: {threshold})")
+                
                 return {
                     'success': True,
                     'employee': {
@@ -344,57 +423,19 @@ class MongoDBManager:
                     'message': 'Face recognized successfully'
                 }
             else:
+                print(f"⚠️ No match found. Best similarity: {highest_similarity:.3f} (threshold: {threshold})")
                 return {
                     'success': False,
                     'message': 'No matching employee found',
-                    'similarity': highest_similarity
+                    'similarity': highest_similarity,
+                    'threshold': threshold
                 }
                 
         except Exception as e:
             print(f"❌ Error recognizing face: {e}")
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
-
-    def calculate_similarity(self, embedding1, embedding2):
-        """Calculate cosine similarity between two embeddings"""
-        try:
-            print(f"🔍 DEBUG calculate_similarity:")
-            print(f"   Embedding1 length: {len(embedding1)}")
-            print(f"   Embedding2 length: {len(embedding2)}")
-            
-            if len(embedding1) != len(embedding2):
-                min_length = min(len(embedding1), len(embedding2))
-                embedding1 = embedding1[:min_length]
-                embedding2 = embedding2[:min_length]
-                print(f"   Adjusted to same length: {min_length}")
-            
-            # Calculate dot product
-            dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
-            
-            # Calculate norms
-            norm1 = sum(a * a for a in embedding1) ** 0.5
-            norm2 = sum(b * b for b in embedding2) ** 0.5
-            
-            print(f"   Dot product: {dot_product}")
-            print(f"   Norm1: {norm1}")
-            print(f"   Norm2: {norm2}")
-            
-            # Avoid division by zero
-            if norm1 == 0 or norm2 == 0:
-                print("   ⚠️ Zero norm detected -> return 0")
-                return 0
-                
-            # Calculate cosine similarity
-            similarity = dot_product / (norm1 * norm2)
-            print(f"   Calculated similarity: {similarity}")
-            
-            return similarity
-            
-        except Exception as e:
-            print(f"❌ Error calculating similarity: {e}")
-            traceback.print_exc()
-            return 0
-
+        
     # ==================== ATTENDANCE LOGGING ====================
     
     def record_attendance_auto(self, employee_id, confidence=0.0):
