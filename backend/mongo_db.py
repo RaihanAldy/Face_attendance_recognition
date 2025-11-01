@@ -179,6 +179,24 @@ class MongoDBManager:
             return 'ontime'
 
     # ==================== EMPLOYEE MANAGEMENT ====================
+    def _add_sample_employee(self):
+        """Add sample employee untuk testing face recognition"""
+        try:
+            sample_exists = self.employees.find_one({'employee_id': 'EMP-001'})
+            if not sample_exists:
+                sample_embedding = [0.1] * 128  # Embedding konsisten
+                self.employees.insert_one({
+                    'employee_id': 'EMP-001',
+                    'name': 'Test Employee',
+                    'department': 'IT', 
+                    'position': 'Developer',
+                    'face_embeddings': sample_embedding,
+                    'created_at': datetime.now(),
+                    'last_updated': datetime.now()
+                })
+                print("✅ Sample employee added for testing")
+        except Exception as e:
+            print(f"⚠️ Error adding sample employee: {e}")
     
     def get_next_employee_id(self):
         """Generate auto-increment employee ID"""
@@ -204,8 +222,8 @@ class MongoDBManager:
             print(f"❌ Error generating employee ID: {e}")
             return f"EMP-{int(datetime.now().timestamp())}"
     
-    def register_employee_face(self, name, face_embedding, department='General', position='', email='', phone=''):
-        """Register new employee dengan face embedding"""
+    def register_employee_face(self, name, face_embeddings, department='General', position='', email='', phone=''):
+        """Register new employee dengan multiple face embeddings"""
         try:
             employee_id = self.get_next_employee_id()
             
@@ -216,7 +234,8 @@ class MongoDBManager:
                 'position': position,
                 'email': email,
                 'phone': phone,
-                'face_embeddings': face_embedding,
+                'face_embeddings': face_embeddings,  # ✅ Simpan sebagai array
+                'embedding_count': len(face_embeddings),
                 'created_at': datetime.now(),
                 'last_updated': datetime.now()
             }
@@ -224,31 +243,58 @@ class MongoDBManager:
             result = self.employees.insert_one(employee_data)
             
             if result.inserted_id:
-                print(f"✅ New employee registered: {employee_id} - {name}")
+                print(f"✅ New employee registered: {employee_id} - {name} with {len(face_embeddings)} embeddings")
                 return {
                     'success': True,
                     'message': 'Employee registered successfully',
                     'employee_id': employee_id,
-                    'employee_data': {
-                        'employee_id': employee_id,
-                        'name': name,
-                        'department': department,
-                        'position': position,
-                        'email': email,
-                        'phone': phone
-                    }
+                    'embedding_count': len(face_embeddings)
                 }
             else:
-                return {
-                    'success': False,
-                    'error': 'Failed to insert employee'
-                }
-            
+                return {'success': False, 'error': 'Failed to insert employee'}
+                
         except Exception as e:
             print(f"❌ Error registering employee: {e}")
-            traceback.print_exc()
             return {'success': False, 'error': str(e)}
 
+        def recognize_face(self, face_embedding, threshold=0.6):
+            """Recognize face dengan multiple embeddings"""
+            try:
+                employees = list(self.employees.find())
+                
+                best_match = None
+                highest_similarity = 0
+                
+                for employee in employees:
+                    if 'face_embeddings' in employee and employee['face_embeddings']:
+                        # Jika multiple embeddings, hitung similarity dengan masing-masing
+                        embeddings = employee['face_embeddings']
+                        if isinstance(embeddings, list) and len(embeddings) > 0:
+                            # Gunakan embedding pertama atau average semua
+                            target_embedding = embeddings[0]  # atau calculate_average_embedding(embeddings)
+                            similarity = self.calculate_similarity(face_embedding, target_embedding)
+                            
+                            if similarity > highest_similarity and similarity >= threshold:
+                                highest_similarity = similarity
+                                best_match = employee
+                
+                if best_match:
+                    return {
+                        'success': True,
+                        'employee': {
+                            'employee_id': best_match['employee_id'],
+                            'name': best_match['name'],
+                            'department': best_match.get('department', 'General'),
+                            'similarity': highest_similarity,
+                            'embedding_count': best_match.get('embedding_count', 1)
+                        }
+                    }
+                else:
+                    return {'success': False, 'message': 'No matching employee found'}
+                    
+            except Exception as e:
+                return {'success': False, 'error': str(e)}
+    
     def get_all_employees(self):
         """Get all employees"""
         try:
@@ -312,101 +358,124 @@ class MongoDBManager:
     def calculate_similarity(self, embedding1, embedding2):
         """Calculate cosine similarity between two embeddings"""
         try:
+            print(f"🔍 DEBUG calculate_similarity:")
+            print(f"   Embedding1 length: {len(embedding1)}")
+            print(f"   Embedding2 length: {len(embedding2)}")
+            
             if len(embedding1) != len(embedding2):
                 min_length = min(len(embedding1), len(embedding2))
                 embedding1 = embedding1[:min_length]
                 embedding2 = embedding2[:min_length]
+                print(f"   Adjusted to same length: {min_length}")
             
+            # Calculate dot product
             dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+            
+            # Calculate norms
             norm1 = sum(a * a for a in embedding1) ** 0.5
             norm2 = sum(b * b for b in embedding2) ** 0.5
             
+            print(f"   Dot product: {dot_product}")
+            print(f"   Norm1: {norm1}")
+            print(f"   Norm2: {norm2}")
+            
+            # Avoid division by zero
             if norm1 == 0 or norm2 == 0:
+                print("   ⚠️ Zero norm detected -> return 0")
                 return 0
                 
-            return dot_product / (norm1 * norm2)
+            # Calculate cosine similarity
+            similarity = dot_product / (norm1 * norm2)
+            print(f"   Calculated similarity: {similarity}")
+            
+            return similarity
+            
         except Exception as e:
             print(f"❌ Error calculating similarity: {e}")
+            traceback.print_exc()
             return 0
 
     # ==================== ATTENDANCE LOGGING ====================
     
-    def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
-    
+    def record_attendance_auto(self, employee_id, confidence=0.0):
+        """Record attendance dengan auto-detect check-in/check-out - FIXED VERSION"""
         try:
-        # 🧩 Ambil data karyawan
-            existing_employee = self.employees.find_one({'employee_id': employee_id})
-            if not existing_employee:
-                print(f"❌ Employee {employee_id} not found")
-                return None
+            # Tentukan action otomatis
+            attendance_type = self.determine_attendance_action(employee_id)
+            
+            print(f"🎯 Auto-detected action for {employee_id}: {attendance_type}")
 
-            current_timestamp = datetime.now()
-            schedule = self.get_work_schedule()
-            status = self.calculate_attendance_status(current_timestamp, attendance_type)
+            # Validasi employee exists
+            employee = self.employees.find_one({'employee_id': employee_id})
+            if not employee:
+                return {
+                    'success': False, 
+                    'error': f'Employee {employee_id} not found'
+                }
 
-            # 🗓️ Tambahan field analitik
-            date_str = current_timestamp.strftime('%Y-%m-%d')
-            day_of_week = calendar.day_name[current_timestamp.weekday()]
-            department = existing_employee.get('department', 'General')
-
-            # 🕒 Hitung keterlambatan dan durasi kerja (sementara)
-            lateness_minutes = 0
-            work_duration = 0
-
-            # Hitung keterlambatan hanya untuk check-in
-            if attendance_type == 'check_in' and schedule:
-                start_hour, start_min = map(int, schedule['start_time'].split(':'))
-                start_time_today = current_timestamp.replace(hour=start_hour, minute=start_min, second=0, microsecond=0)
-                if current_timestamp > start_time_today:
-                    lateness_minutes = int((current_timestamp - start_time_today).total_seconds() // 60)
-
-            # Hitung durasi kerja jika ini check-out
-            if attendance_type == 'check_out':
-                today_records = list(self.attendance.find({
-                    'employee_id': employee_id,
-                    'date': date_str,
-                    'action': 'check_in'
-                }).sort('timestamp', 1))
-
-                if today_records:
-                    check_in_time = today_records[0]['timestamp']
-                    work_duration = int((current_timestamp - check_in_time).total_seconds() // 60)  # dalam menit
-
-            # 📦 Buat data yang akan disimpan
-            attendance_data = {
+            timestamp = datetime.now()
+            
+            # Calculate status based on time
+            status = self.calculate_attendance_status(timestamp, attendance_type)
+            
+            # Prepare attendance record
+            attendance_record = {
                 'employee_id': employee_id,
-                'employees': existing_employee['name'],
-                'status': status,  # 'ontime', 'late', 'early'
-                'action': attendance_type.replace('_', '-'),  # ubah jadi check-in/check-out
-                'timestamp': current_timestamp,
-                'date': date_str,
-                'day_of_week': day_of_week,
-                'department': department,
-                'work_duration': work_duration,       # menit
-                'lateness_minutes': lateness_minutes, # menit
-                'confidence': float(confidence)
-            }
-
-            result = self.attendance.insert_one(attendance_data)
-
-            # 🟢 Logging
-            emoji = {'ontime': '✅', 'late': '⏰', 'early': '⚡'}.get(status, '📝')
-            print(f"{emoji} {attendance_type.upper()} - {existing_employee['name']} ({department}) | "
-                f"Status: {status.upper()} | Late: {lateness_minutes}m | Work: {work_duration}m")
-
-            return {
-                'success': True,
-                'id': str(result.inserted_id),
+                'employees': employee.get('name', 'Unknown'),
+                'department': employee.get('department', 'General'),
+                'action': attendance_type,
                 'status': status,
-                'lateness_minutes': lateness_minutes,
-                'work_duration': work_duration
+                'timestamp': timestamp,
+                'date': timestamp.strftime('%Y-%m-%d'),
+                'day_of_week': timestamp.strftime('%A'),
+                'confidence': float(confidence),
+                'last_updated': timestamp
             }
 
-        except Exception as e:
-            print(f"❌ Error recording attendance: {e}")
-            traceback.print_exc()
-            return {'success': False, 'error': str(e)}
+            # Calculate lateness for check-in
+            if attendance_type == 'check_in':
+                schedule = self.get_work_schedule()
+                if schedule:
+                    start_time_str = schedule['start_time']
+                    start_hour, start_min = map(int, start_time_str.split(':'))
+                    start_time = time(start_hour, start_min)
+                    
+                    if timestamp.time() > start_time:
+                        time_diff = datetime.combine(timestamp.date(), start_time) - timestamp
+                        attendance_record['lateness_minutes'] = abs(int(time_diff.total_seconds() / 60))
 
+            # Insert record
+            result = self.attendance.insert_one(attendance_record)
+            
+            if result.inserted_id:
+                print(f"✅ Attendance recorded: {employee_id} - {attendance_type} - {status}")
+                
+                return {
+                    'success': True,
+                    'action': attendance_type,
+                    'status': status,
+                    'punctuality': status,
+                    'timestamp': timestamp.isoformat(),
+                    'employee': {
+                        'employee_id': employee_id,
+                        'name': employee.get('name'),
+                        'department': employee.get('department')
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'Failed to insert attendance record'
+                }
+                
+        except Exception as e:
+            print(f"❌ Error in auto attendance recording: {e}")
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': str(e)
+            }
+        
     def get_all_attendance(self):
         """Get semua attendance records tanpa filter"""
         try:
@@ -454,6 +523,68 @@ class MongoDBManager:
             traceback.print_exc()
             return []
 
+    def get_last_attendance_status(self, employee_id):
+        """Get status attendance terakhir untuk employee tertentu"""
+        try:
+            # Cari record terakhir untuk employee ini
+            last_record = self.attendance.find_one(
+                {'employee_id': employee_id},
+                sort=[('timestamp', -1)]
+            )
+            
+            print(f"🔍 DEBUG get_last_attendance_status for {employee_id}:")
+            print(f"   Last record: {last_record}")
+            
+            if not last_record:
+                return None  # Tidak ada record sebelumnya
+                
+            return {
+                'last_action': last_record.get('action'),  # ✅ PASTIKAN FIELD NAME BENAR
+                'last_timestamp': last_record.get('timestamp'),
+                'last_date': last_record.get('date')
+            }
+            
+        except Exception as e:
+            print(f"❌ Error getting last attendance status: {e}")
+            return None
+
+    def determine_attendance_action(self, employee_id):
+        """Tentukan action otomatis (check-in atau check-out) - DEBUG VERSION"""
+        try:
+            last_status = self.get_last_attendance_status(employee_id)
+            
+            print(f"🔍 DEBUG determine_attendance_action for {employee_id}:")
+            print(f"   Last status: {last_status}")
+            
+            if not last_status:
+                print("   ➡️ No previous record -> CHECK_IN")
+                return 'check_in'
+                
+            last_action = last_status.get('last_action')
+            last_date = last_status.get('last_date')
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            
+            print(f"   Last action: '{last_action}'")
+            print(f"   Last date: '{last_date}'")
+            print(f"   Current date: '{current_date}'")
+            
+            # Jika hari berbeda, selalu check-in
+            if last_date != current_date:
+                print("   ➡️ Different day -> CHECK_IN")
+                return 'check_in'
+                
+            # Jika hari sama, toggle berdasarkan action terakhir
+            if last_action == 'check_in':  # ✅ PASTIKAN INI 'check_in' BUKAN 'check-in'
+                print("   ➡️ Last was check_in -> CHECK_OUT")
+                return 'check_out'
+            else:
+                print("   ➡️ Last was check_out or other -> CHECK_IN")
+                return 'check_in'
+                
+        except Exception as e:
+            print(f"❌ Error determining attendance action: {e}")
+            return 'check_in' # Fallback ke check-in
+        
     # ==================== ATTENDANCE QUERIES ====================
     
     def get_attendance_with_checkout(self, date_str=None):

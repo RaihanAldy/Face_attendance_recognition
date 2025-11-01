@@ -1,8 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import FaceScan from "./page/FaceScan";
+import FaceRegistration from "./page/FaceRegistration";
 import Analytics from "./page/Analytics";
 import AttendanceLogs from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
@@ -63,7 +64,13 @@ export default function App() {
           {/* Public Face Scan Page */}
           <Route 
             path="/" 
-            element={<FaceScan onLogin={handleLogin} />} 
+            element={<FaceScanWrapper onLogin={handleLogin} />} 
+          />
+          
+          {/* Public Face Registration Page */}
+          <Route 
+            path="/register" 
+            element={<FaceRegistrationWrapper />} 
           />
           
           {/* Redirect all other routes to Face Scan */}
@@ -100,6 +107,12 @@ export default function App() {
               <Route path="/employees" element={<Employees />} />
               <Route path="/settings" element={<Settings />} />
               
+              {/* Admin can also access registration */}
+              <Route 
+                path="/register" 
+                element={<FaceRegistrationWrapper />} 
+              />
+              
               {/* Redirect root to dashboard */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               
@@ -110,5 +123,34 @@ export default function App() {
         </div>
       </div>
     </Router>
+  );
+}
+
+// Wrapper component for FaceScan to use navigation
+function FaceScanWrapper({ onLogin }) {
+  const navigate = useNavigate();
+
+  const handleNavigateToRegistration = () => {
+    navigate('/register');
+  };
+
+  return (
+    <FaceScan 
+      onLogin={onLogin} 
+      onNavigateToRegistration={handleNavigateToRegistration}
+    />
+  );
+}
+
+// Wrapper component for FaceRegistration to use navigation
+function FaceRegistrationWrapper() {
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    navigate('/');
+  };
+
+  return (
+    <FaceRegistration onBack={handleBack} />
   );
 }

@@ -137,6 +137,41 @@ def attendance():
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
+@app.route('/api/attendance/auto', methods=['POST'])
+def record_attendance_auto():
+    """Record attendance dengan auto-detect check-in/check-out - FIXED"""
+    try:
+        data = request.json
+        print(f"🤖 AUTO ATTENDANCE - Data: {data}")
+        
+        employee_id = data.get('employeeId')
+        confidence = data.get('confidence', 0.0)
+        
+        if not employee_id:
+            return jsonify({'success': False, 'error': 'Employee ID is required'}), 400
+        
+        # Langsung panggil record_attendance_auto dari MongoDBManager
+        result = db.record_attendance_auto(employee_id, confidence)
+        
+        if result and result.get('success'):
+            return jsonify({
+                'success': True, 
+                'action': result.get('action'),
+                'status': result.get('status'),
+                'punctuality': result.get('punctuality'),
+                'timestamp': result.get('timestamp'),
+                'employee': result.get('employee'),  # ✅ TAMBAH INI
+                'message': f"Successfully recorded {result.get('action')}"
+            })
+        else:
+            error_msg = result.get('error') if result else 'Failed to record attendance'
+            return jsonify({'success': False, 'error': error_msg}), 500
+                
+    except Exception as e:
+        print(f"❌ Error recording auto attendance: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/api/attendance/checkin', methods=['POST'])
 def check_in():
     """Record check-in with punctuality status"""
@@ -323,27 +358,32 @@ def recognize_face_embedding():
 
 @app.route('/api/register', methods=['POST'])
 def register_employee():
-    """Register new employee with face embedding"""
+    """Register new employee dengan multiple face embeddings"""
     try:
         data = request.json
+        print(f"📝 REGISTRATION - Data: {data}")
+        
         name = data.get('name')
         department = data.get('department', 'General')
         position = data.get('position', '')
         email = data.get('email', '')
         phone = data.get('phone', '')
-        face_embedding = data.get('faceEmbedding')
+        
+        # Support both single and multiple embeddings
+        face_embeddings = data.get('faceEmbeddings') or [data.get('faceEmbedding')]
         
         if not name:
             return jsonify({'success': False, 'error': 'Name is required'}), 400
         
-        if not face_embedding or not isinstance(face_embedding, list):
-            return jsonify({'success': False, 'error': 'Invalid face embedding'}), 400
+        if not face_embeddings or not any(face_embeddings):
+            return jsonify({'success': False, 'error': 'Face embedding is required'}), 400
         
-        print(f"📝 Registration request - name: {name}, dept: {department}")
+        # Use the first embedding for now (bisa dikembangkan untuk multiple)
+        primary_embedding = face_embeddings[0] if isinstance(face_embeddings, list) else face_embeddings
         
         result = db.register_employee_face(
             name=name,
-            face_embedding=face_embedding,
+            face_embedding=primary_embedding,
             department=department,
             position=position,
             email=email,
@@ -351,19 +391,19 @@ def register_employee():
         )
         
         if result.get('success'):
-            employee_id = result.get('employee_id')
-            print(f"✅ Employee registered: {employee_id} - {name}")
-            return jsonify(result), 201
+            return jsonify({
+                'success': True,
+                'employee_id': result.get('employee_id'),
+                'message': 'Employee registered successfully',
+                'capture_count': len(face_embeddings) if isinstance(face_embeddings, list) else 1
+            })
         else:
-            error_msg = result.get('error', 'Unknown error')
-            print(f"❌ Registration failed: {error_msg}")
-            return jsonify(result), 500
-        
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+            
     except Exception as e:
         print(f"❌ Registration error: {e}")
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
+        return jsonify({'error': str(e)}), 500
 
 # ==================== UTILITY ENDPOINTS ====================
 

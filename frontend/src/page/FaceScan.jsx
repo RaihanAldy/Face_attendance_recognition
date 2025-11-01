@@ -1,81 +1,57 @@
 import React, { useState, useRef, useEffect } from "react";
-import {
-  ScanFace,
-  Camera,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  UserPlus,
-  Clock,
-  X,
-  Lock,
-  Settings,
-} from "lucide-react";
+import { ScanFace, Camera, AlertCircle, CheckCircle, XCircle, Lock, Settings, UserPlus, X } from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 
-export default function FaceScan({ onLogin }) {
+export default function FaceScan({ onLogin, onNavigateToRegistration }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("idle");
   const [employeeData, setEmployeeData] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [attendanceType, setAttendanceType] = useState("check_in");
-  const [mode, setMode] = useState("recognition");
-  const [registrationData, setRegistrationData] = useState({
-    name: "",
-    department: "General",
-  });
 
-  // ✅ HIDDEN BUTTON STATES
+  // Hidden button states
   const [clickCount, setClickCount] = useState(0);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
-  const clickTimeoutRef = useRef(null);
 
+  // Refs
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const isStartingRef = useRef(false);
-  const alertTimeoutRef = useRef(null);
-  const cameraTimeoutRef = useRef(null);
+  const clickTimeoutRef = useRef(null);
   
   const MySwal = withReactContent(Swal);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopCamera();
-      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
-      if (cameraTimeoutRef.current) clearTimeout(cameraTimeoutRef.current);
       if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
     };
   }, []);
 
-  // ✅ HIDDEN BUTTON HANDLER - Click logo 5x dalam 3 detik
+  // Hidden button handler - Click logo 5x dalam 3 detik
   const handleLogoClick = () => {
     setClickCount(prev => prev + 1);
 
-    // Clear previous timeout
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
     }
 
-    // Reset after 3 seconds
     clickTimeoutRef.current = setTimeout(() => {
       setClickCount(0);
     }, 3000);
 
-    // Check if clicked 5 times
     if (clickCount + 1 >= 5) {
       setShowAdminMenu(true);
       setClickCount(0);
       
-      // Vibrate if supported
       if (navigator.vibrate) {
         navigator.vibrate(200);
       }
     }
   };
 
-  // ✅ ADMIN LOGIN HANDLER
+  // Admin login handler
   const handleAdminLogin = async () => {
     const { value: formValues } = await MySwal.fire({
       title: '🔐 Admin Login',
@@ -103,7 +79,6 @@ export default function FaceScan({ onLogin }) {
 
     if (formValues) {
       try {
-        // TODO: Replace dengan API login yang sebenarnya
         const response = await fetch('http://localhost:5000/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -121,7 +96,6 @@ export default function FaceScan({ onLogin }) {
             showConfirmButton: false,
           });
 
-          // Call onLogin prop from App.jsx
           if (onLogin) {
             onLogin(result.token, 'admin', result);
           }
@@ -131,7 +105,7 @@ export default function FaceScan({ onLogin }) {
           throw new Error('Login gagal');
         }
       } catch (error) {
-        // DEMO: Hardcoded login untuk testing
+        // Demo login untuk testing
         if (formValues.username === 'admin' && formValues.password === 'admin123') {
           MySwal.fire({
             title: 'Login Berhasil!',
@@ -141,7 +115,6 @@ export default function FaceScan({ onLogin }) {
             showConfirmButton: false,
           });
 
-          // Demo login
           if (onLogin) {
             onLogin('demo-token-123', 'admin', {
               name: 'Admin Demo',
@@ -162,24 +135,20 @@ export default function FaceScan({ onLogin }) {
     }
   };
 
-  // ✅ SWITCH TO REGISTRATION MODE
-  const handleSwitchToRegistration = () => {
-    setMode('registration');
+  // Navigate to registration page
+  const handleNavigateToRegistration = () => {
     setShowAdminMenu(false);
-    
-    MySwal.fire({
-      title: 'Mode Registrasi',
-      text: 'Silakan scan wajah karyawan baru untuk registrasi',
-      icon: 'info',
-      timer: 3000,
-      showConfirmButton: false,
-    });
+    if (onNavigateToRegistration) {
+      onNavigateToRegistration();
+    }
   };
 
+  // Generate dummy face embedding
   const generateFaceEmbedding = () => {
-    return Array.from({ length: 128 }, () => Math.random() * 2 - 1);
+    return Array.from({ length: 128 }, () => 0.1);
   };
 
+  // Start camera
   const startCamera = async () => {
     if (isStartingRef.current) {
       console.log("⏳ Camera already starting, skipping...");
@@ -196,6 +165,7 @@ export default function FaceScan({ onLogin }) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
+      // Wait for video element
       let retries = 0;
       const maxRetries = 10;
       while (!videoRef.current && retries < maxRetries) {
@@ -207,8 +177,6 @@ export default function FaceScan({ onLogin }) {
       if (!videoRef.current) {
         throw new Error("Video element not found after waiting");
       }
-
-      console.log("✅ Video element found!");
 
       const constraints = {
         video: {
@@ -229,6 +197,7 @@ export default function FaceScan({ onLogin }) {
       videoRef.current.srcObject = stream;
       streamRef.current = stream;
 
+      // Wait for video to be ready
       await new Promise((resolve, reject) => {
         const video = videoRef.current;
         let resolved = false;
@@ -247,7 +216,7 @@ export default function FaceScan({ onLogin }) {
           if (!resolved) {
             resolved = true;
             cleanup();
-            console.log("✅ Video can play - dimensions:", video.videoWidth, "x", video.videoHeight);
+            console.log("✅ Video can play");
 
             video.play()
               .then(() => {
@@ -332,6 +301,7 @@ export default function FaceScan({ onLogin }) {
     }
   };
 
+  // Stop camera
   const stopCamera = () => {
     try {
       if (streamRef.current) {
@@ -357,17 +327,7 @@ export default function FaceScan({ onLogin }) {
     }
   };
 
-  const autoStopCamera = () => {
-    if (cameraTimeoutRef.current) {
-      clearTimeout(cameraTimeoutRef.current);
-    }
-    
-    cameraTimeoutRef.current = setTimeout(() => {
-      stopCamera();
-      setScanStatus("idle");
-    }, 3000);
-  };
-
+  // Recognize face
   const recognizeFace = async () => {
     const faceEmbedding = generateFaceEmbedding();
 
@@ -384,8 +344,6 @@ export default function FaceScan({ onLogin }) {
         }),
       });
 
-      console.log("📥 Response status:", response.status);
-
       if (!response.ok) {
         throw new Error(`Recognition API error: ${response.status}`);
       }
@@ -399,33 +357,31 @@ export default function FaceScan({ onLogin }) {
           id: result.employee.employee_id,
           department: result.employee.department,
           confidence: result.employee.similarity,
-          isExisting: true,
         });
         setScanStatus("success");
 
+        // Record attendance automatically
         await recordAttendance(
           result.employee.employee_id,
-          result.employee.similarity,
-          attendanceType
+          result.employee.similarity
         );
       } else {
-        setEmployeeData({
-          name: "Karyawan Baru",
-          id: "UNKNOWN",
-          department: "Unknown",
-          confidence: result.similarity || 0,
-          isExisting: false,
-        });
-        setScanStatus("new_employee");
+        setScanStatus("failed");
+        setErrorMessage("Wajah tidak dikenali. Silakan coba lagi.");
 
-        MySwal.fire({
+        await MySwal.fire({
           title: "Wajah Tidak Dikenali",
-          text: "Wajah tidak ditemukan di database. Silakan registrasi sebagai karyawan baru.",
+          text: "Silakan coba lagi atau hubungi admin untuk registrasi.",
           icon: "warning",
-          timer: 5000,
+          timer: 3000,
           timerProgressBar: true,
           showConfirmButton: true,
+          confirmButtonText: "Coba Lagi",
         });
+
+        setTimeout(() => {
+          handleStopScan();
+        }, 1000);
       }
     } catch (error) {
       console.error("Recognition error:", error);
@@ -443,222 +399,103 @@ export default function FaceScan({ onLogin }) {
     }
   };
 
-  const registerEmployee = async () => {
-    if (!registrationData.name) {
-      MySwal.fire({
-        title: "Nama Wajib Diisi",
-        text: "Silakan masukkan nama karyawan",
-        icon: "warning",
-        confirmButtonText: "OK",
-      });
-      return;
-    }
-
+  // Record attendance (auto-detect check-in/check-out)
+  const recordAttendance = async (employeeId, confidence) => {
     try {
-      const faceEmbedding = generateFaceEmbedding();
-
-      console.log("📝 Sending registration request...");
-
-      const response = await fetch("http://localhost:5000/api/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: registrationData.name,
-          department: registrationData.department,
-          faceEmbedding: faceEmbedding,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Registration API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ Registration result:", result);
-
-      if (result.success) {
-        setEmployeeData({
-          name: registrationData.name,
-          id: result.employee_id,
-          department: registrationData.department,
-          confidence: 0.95,
-          isExisting: true,
-        });
-        setScanStatus("registration_success");
-
-        await MySwal.fire({
-          title: "Registrasi Berhasil!",
-          html: `
-            <div style="text-align: center;">
-              <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
-              <p style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">
-                ${registrationData.name}
-              </p>
-              <p style="font-size: 16px; color: #10b981;">
-                ID: ${result.employee_id}
-              </p>
-              <p style="font-size: 14px; color: #64748b; margin-top: 8px;">
-                Departemen: ${registrationData.department}
-              </p>
-            </div>
-          `,
-          icon: "success",
-          timer: 5000,
-          timerProgressBar: true,
-          showConfirmButton: true,
-        });
-
-        console.log("✅ Employee registered successfully with ID:", result.employee_id);
-        
-        setTimeout(() => {
-          handleStopScan();
-          setMode('recognition'); // Back to recognition mode
-        }, 2000);
-      } else {
-        throw new Error(result.message || "Registrasi gagal");
-      }
-    } catch (error) {
-      console.error("Registration error:", error);
-      setScanStatus("failed");
-      setErrorMessage("Gagal melakukan registrasi");
+      console.log(`📝 Recording attendance for ${employeeId}...`);
       
-      MySwal.fire({
-        title: "Registrasi Gagal",
-        text: error.message || "Terjadi kesalahan saat registrasi",
-        icon: "error",
-        timer: 5000,
-        timerProgressBar: true,
-        showConfirmButton: true,
-      });
-    }
-  };
-
-  const recordAttendance = async (employeeId, confidence, type) => {
-    try {
-      if (type === "check_out") {
-        const confirmResult = await MySwal.fire({
-          title: "Konfirmasi Checkout",
-          text: "Apakah Anda yakin ingin melakukan Check-Out?",
-          icon: "question",
-          showCancelButton: true,
-          confirmButtonText: "Ya, Checkout",
-          cancelButtonText: "Batal",
-          confirmButtonColor: "#3b82f6",
-          cancelButtonColor: "#64748b",
-        });
-
-        if (!confirmResult.isConfirmed) {
-          console.log("❌ Checkout dibatalkan");
-          handleStopScan();
-          return null;
-        }
-      }
-
-      const endpoint = type === "check_in" ? "/attendance/checkin" : "/attendance/checkout";
-
-      const response = await fetch(`http://localhost:5000/api${endpoint}`, {
+      const response = await fetch(`http://localhost:5000/api/attendance/auto`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          employeeId: employeeId,
-          confidence: confidence,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId, confidence }),
       });
-
-      console.log("📥 Attendance response status:", response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
-      console.log(`✅ ${type.toUpperCase()} recorded:`, result);
+      console.log("✅ Attendance recorded:", result);
 
-      const punctuality = result.punctuality || "on-time";
+      // Dapatkan nama employee dari result backend, bukan dari state employeeData
+      const employeeName = result.employee?.name || employeeData?.name || "Unknown";
 
       const statusConfig = {
-        "on-time": {
-          emoji: "✅",
-          text: "Tepat Waktu",
-          color: "#10b981",
-        },
-        late: {
-          emoji: "⏰",
-          text: "Terlambat",
-          color: "#f59e0b",
-        },
-        early: {
-          emoji: "⚡",
-          text: "Pulang Cepat",
-          color: "#eab308",
-        },
+        "on-time": { emoji: "✅", text: "Tepat Waktu", color: "#10b981" },
+        "late": { emoji: "⏰", text: "Terlambat", color: "#f59e0b" },
+        "early": { emoji: "⚡", text: "Pulang Cepat", color: "#eab308" },
+        "ontime": { emoji: "✅", text: "Tepat Waktu", color: "#10b981" }
       };
 
-      const status = statusConfig[punctuality] || statusConfig["on-time"];
+      const status = statusConfig[result.punctuality || result.status] || statusConfig["ontime"];
+      const actionType = result.action || "check_in";
+      const currentTime = new Date().toLocaleTimeString("id-ID");
 
       await MySwal.fire({
-        title: "Berhasil!",
+        title: `${status.emoji} Berhasil!`,
         html: `
           <div style="text-align: center;">
-            <div style="font-size: 48px; margin-bottom: 16px;">${status.emoji}</div>
             <p style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">
-              ${type === "check_in" ? "Check-In" : "Check-Out"} berhasil
+              ${actionType === "check_in" ? "Check-In" : "Check-Out"} Berhasil
             </p>
             <p style="font-size: 16px; color: ${status.color}; margin-bottom: 12px;">
               Status: ${status.text}
             </p>
             <div style="background: #1e293b; padding: 12px; border-radius: 8px; margin-top: 12px;">
               <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                Nama: ${employeeData.name}
+                👤 ${employeeName}
               </p>
               <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                ID: ${employeeId}
+                🆔 ${employeeId}
               </p>
               <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                Waktu: ${new Date().toLocaleTimeString("id-ID")}
+                🕒 ${currentTime}
+              </p>
+              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
+                📊 Confidence: ${(confidence * 100).toFixed(1)}%
               </p>
             </div>
           </div>
         `,
         icon: "success",
-        timer: 5000,
+        timer: 4000,
         timerProgressBar: true,
         showConfirmButton: true,
         confirmButtonText: "OK",
       });
 
+      // Auto stop after delay
       setTimeout(() => {
         handleStopScan();
-      }, 1000);
+      }, 1500);
 
       return result;
       
     } catch (error) {
-      console.error(`❌ Failed to record ${type}:`, error);
-
-      MySwal.fire({
+      console.error("❌ Attendance recording failed:", error);
+      
+      await MySwal.fire({
         title: "Absensi Gagal",
-        text: `Gagal melakukan ${type === "check_in" ? "check-in" : "check-out"}: ${error.message}`,
+        html: `
+          <div style="text-align: center;">
+            <p>Gagal mencatat absensi:</p>
+            <p style="color: #ef4444; font-size: 14px; margin-top: 8px;">${error.message}</p>
+          </div>
+        `,
         icon: "error",
-        timer: 5000,
-        timerProgressBar: true,
-        showConfirmButton: true,
+        confirmButtonText: "OK",
       });
 
+      handleStopScan();
+      stopcamera();
       throw error;
     }
   };
 
+  // Start scan handler
   const handleStartScan = async () => {
     if (isStartingRef.current || isScanning) return;
-
-    if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
-    if (cameraTimeoutRef.current) clearTimeout(cameraTimeoutRef.current);
 
     setErrorMessage("");
     setEmployeeData(null);
@@ -673,41 +510,24 @@ export default function FaceScan({ onLogin }) {
       return;
     }
 
+    // Wait 2 seconds then recognize
     setTimeout(async () => {
-      if (mode === 'recognition') {
-        await recognizeFace();
-      } else {
-        setScanStatus("ready_for_registration");
-      }
+      await recognizeFace();
     }, 2000);
   };
 
+  // Stop scan handler
   const handleStopScan = () => {
-    if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
-    if (cameraTimeoutRef.current) clearTimeout(cameraTimeoutRef.current);
-    
     stopCamera();
     setScanStatus("idle");
     setEmployeeData(null);
     setErrorMessage("");
-    setRegistrationData({
-      name: "",
-      department: "General",
-    });
   };
-
-  useEffect(() => {
-    handleStopScan();
-  }, [mode]);
-
-  useEffect(() => {
-    console.log("🔍 State update - isScanning:", isScanning, "scanStatus:", scanStatus);
-  }, [isScanning, scanStatus]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
-        {/* ✅ HIDDEN BUTTON - Click Logo 5x */}
+        {/* Hidden Button - Click Logo 5x */}
         <div className="text-center mb-8 relative">
           <div 
             onClick={handleLogoClick}
@@ -727,7 +547,7 @@ export default function FaceScan({ onLogin }) {
           )}
         </div>
 
-        {/* ✅ ADMIN MENU POPUP */}
+        {/* Admin Menu Popup */}
         {showAdminMenu && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full mx-4 border border-slate-600 shadow-2xl">
@@ -754,7 +574,7 @@ export default function FaceScan({ onLogin }) {
                 </button>
 
                 <button
-                  onClick={handleSwitchToRegistration}
+                  onClick={handleNavigateToRegistration}
                   className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-3"
                 >
                   <UserPlus className="w-5 h-5" />
@@ -778,56 +598,6 @@ export default function FaceScan({ onLogin }) {
           </div>
         )}
 
-        {/* Mode Indicator */}
-        {mode === 'registration' && (
-          <div className="mb-4 p-4 bg-yellow-900/20 border border-yellow-600 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-yellow-500" />
-                <span className="text-yellow-400 font-medium">Mode Registrasi Karyawan</span>
-              </div>
-              <button
-                onClick={() => setMode('recognition')}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors"
-              >
-                Kembali ke Recognition
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Attendance Type Selection - Only show in recognition mode */}
-        {mode === 'recognition' && (
-          <div className="flex justify-center mb-6">
-            <div className="bg-slate-800 rounded-lg p-1 flex">
-              <button
-                onClick={() => setAttendanceType("check_in")}
-                disabled={isScanning}
-                className={`px-6 py-3 rounded-md transition-all flex items-center space-x-2 ${
-                  attendanceType === "check_in"
-                    ? "bg-green-600 text-white shadow-lg"
-                    : "text-slate-300 hover:text-white bg-slate-700"
-                } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <Clock className="w-5 h-5" />
-                <span>Check-In</span>
-              </button>
-              <button
-                onClick={() => setAttendanceType("check_out")}
-                disabled={isScanning}
-                className={`px-6 py-3 rounded-md transition-all flex items-center space-x-2 ${
-                  attendanceType === "check_out"
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "text-slate-300 hover:text-white bg-slate-700"
-                } ${isScanning ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <Clock className="w-5 h-5" />
-                <span>Check-Out</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Main Camera Card */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
           {/* Camera Preview */}
@@ -839,16 +609,13 @@ export default function FaceScan({ onLogin }) {
               muted
               className={`w-full h-full object-cover ${!isScanning ? "hidden" : ""}`}
             />
-            <canvas ref={canvasRef} className="hidden" />
 
             {/* Placeholder */}
             {!isScanning && (
               <div className="text-center absolute inset-0 flex items-center justify-center">
                 <div>
                   <ScanFace className="h-24 w-24 text-slate-700 mx-auto mb-4" />
-                  <p className="text-slate-500">
-                    {mode === "recognition" ? "Face Recognition" : "Employee Registration"}
-                  </p>
+                  <p className="text-slate-500">Face Recognition</p>
                   <p className="text-slate-600 text-sm mt-2">Klik "Mulai Scan" untuk memulai</p>
                 </div>
               </div>
@@ -870,9 +637,7 @@ export default function FaceScan({ onLogin }) {
                 {!isScanning && (
                   <>
                     <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
-                    <span className="text-sm text-slate-400">
-                      {mode === "recognition" ? "Recognition Mode" : "Registration Mode"}
-                    </span>
+                    <span className="text-sm text-slate-400">Recognition Mode</span>
                   </>
                 )}
                 {isScanning && scanStatus === "scanning" && (
@@ -885,18 +650,6 @@ export default function FaceScan({ onLogin }) {
                   <>
                     <CheckCircle className="w-5 h-5 text-green-500" />
                     <span className="text-sm text-green-400">Dikenali!</span>
-                  </>
-                )}
-                {isScanning && scanStatus === "new_employee" && (
-                  <>
-                    <UserPlus className="w-5 h-5 text-yellow-500" />
-                    <span className="text-sm text-yellow-400">Karyawan Baru</span>
-                  </>
-                )}
-                {isScanning && scanStatus === "registration_success" && (
-                  <>
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-sm text-green-400">Registrasi Berhasil!</span>
                   </>
                 )}
                 {isScanning && scanStatus === "failed" && (
@@ -928,83 +681,6 @@ export default function FaceScan({ onLogin }) {
               </div>
             </div>
           </div>
-
-          {/* Registration Form */}
-          {(scanStatus === "new_employee") && (
-            <div className="p-6 bg-yellow-900/20 border-t border-yellow-800">
-              <div className="flex items-start space-x-4">
-                <UserPlus className="h-12 w-12 text-yellow-500 shrink-0" />
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-white mb-4">
-                    Registrasi Karyawan Baru
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4 mb-4">
-                    <div>
-                      <label className="block text-slate-400 text-sm mb-2">
-                        Nama Lengkap *
-                      </label>
-                      <input
-                        type="text"
-                        value={registrationData.name}
-                        onChange={(e) =>
-                          setRegistrationData({
-                            ...registrationData,
-                            name: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                        placeholder="Masukkan nama lengkap"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 text-sm mb-2">
-                        Departemen
-                      </label>
-                      <select
-                        value={registrationData.department}
-                        onChange={(e) =>
-                          setRegistrationData({
-                            ...registrationData,
-                            department: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
-                      >
-                        <option value="General">General</option>
-                        <option value="IT">IT</option>
-                        <option value="HR">HR</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Sales">Sales</option>
-                      </select>
-                    </div>
-                    <div className="bg-blue-900/20 p-3 rounded-lg">
-                      <p className="text-blue-400 text-sm">
-                        💡 ID Karyawan akan dibuat otomatis oleh sistem
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={registerEmployee}
-                      className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center"
-                    >
-                      Daftarkan Karyawan
-                    </button>
-                    <button
-                      onClick={handleStopScan}
-                      className="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      Batal
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Error Message */}
           {errorMessage && (
