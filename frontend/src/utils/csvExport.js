@@ -13,73 +13,64 @@ export const exportCSV = (
   let headers = [];
   let csvData = [];
 
-  // ✅ Export berdasarkan filter aktif
-
-  // Case 1: Default view (All atau Today tanpa check filters)
+  // ✅ Case 1: Default view (no check filters)
   if (!checkFilters.checkin && !checkFilters.checkout) {
     headers = [
+      "Employee ID",
       "Nama",
-      "ID Karyawan",
       "Action",
       "Status",
       "Timestamp",
       "Tanggal",
     ];
 
-    csvData = filteredData.map((record) => {
-      // Normalisasi action untuk display
-      const displayAction = record.action
-        ? record.action.replace(/_/g, "-")
-        : "-";
-
-      return [
-        record.name || "-",
-        record.employeeId || "-",
-        displayAction, // "check-in" atau "check-out"
-        record.status || "-", // "ontime", "late", "early"
-        formatDateTime(record.timestamp) || "-",
-        record.timestamp
-          ? new Date(record.timestamp).toLocaleDateString("id-ID")
-          : "-",
-      ];
-    });
+    csvData = filteredData.map((record) => [
+      record.employeeId || "-",
+      record.name || "-",
+      record.action || "-",
+      record.status || "-",
+      formatDateTime(record.timestamp) || "-",
+      record.timestamp
+        ? new Date(record.timestamp).toLocaleDateString("id-ID")
+        : "-",
+    ]);
   }
 
-  // Case 2: Check In only
+  // ✅ Case 2: Check In only
   else if (checkFilters.checkin && !checkFilters.checkout) {
-    headers = ["Nama", "ID Karyawan", "Check In", "Status", "Tanggal"];
+    headers = ["Employee ID", "Nama", "Check In", "Status", "Tanggal"];
 
     csvData = filteredData.map((record) => [
-      record.name || "-",
       record.employeeId || "-",
+      record.name || "-",
       formatDateTime(record.checkIn) || "-",
-      record.status || "-", // Status dari check-in
+      record.status || record.checkInStatus || "-",
       record.checkIn
         ? new Date(record.checkIn).toLocaleDateString("id-ID")
         : "-",
     ]);
   }
 
-  // Case 3: Check Out only
+  // ✅ Case 3: Check Out only
   else if (!checkFilters.checkin && checkFilters.checkout) {
-    headers = ["Nama", "ID Karyawan", "Check Out", "Status", "Tanggal"];
+    headers = ["Employee ID", "Nama", "Check Out", "Status", "Tanggal"];
 
     csvData = filteredData.map((record) => [
-      record.name || "-",
       record.employeeId || "-",
+      record.name || "-",
       formatDateTime(record.checkOut) || "-",
-      record.status || "-", // Status dari check-out
+      record.status || record.checkOutStatus || "-",
       record.checkOut
         ? new Date(record.checkOut).toLocaleDateString("id-ID")
         : "-",
     ]);
   }
 
-  // Case 4: Check In + Check Out
+  // ✅ Case 4: Check In + Check Out (paired view)
   else if (checkFilters.checkin && checkFilters.checkout) {
     headers = [
+      "Employee ID",
       "Nama",
-      "ID Karyawan",
       "Tanggal",
       "Check In",
       "Status Check In",
@@ -89,26 +80,38 @@ export const exportCSV = (
     ];
 
     csvData = filteredData.map((record) => [
-      record.name || "-",
       record.employeeId || "-",
+      record.name || "-",
       record.checkIn || record.checkOut
         ? new Date(record.checkIn || record.checkOut).toLocaleDateString(
             "id-ID"
           )
         : "-",
       formatDateTime(record.checkIn) || "-",
-      record.checkInStatus || "-", // Status saat check-in (ontime/late)
+      record.checkInStatus || "-",
       formatDateTime(record.checkOut) || "-",
-      record.checkOutStatus || "-", // Status saat check-out (ontime/early)
-      calculateWorkingHours(record.checkIn, record.checkOut) || "-",
+      record.checkOutStatus || "-",
+      record.workingHours ||
+        (record.checkIn && record.checkOut
+          ? calculateWorkingHours(record.checkIn, record.checkOut)
+          : "-"),
     ]);
   }
 
-  // Generate CSV content
+  // Generate CSV content with proper escaping
   const csvContent = [
     headers.join(","),
     ...csvData.map((row) =>
-      row.map((field) => `"${field.toString().replace(/"/g, '""')}"`).join(",")
+      row
+        .map((field) => {
+          const str = String(field);
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        })
+        .join(",")
     ),
   ].join("\n");
 
@@ -120,23 +123,23 @@ export const exportCSV = (
   const link = document.createElement("a");
   link.href = url;
 
-  // ✅ Filename dengan info filter
+  // Generate filename
   const filterSuffix = filter === "all" ? "all-time" : "today";
   const checkFilterSuffix =
     checkFilters.checkin && checkFilters.checkout
-      ? "-checkin-checkout"
+      ? "-paired"
       : checkFilters.checkin
       ? "-checkin"
       : checkFilters.checkout
       ? "-checkout"
       : "";
 
-  link.download = `attendance-${filterSuffix}${checkFilterSuffix}-${
-    new Date().toISOString().split("T")[0]
-  }.csv`;
+  const timestamp = new Date().toISOString().split("T")[0];
+  link.download = `attendance-${filterSuffix}${checkFilterSuffix}-${timestamp}.csv`;
 
   link.click();
-  URL.revokeObjectURL(url); // ✅ Cleanup
+  URL.revokeObjectURL(url);
 
   console.log(`✅ CSV exported: ${filteredData.length} records`);
+  console.log(`📄 Filename: ${link.download}`);
 };

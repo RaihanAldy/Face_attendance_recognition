@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from mongo_db import db
 from face_engine import face_engine
-from sync_manager import sync_manager
 from datetime import datetime
 import traceback
 
@@ -10,7 +9,6 @@ app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173"])
 
 # Start background tasks
-sync_manager.start()
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -37,21 +35,27 @@ def get_employees():
 def attendance():
     """
     GET: Get attendance records by date
-    POST: Record new attendance
+    POST: Record new attendance (check-in or check-out)
     """
     if request.method == 'GET':
         try:
             date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-            format_type = request.args.get('format', 'raw')
+            format_type = request.args.get('format', 'individual')
             
             print(f"📅 GET /api/attendance - date: {date}, format: {format_type}")
             
-            if format_type == 'paired':
-                attendance_data = db.get_attendance_with_checkout(date)
+            # Individual records (default) - setiap check-in/check-out terpisah
+            if format_type == 'individual' or format_type == 'raw':
+                attendance_data = db.get_attendance_by_date(date)
+                print(f"✅ Returning {len(attendance_data)} individual records")
+            
+            # Paired records - check-in & check-out digabung per employee
+            elif format_type == 'paired':
+                attendance_data = db.get_attendance_with_pairing(date)
                 print(f"✅ Returning {len(attendance_data)} paired records")
+            
             else:
                 attendance_data = db.get_attendance_by_date(date)
-                print(f"✅ Returning {len(attendance_data)} raw records")
             
             return jsonify(attendance_data)
             
@@ -66,7 +70,7 @@ def attendance():
             attendance_id = db.record_attendance(
                 employee_id=data.get('employeeId'),
                 confidence=data.get('confidence', 0.0),
-                attendance_type=data.get('type', 'check_in')  # Fixed parameter name
+                attendance_type=data.get('type', 'check_in')
             )
             
             if attendance_id:
@@ -158,62 +162,27 @@ def get_employee_attendance(employee_id):
 
 @app.route('/api/attendance/stats/daily', methods=['GET'])
 def get_daily_attendance_stats():
-    """Get daily attendance statistics - FIXED untuk collection baru"""
+    """Get daily attendance statistics"""
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         print(f"📈 Getting daily stats for: {date}")
         
-        # Pipeline untuk collection attendance_logs yang baru
-        pipeline = [
-            {
-                '$match': {
-                    'date': date,
-                    'check_in_time': {'$exists': True}
-                }
-            },
-            {
-                '$group': {
-                    '_id': '$employee_id',
-                    'checkInTime': {'$first': '$check_in_time'},
-                    'confidence': {'$first': '$confidence'},
-                    'status': {'$first': '$check_in_status'},
-                    'lateness': {'$first': '$lateness_minutes'}
-                }
-            },
-            {
-                '$lookup': {
-                    'from': 'employees',
-                    'localField': '_id',
-                    'foreignField': 'employee_id',
-                    'as': 'employee'
-                }
-            },
-            {
-                '$unwind': '$employee'
-            },
-            {
-                '$project': {
-                    'employeeId': '$_id',
-                    'employeeName': '$employee.name',
-                    'department': '$employee.department',
-                    'checkIn': '$checkInTime',
-                    'confidence': 1,
-                    'status': 1,
-                    'latenessMinutes': '$lateness'
-                }
-            }
-        ]
+        # Ambil data attendance untuk hari tersebut
+        attendance_data = db.get_attendance_with_pairing(date)
         
-        results = list(db.attendance.aggregate(pipeline))  # FIXED: attendance_logs bukan attendance
+        # Hitung statistik
+        stats = {
+            'date': date,
+            'total_employees': len(attendance_data),
+            'checked_in': sum(1 for r in attendance_data if r.get('check_in')),
+            'checked_out': sum(1 for r in attendance_data if r.get('check_out')),
+            'ontime': sum(1 for r in attendance_data if r.get('check_in_status') == 'ontime'),
+            'late': sum(1 for r in attendance_data if r.get('check_in_status') == 'late'),
+            'records': attendance_data
+        }
         
-        # Format results
-        for item in results:
-            item['_id'] = str(item['_id'])
-            if 'checkIn' in item and item['checkIn']:
-                item['checkIn'] = item['checkIn'].isoformat()
-        
-        print(f"✅ Found {len(results)} attendance records for {date}")
-        return jsonify(results)
+        print(f"✅ Stats: {stats['total_employees']} employees, {stats['checked_in']} checked in, {stats['late']} late")
+        return jsonify(stats)
         
     except Exception as e:
         print(f"❌ Error getting daily stats: {e}")
@@ -292,7 +261,6 @@ def register_employee():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
 # ==================== UTILITY ENDPOINTS ====================
 
 @app.route('/api/system/cleanup', methods=['POST'])
@@ -304,13 +272,9 @@ def cleanup_system():
 def test_db():
     """Test database connection and data"""
     try:
-        # Test employees
         employees_count = db.employees.count_documents({})
-        
-        # Test attendance logs
         attendance_count = db.attendance.count_documents({})
         
-        # Get today's date
         today = datetime.now().strftime('%Y-%m-%d')
         today_logs = list(db.attendance.find({'date': today}).limit(5))
         
@@ -322,9 +286,10 @@ def test_db():
             'today_logs_sample': [
                 {
                     'employee_id': log.get('employee_id'),
-                    'employees': log.get('employees'),
-                    'check_in_time': log.get('check_in_time').isoformat() if log.get('check_in_time') else None,
-                    'check_out_time': log.get('check_out_time').isoformat() if log.get('check_out_time') else None
+                    'name': log.get('employees'),
+                    'action': log.get('action'),
+                    'status': log.get('status'),
+                    'timestamp': log.get('timestamp').isoformat() if log.get('timestamp') else None
                 }
                 for log in today_logs
             ]
@@ -352,7 +317,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print("📍 API Server: http://localhost:5000")
     print("📊 MongoDB: Connected")
-    print("📁 Using collection: attendance")
+    print("📁 Attendance structure: individual check-in/check-out records")
     print("🎯 CORS enabled for: http://localhost:5173")
     
     app.run(host='0.0.0.0', port=5000, debug=True)

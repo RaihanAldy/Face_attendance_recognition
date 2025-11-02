@@ -1,8 +1,5 @@
-import { formatDateTime } from "./timeUtils";
-
 // Helper untuk nama employee - DIPERBAIKI sesuai struktur MongoDB
-export const getEmployeeName = (record) =>
-  record.employees || record.nama || record.name || "Unknown Employee";
+export const getEmployeeName = (record) => record.name || "Unknown";
 
 // Fungsi menentukan kolom tabel berdasarkan filter
 export const getTableHeaders = (filter, checkFilters) => {
@@ -10,7 +7,15 @@ export const getTableHeaders = (filter, checkFilters) => {
 
   // Jika kedua filter aktif: tampilkan Check In & Check Out
   if (checkin && checkout) {
-    return ["Employee ID", "Nama", "Check In", "Status", "Check Out", "Status", "Working Hours"];
+    return [
+      "Employee ID",
+      "Nama",
+      "Check In",
+      "Status",
+      "Check Out",
+      "Status",
+      "Working Hours",
+    ];
   }
 
   // Jika hanya checkin aktif
@@ -28,7 +33,7 @@ export const getTableHeaders = (filter, checkFilters) => {
 };
 
 // Fungsi untuk render isi setiap sel tabel - DIPERBAIKI
-export const renderTableCell = (record, header, index, formatDateTime, calculateWorkingHours) => {
+export const renderTableCell = (record, header, index, formatDateTime) => {
   const baseClass = "px-6 py-4 text-slate-300";
 
   switch (header) {
@@ -46,25 +51,28 @@ export const renderTableCell = (record, header, index, formatDateTime, calculate
         </td>
       );
 
-    case "Status":
-      const status = record.status || record.checkInStatus || record.checkOutStatus;
+    case "Status": {
+      const statusValue =
+        record.status || record.checkInStatus || record.checkOutStatus || "-";
+
       return (
         <td key={index} className={`${baseClass} capitalize`}>
           <span
             className={`px-2 py-1 rounded-full ${
-              status === "ontime"
+              statusValue === "ontime"
                 ? "bg-green-500/20 text-green-400"
-                : status === "late"
+                : statusValue === "late"
                 ? "bg-red-500/20 text-red-400"
-                : status === "early"
+                : statusValue === "early"
                 ? "bg-yellow-500/20 text-yellow-400"
                 : "bg-gray-500/20 text-gray-400"
             }`}
           >
-            {record.status || "Working"}
+            {statusValue}
           </span>
         </td>
       );
+    }
 
     case "Action": {
       const displayAction = record.action || "-";
@@ -153,6 +161,10 @@ export const renderTableCell = (record, header, index, formatDateTime, calculate
       );
 
     default:
-      return <td key={index} className={baseClass}>-</td>;
+      return (
+        <td key={index} className={baseClass}>
+          -
+        </td>
+      );
   }
 };

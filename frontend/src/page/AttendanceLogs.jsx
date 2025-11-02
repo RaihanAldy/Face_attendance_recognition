@@ -20,135 +20,86 @@ const AttendanceLogs = () => {
     fetchAttendanceData(filter);
   }, [filter]);
 
-  const filteredData = attendanceData
-    .filter((record) => {
-      if (filter === "all") return true;
+  const filteredData = attendanceData.reduce((acc, record) => {
+    const { employeeId, name, action, timestamp, status, workDuration } =
+      record;
 
-      const today = new Date();
-      const recordDate = new Date(record.timestamp || record.date);
-      return (
-        recordDate.getDate() === today.getDate() &&
-        recordDate.getMonth() === today.getMonth() &&
-        recordDate.getFullYear() === today.getFullYear()
-      );
-    })
-    .reduce((acc, record) => {
-      // ✅ Ambil data dari struktur MongoDB yang sesuai
-      const employeeId = record.employee_id || record.employeeId;
-      const nama = record.employees || record.nama;
-      const checkInTime = record.check_in_time;
-      const checkOutTime = record.check_out_time;
-      const checkInStatus = record.check_in_status;
-      const checkOutStatus = record.check_out_status;
-      const overallStatus = record.status;
+    // ---- CASE: Pair mode (check-in & check-out ON) ----
+    if (checkFilters.checkin && checkFilters.checkout) {
+      let existing = acc.find((r) => r.employeeId === employeeId);
 
-      console.log("🔍 Processing record:", {
-        employeeId,
-        nama,
-        checkInTime,
-        checkOutTime,
-        checkInStatus,
-        checkOutStatus,
-        overallStatus,
-      });
-
-      // ✅ Kasus 1: Kedua filter aktif (checkin + checkout)
-      if (checkFilters.checkin && checkFilters.checkout) {
-        let existing = acc.find((r) => r.employeeId === employeeId);
-
-        if (!existing) {
-          existing = {
-            employeeId,
-            nama,
-            checkIn: checkInTime,
-            checkInStatus: checkInStatus,
-            checkOut: checkOutTime,
-            checkOutStatus: checkOutStatus,
-            workingHours: record.work_duration
-              ? `${Math.floor(record.work_duration / 60)}h ${
-                  record.work_duration % 60
-                }m`
-              : checkInTime && checkOutTime
-              ? calculateWorkingHours(checkInTime, checkOutTime)
-              : null,
-            status: overallStatus,
-          };
-          acc.push(existing);
-        } else {
-          // Update existing record jika ada data baru
-          if (checkInTime && !existing.checkIn) {
-            existing.checkIn = checkInTime;
-            existing.checkInStatus = checkInStatus;
-          }
-          if (checkOutTime && !existing.checkOut) {
-            existing.checkOut = checkOutTime;
-            existing.checkOutStatus = checkOutStatus;
-            if (existing.checkIn) {
-              existing.workingHours = calculateWorkingHours(
-                existing.checkIn,
-                checkOutTime
-              );
-            }
-          }
-        }
-
-        return acc;
-      }
-
-      // ✅ Kasus 2: Hanya filter check-in aktif
-      if (checkFilters.checkin && !checkFilters.checkout) {
-        if (checkInTime) {
-          acc.push({
-            employeeId,
-            nama,
-            checkIn: checkInTime,
-            status: checkInStatus,
-            action: "Check In",
-            timestamp: checkInTime,
-          });
-        }
-        return acc;
-      }
-
-      // ✅ Kasus 3: Hanya filter check-out aktif
-      if (checkFilters.checkout && !checkFilters.checkin) {
-        if (checkOutTime) {
-          acc.push({
-            employeeId,
-            nama,
-            checkOut: checkOutTime,
-            status: checkOutStatus,
-            action: "Check Out",
-            timestamp: checkOutTime,
-          });
-        }
-        return acc;
-      }
-
-      // ✅ Kasus 4: Tidak ada filter checkin/checkout (tampilkan semua records)
-      // Tampilkan sebagai record terpisah untuk check-in dan check-out
-      if (checkInTime) {
-        acc.push({
+      if (!existing) {
+        existing = {
           employeeId,
-          nama,
-          status: checkInStatus,
-          action: "Check In",
-          timestamp: checkInTime,
-        });
+          name,
+          checkIn: null,
+          checkInStatus: null,
+          checkOut: null,
+          checkOutStatus: null,
+          workingHours: null,
+        };
+        acc.push(existing);
       }
 
-      if (checkOutTime) {
-        acc.push({
-          employeeId,
-          nama,
-          status: checkOutStatus,
-          action: "Check Out",
-          timestamp: checkOutTime,
-        });
+      if (action === "check-in") {
+        existing.checkIn = timestamp;
+        existing.checkInStatus = status;
+      }
+
+      if (action === "check-out") {
+        existing.checkOut = timestamp;
+        existing.checkOutStatus = status;
+        existing.workingHours = workDuration
+          ? `${Math.floor(workDuration / 60)}h ${workDuration % 60}m`
+          : "-";
       }
 
       return acc;
-    }, []);
+    }
+
+    // ---- CASE: only check-in (HANYA tampilkan check-in) ----
+    if (checkFilters.checkin && !checkFilters.checkout) {
+      if (action === "check-in") {
+        acc.push({
+          employeeId,
+          name,
+          checkIn: timestamp,
+          status,
+          action: "Check In",
+          timestamp,
+        });
+      }
+      return acc;
+    }
+
+    // ---- CASE: only check-out (HANYA tampilkan check-out) ----
+    if (!checkFilters.checkin && checkFilters.checkout) {
+      if (action === "check-out") {
+        acc.push({
+          employeeId,
+          name,
+          checkOut: timestamp,
+          status,
+          action: "Check Out",
+          timestamp,
+        });
+      }
+      return acc;
+    }
+
+    // ---- DEFAULT — show all individual logs (jika tidak ada filter aktif) ----
+    if (!checkFilters.checkin && !checkFilters.checkout) {
+      acc.push({
+        employeeId,
+        name,
+        status,
+        action: action === "check-in" ? "Check In" : "Check Out",
+        timestamp,
+      });
+    }
+
+    return acc;
+  }, []);
 
   const handleExportCSV = () => {
     exportCSV(
@@ -162,8 +113,21 @@ const AttendanceLogs = () => {
 
   console.group("🧩 Attendance Data Debug");
   console.log("Raw data from backend:", attendanceData);
-  console.log("Filtered & reduced data:", filteredData);
   console.log("Active filters:", { filter, checkFilters });
+
+  // Debug: Show action values
+  if (attendanceData.length > 0) {
+    console.log(
+      "🔍 Action values in raw data:",
+      attendanceData.map((r) => ({
+        id: r.employeeId,
+        action: r.action,
+        type: typeof r.action,
+      }))
+    );
+  }
+
+  console.log("Filtered & processed data:", filteredData);
   console.groupEnd();
 
   return (
@@ -183,59 +147,74 @@ const AttendanceLogs = () => {
         />
 
         {error && (
-          <div className="text-red-400 p-4 bg-red-500/10 rounded-xl">
-            {error}
+          <div className="text-red-400 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+            ⚠️ {error}
           </div>
         )}
+
         {loading && (
-          <div className="text-blue-400 text-center py-6">
-            Memuat data absensi...
+          <div className="text-blue-400 text-center py-12">
+            <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-3"></div>
+            <p>Memuat data absensi...</p>
           </div>
         )}
+
         {!loading && !error && filteredData.length === 0 && (
-          <p className="text-slate-300 text-center py-6">
-            Tidak ada data untuk filter yang dipilih
-          </p>
+          <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
+            <p className="text-slate-400 text-lg">
+              📭 Tidak ada data untuk filter yang dipilih
+            </p>
+          </div>
         )}
 
         {!loading && filteredData.length > 0 && (
-          <div className="bg-slate-800/50 backdrop-blur rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-slate-700/50">
-                <tr>
-                  {getTableHeaders(filter, checkFilters).map((header, i) => (
-                    <th
-                      key={i}
-                      className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider"
-                    >
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/50">
-                {filteredData.map((record, rowIndex) => (
-                  <tr
-                    key={
-                      record._id ||
-                      `${record.employeeId}-${record.timestamp}-${rowIndex}`
-                    }
-                    className="hover:bg-slate-700/30 transition-colors"
-                  >
-                    {getTableHeaders(filter, checkFilters).map(
-                      (header, cellIndex) =>
-                        renderTableCell(
-                          record,
-                          header,
-                          cellIndex,
-                          formatDateTime,
-                          calculateWorkingHours
-                        )
-                    )}
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl overflow-hidden border border-slate-700/50 shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-700/50">
+                  <tr>
+                    {getTableHeaders(filter, checkFilters).map((header, i) => (
+                      <th
+                        key={i}
+                        className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider text-sm"
+                      >
+                        {header}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {filteredData.map((record, rowIndex) => (
+                    <tr
+                      key={
+                        record._id ||
+                        `${record.employeeId}-${record.timestamp}-${rowIndex}`
+                      }
+                      className="hover:bg-slate-700/30 transition-colors duration-150"
+                    >
+                      {getTableHeaders(filter, checkFilters).map(
+                        (header, cellIndex) =>
+                          renderTableCell(
+                            record,
+                            header,
+                            cellIndex,
+                            formatDateTime,
+                            calculateWorkingHours
+                          )
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Footer */}
+        {!loading && filteredData.length > 0 && (
+          <div className="mt-4 text-center text-slate-400 text-sm">
+            Menampilkan {filteredData.length} record{" "}
+            {filter === "today" ? "hari ini" : "total"}
           </div>
         )}
       </div>
