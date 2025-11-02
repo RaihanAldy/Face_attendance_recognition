@@ -1,6 +1,13 @@
-
 import React, { useState, useRef, useEffect } from "react";
-import { Camera, ArrowLeft, UserPlus, CheckCircle, XCircle, AlertCircle, RotateCcw } from "lucide-react";
+import {
+  Camera,
+  ArrowLeft,
+  UserPlus,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  RotateCcw,
+} from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 
@@ -45,31 +52,31 @@ export default function FaceRegistration({ onBack }) {
       }
 
       const video = videoRef.current;
-      
+
       // Create canvas untuk capture
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
+
+      const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
+
       // Convert to base64
-      const imageData = canvas.toDataURL('image/jpeg', 0.95);
-      
+      const imageData = canvas.toDataURL("image/jpeg", 0.95);
+
       console.log("📸 Image captured from video");
       console.log(`   Size: ${canvas.width}x${canvas.height}`);
       console.log(`   Angle: ${angles[currentAngle].name}`);
       console.log("🔍 Sending to backend for face extraction...");
-      
+
       // Send ke backend untuk extract face
       const response = await fetch("http://localhost:5000/api/extract-face", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          image: imageData 
+        body: JSON.stringify({
+          image: imageData,
         }),
       });
 
@@ -79,22 +86,21 @@ export default function FaceRegistration({ onBack }) {
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || "Failed to extract face");
       }
-      
+
       console.log("✅ Face extracted successfully");
       console.log(`   Embedding length: ${result.embedding.length}`);
       console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-      
+
       return {
         embedding: result.embedding,
         confidence: result.confidence,
         face_detected: result.face_detected,
-        image: imageData
+        image: imageData,
       };
-      
     } catch (error) {
       console.error("❌ Error capturing/extracting face:", error);
       throw error;
@@ -117,7 +123,7 @@ export default function FaceRegistration({ onBack }) {
 
       // Set isScanning first to render video element
       setIsScanning(true);
-      
+
       // Wait for video element to be rendered
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -125,7 +131,9 @@ export default function FaceRegistration({ onBack }) {
       let retries = 0;
       const maxRetries = 10;
       while (!videoRef.current && retries < maxRetries) {
-        console.log(`⏳ Waiting for video element... (${retries + 1}/${maxRetries})`);
+        console.log(
+          `⏳ Waiting for video element... (${retries + 1}/${maxRetries})`
+        );
         await new Promise((resolve) => setTimeout(resolve, 100));
         retries++;
       }
@@ -163,8 +171,9 @@ export default function FaceRegistration({ onBack }) {
           if (!resolved) {
             resolved = true;
             video.removeEventListener("canplay", onCanPlay);
-            
-            video.play()
+
+            video
+              .play()
               .then(() => {
                 console.log("✅ Camera ready");
                 resolve();
@@ -189,7 +198,6 @@ export default function FaceRegistration({ onBack }) {
       });
 
       isStartingRef.current = false;
-
     } catch (error) {
       console.error("Camera error:", error);
       isStartingRef.current = false;
@@ -197,7 +205,8 @@ export default function FaceRegistration({ onBack }) {
 
       let errorMsg = "Tidak dapat mengakses kamera.";
       if (error.name === "NotAllowedError") {
-        errorMsg = "Permission kamera ditolak. Silakan izinkan di browser settings.";
+        errorMsg =
+          "Permission kamera ditolak. Silakan izinkan di browser settings.";
       }
 
       MySwal.fire({
@@ -235,17 +244,17 @@ export default function FaceRegistration({ onBack }) {
     try {
       // Show loading
       MySwal.fire({
-        title: 'Memproses Wajah...',
-        html: 'Mengekstrak face embedding...',
+        title: "Memproses Wajah...",
+        html: "Mengekstrak face embedding...",
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
-        }
+        },
       });
 
       // Extract face from video using backend
       const faceData = await captureAndExtractFace();
-      
+
       if (!faceData.face_detected) {
         MySwal.fire({
           title: "Wajah Tidak Terdeteksi",
@@ -263,21 +272,23 @@ export default function FaceRegistration({ onBack }) {
         image: faceData.image,
         embedding: faceData.embedding,
         confidence: faceData.confidence,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      setFaceCaptures(prev => [...prev, newCapture]);
-      
+      setFaceCaptures((prev) => [...prev, newCapture]);
+
       // Move to next angle or finish
       if (currentAngle < angles.length - 1) {
         setCurrentAngle(currentAngle + 1);
-        
+
         MySwal.fire({
           title: `Posisi ${angles[currentAngle].name} Terekam!`,
           html: `
             <div style="text-align: center;">
               <p>Confidence: ${(faceData.confidence * 100).toFixed(1)}%</p>
-              <p style="margin-top: 8px;">Sekarang ${angles[currentAngle + 1].description}</p>
+              <p style="margin-top: 8px;">Sekarang ${
+                angles[currentAngle + 1].description
+              }</p>
             </div>
           `,
           icon: "success",
@@ -287,7 +298,7 @@ export default function FaceRegistration({ onBack }) {
       } else {
         setScanStatus("captured");
         stopCamera();
-        
+
         MySwal.fire({
           title: "Semua Posisi Terekam!",
           text: "Silakan lengkapi form data karyawan.",
@@ -298,14 +309,14 @@ export default function FaceRegistration({ onBack }) {
       }
     } catch (error) {
       console.error("Error capturing face:", error);
-      
+
       let errorMsg = "Gagal mengambil foto wajah.";
       if (error.message.includes("No face detected")) {
         errorMsg = "Tidak ada wajah terdeteksi. Posisikan wajah dengan benar.";
       } else if (error.message.includes("Failed to fetch")) {
         errorMsg = "Backend tidak merespon. Pastikan server running.";
       }
-      
+
       MySwal.fire({
         title: "Kesalahan",
         text: errorMsg,
@@ -317,7 +328,9 @@ export default function FaceRegistration({ onBack }) {
 
   // Retake specific angle
   const retakeAngle = (angleIndex) => {
-    const updatedCaptures = faceCaptures.filter(capture => capture.angle !== angleIndex);
+    const updatedCaptures = faceCaptures.filter(
+      (capture) => capture.angle !== angleIndex
+    );
     setFaceCaptures(updatedCaptures);
     setCurrentAngle(angleIndex);
     startCamera();
@@ -344,7 +357,10 @@ export default function FaceRegistration({ onBack }) {
       newErrors.email = "Format email tidak valid";
     }
 
-    if (formData.phone && !/^\+?62\d{9,12}$/.test(formData.phone.replace(/\s/g, ''))) {
+    if (
+      formData.phone &&
+      !/^\+?62\d{9,12}$/.test(formData.phone.replace(/\s/g, ""))
+    ) {
       newErrors.phone = "Format phone tidak valid (gunakan +62xxx)";
     }
 
@@ -397,14 +413,18 @@ export default function FaceRegistration({ onBack }) {
       setScanStatus("submitting");
 
       // Extract embeddings from captures (REAL embeddings from backend)
-      const faceEmbeddings = faceCaptures.map(capture => capture.embedding);
-      
+      const faceEmbeddings = faceCaptures.map((capture) => capture.embedding);
+
       console.log("📤 Submitting registration with real embeddings:");
       console.log(`   Name: ${formData.name}`);
       console.log(`   Embeddings count: ${faceEmbeddings.length}`);
       console.log(`   Embedding length: ${faceEmbeddings[0].length}`);
-      faceCaptures.forEach((capture, idx) => {
-        console.log(`   ${capture.angleName}: ${(capture.confidence * 100).toFixed(1)}% confidence`);
+      faceCaptures.forEach((capture) => {
+        console.log(
+          `   ${capture.angleName}: ${(capture.confidence * 100).toFixed(
+            1
+          )}% confidence`
+        );
       });
 
       const response = await fetch("http://localhost:5000/api/register", {
@@ -419,7 +439,7 @@ export default function FaceRegistration({ onBack }) {
           email: formData.email.trim(),
           phone: formData.phone.trim(),
           faceEmbeddings: faceEmbeddings, // Real embeddings from backend
-          captureCount: faceCaptures.length
+          captureCount: faceCaptures.length,
         }),
       });
 
@@ -455,7 +475,11 @@ export default function FaceRegistration({ onBack }) {
                   Face angles: ${faceCaptures.length}
                 </p>
                 <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                  Avg confidence: ${(faceCaptures.reduce((sum, c) => sum + c.confidence, 0) / faceCaptures.length * 100).toFixed(1)}%
+                  Avg confidence: ${(
+                    (faceCaptures.reduce((sum, c) => sum + c.confidence, 0) /
+                      faceCaptures.length) *
+                    100
+                  ).toFixed(1)}%
                 </p>
               </div>
             </div>
@@ -476,11 +500,9 @@ export default function FaceRegistration({ onBack }) {
         setCurrentAngle(0);
         setScanStatus("idle");
         setErrors({});
-
       } else {
         throw new Error(result.error || "Registration failed");
       }
-
     } catch (error) {
       console.error("Registration error:", error);
       setScanStatus("idle");
@@ -511,8 +533,12 @@ export default function FaceRegistration({ onBack }) {
 
           <div className="text-center">
             <UserPlus className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-white mb-2">Registrasi Karyawan Baru</h1>
-            <p className="text-slate-400">Ambil foto wajah dari 3 angle berbeda untuk akurasi lebih tinggi</p>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Registrasi Karyawan Baru
+            </h1>
+            <p className="text-slate-400">
+              Ambil foto wajah dari 3 angle berbeda untuk akurasi lebih tinggi
+            </p>
           </div>
         </div>
 
@@ -533,11 +559,15 @@ export default function FaceRegistration({ onBack }) {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 border-4 border-green-500 rounded-lg opacity-50 pointer-events-none"></div>
-                    
+
                     {/* Angle Guide Overlay */}
                     <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg">
-                      <div className="text-sm font-medium">{currentAngleData.name}</div>
-                      <div className="text-xs text-slate-300">{currentAngleData.description}</div>
+                      <div className="text-sm font-medium">
+                        {currentAngleData.name}
+                      </div>
+                      <div className="text-xs text-slate-300">
+                        {currentAngleData.description}
+                      </div>
                     </div>
                   </>
                 )}
@@ -547,7 +577,9 @@ export default function FaceRegistration({ onBack }) {
                   <div className="text-center">
                     <Camera className="h-20 w-20 text-slate-700 mx-auto mb-4" />
                     <p className="text-slate-500">Siap mengambil foto</p>
-                    <p className="text-slate-600 text-sm mt-2">Klik "Buka Kamera" untuk memulai</p>
+                    <p className="text-slate-600 text-sm mt-2">
+                      Klik "Buka Kamera" untuk memulai
+                    </p>
                   </div>
                 )}
 
@@ -555,7 +587,9 @@ export default function FaceRegistration({ onBack }) {
                 {!isScanning && faceCaptures.length === angles.length && (
                   <div className="text-center">
                     <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-4" />
-                    <p className="text-green-400 font-medium">Semua foto telah diambil!</p>
+                    <p className="text-green-400 font-medium">
+                      Semua foto telah diambil!
+                    </p>
                     <p className="text-slate-400 text-sm mt-2">
                       {faceCaptures.length}/{angles.length} posisi
                     </p>
@@ -571,8 +605,8 @@ export default function FaceRegistration({ onBack }) {
                       <>
                         <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
                         <span className="text-sm text-slate-400">
-                          {faceCaptures.length > 0 
-                            ? `${faceCaptures.length}/${angles.length} Posisi` 
+                          {faceCaptures.length > 0
+                            ? `${faceCaptures.length}/${angles.length} Posisi`
                             : "Siap"}
                         </span>
                       </>
@@ -580,13 +614,17 @@ export default function FaceRegistration({ onBack }) {
                     {scanStatus === "captured" && (
                       <>
                         <CheckCircle className="w-5 h-5 text-green-500" />
-                        <span className="text-sm text-green-400">Semua Posisi Terekam</span>
+                        <span className="text-sm text-green-400">
+                          Semua Posisi Terekam
+                        </span>
                       </>
                     )}
                     {scanStatus === "submitting" && (
                       <>
                         <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                        <span className="text-sm text-slate-400">Mengirim...</span>
+                        <span className="text-sm text-slate-400">
+                          Mengirim...
+                        </span>
                       </>
                     )}
                   </div>
@@ -605,7 +643,7 @@ export default function FaceRegistration({ onBack }) {
                       className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                     >
                       <Camera className="w-4 h-4" />
-                      {faceCaptures.length === 0 ? 'Buka Kamera' : 'Lanjutkan'}
+                      {faceCaptures.length === 0 ? "Buka Kamera" : "Lanjutkan"}
                     </button>
                   )}
 
@@ -642,15 +680,21 @@ export default function FaceRegistration({ onBack }) {
             {/* Captured Images Grid */}
             {faceCaptures.length > 0 && (
               <div className="bg-slate-900 rounded-xl border border-slate-800 p-4">
-                <h3 className="text-lg font-semibold text-white mb-3">Foto yang Telah Diambil</h3>
+                <h3 className="text-lg font-semibold text-white mb-3">
+                  Foto yang Telah Diambil
+                </h3>
                 <div className="grid grid-cols-3 gap-3">
-                  {angles.map((angle, index) => {
-                    const capture = faceCaptures.find(c => c.angle === angle.id);
+                  {angles.map((angle) => {
+                    const capture = faceCaptures.find(
+                      (c) => c.angle === angle.id
+                    );
                     return (
                       <div key={angle.id} className="text-center">
-                        <div className={`relative aspect-square rounded-lg overflow-hidden border-2 ${
-                          capture ? 'border-green-500' : 'border-slate-600'
-                        }`}>
+                        <div
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 ${
+                            capture ? "border-green-500" : "border-slate-600"
+                          }`}
+                        >
                           {capture ? (
                             <>
                               <img
@@ -668,7 +712,9 @@ export default function FaceRegistration({ onBack }) {
                             </>
                           ) : (
                             <div className="w-full h-full bg-slate-800 flex items-center justify-center">
-                              <span className="text-slate-500 text-sm">Belum</span>
+                              <span className="text-slate-500 text-sm">
+                                Belum
+                              </span>
                             </div>
                           )}
                         </div>
@@ -790,7 +836,10 @@ export default function FaceRegistration({ onBack }) {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={faceCaptures.length < angles.length || scanStatus === "submitting"}
+                disabled={
+                  faceCaptures.length < angles.length ||
+                  scanStatus === "submitting"
+                }
                 className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
               >
                 {scanStatus === "submitting" ? (
@@ -812,7 +861,10 @@ export default function FaceRegistration({ onBack }) {
               <p className="text-blue-400 text-sm flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
-                  <strong>Panduan Pengambilan Foto:</strong> Ambil wajah dari 3 angle berbeda (depan, kiri, kanan) untuk meningkatkan akurasi recognition. Pastikan wajah terlihat jelas dengan pencahayaan yang baik.
+                  <strong>Panduan Pengambilan Foto:</strong> Ambil wajah dari 3
+                  angle berbeda (depan, kiri, kanan) untuk meningkatkan akurasi
+                  recognition. Pastikan wajah terlihat jelas dengan pencahayaan
+                  yang baik.
                 </span>
               </p>
             </div>

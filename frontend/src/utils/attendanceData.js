@@ -32,45 +32,40 @@ export const useAttendanceData = (dateFilter = "today") => {
         throw new Error("Response data is not an array");
       }
 
-      // ✅ DATA SUDAH DALAM FORMAT YANG BENAR DARI BACKEND
-      // Backend mengirim array of objects dengan struktur:
-      // {
-      //   employee_id, employees, department, date, day_of_week,
-      //   timestamp, action, status, lateness_minutes, work_duration, confidence
-      // }
+      // Di dalam fetchAttendanceData function, perbaiki field mapping:
+      const normalizedData = data.map((item) => {
+        // ✅ PASTIKAN EMPLOYEE_NAME SELALU ADA
+        const employeeName = item.employee_name || "Unknown Employee";
 
-      // Normalisasi hanya untuk konsistensi naming (camelCase)
-      const normalizedData = data.map((item) => ({
-        _id: item._id,
-        employeeId: item.employee_id,
-        name: item.employees,
-        timestamp: item.timestamp,
-        action: item.action, // ✅ langsung pakai backend
-        status: item.status, // ✅ langsung pakai backend
-        workDuration: item.work_duration,
-        latenessMinutes: item.lateness_minutes,
-        department: item.department,
-        dayOfWeek: item.day_of_week,
-        confidence: item.confidence,
-      }));
-
-      // Debug: Log untuk mengecek action field
-      console.log(
-        "🔍 Sample data dengan action:",
-        normalizedData.slice(0, 3).map((r) => ({
-          name: r.name,
-          action: r.action,
-          status: r.status,
-        }))
-      );
+        return {
+          _id: item._id,
+          employeeId: item.employee_id, // ✅ employee_id bukan employeeId
+          name: employeeName,
+          date: item.date,
+          checkIn: item.checkin?.timestamp || null,
+          checkInStatus: item.checkin?.status || null, // ✅ langsung ambil status
+          checkOut: item.checkout?.timestamp || null,
+          checkOutStatus: item.checkout?.status || null, // ✅ langsung ambil status
+          workDuration: item.work_duration_minutes || 0,
+          workingHours: item.work_duration_minutes
+            ? `${Math.floor(item.work_duration_minutes / 60)}h ${
+                item.work_duration_minutes % 60
+              }m`
+            : null,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
+        };
+      });
 
       console.log("✅ Normalized data sample:", normalizedData[0]);
       console.log(`✅ Total records: ${normalizedData.length}`);
       console.log(
-        "📊 Action distribution:",
+        "📊 Status distribution:",
         normalizedData.reduce((acc, r) => {
-          const actionKey = r.action || "undefined";
-          acc[actionKey] = (acc[actionKey] || 0) + 1;
+          const hasCheckIn = r.checkIn ? "has-checkin" : "no-checkin";
+          const hasCheckOut = r.checkOut ? "has-checkout" : "no-checkout";
+          const key = `${hasCheckIn}, ${hasCheckOut}`;
+          acc[key] = (acc[key] || 0) + 1;
           return acc;
         }, {})
       );

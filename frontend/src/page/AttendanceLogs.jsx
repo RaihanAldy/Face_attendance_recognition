@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAttendanceData } from "../utils/attendanceData";
 import AttendanceFilter from "../components/attendance/AttendanceFilter";
-import AttendanceHeader from "../components/attendance/AttendanceHeader";
 import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
 import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
@@ -20,82 +19,92 @@ const AttendanceLogs = () => {
     fetchAttendanceData(filter);
   }, [filter]);
 
+  // ✅ Filter logic berdasarkan struktur baru (1 doc per employee per day)
   const filteredData = attendanceData.reduce((acc, record) => {
-    const { employeeId, name, action, timestamp, status, workDuration } =
-      record;
+    const {
+      employeeId,
+      name,
+      checkIn,
+      checkInStatus,
+      checkOut,
+      checkOutStatus,
+      workingHours,
+    } = record;
 
-    // ---- CASE: Pair mode (check-in & check-out ON) ----
+    // Skip jika tidak ada data sama sekali
+    if (!checkIn && !checkOut) {
+      console.log("⚠️ Skipping record - no checkin/checkout data:", employeeId);
+      return acc;
+    }
+
+    // ---- CASE 1: Pair mode (check-in & check-out ON) ----
     if (checkFilters.checkin && checkFilters.checkout) {
-      let existing = acc.find((r) => r.employeeId === employeeId);
-
-      if (!existing) {
-        existing = {
-          employeeId,
-          name,
-          checkIn: null,
-          checkInStatus: null,
-          checkOut: null,
-          checkOutStatus: null,
-          workingHours: null,
-        };
-        acc.push(existing);
-      }
-
-      if (action === "check-in") {
-        existing.checkIn = timestamp;
-        existing.checkInStatus = status;
-      }
-
-      if (action === "check-out") {
-        existing.checkOut = timestamp;
-        existing.checkOutStatus = status;
-        existing.workingHours = workDuration
-          ? `${Math.floor(workDuration / 60)}h ${workDuration % 60}m`
-          : "-";
-      }
-
-      return acc;
-    }
-
-    // ---- CASE: only check-in (HANYA tampilkan check-in) ----
-    if (checkFilters.checkin && !checkFilters.checkout) {
-      if (action === "check-in") {
-        acc.push({
-          employeeId,
-          name,
-          checkIn: timestamp,
-          status,
-          action: "Check In",
-          timestamp,
-        });
-      }
-      return acc;
-    }
-
-    // ---- CASE: only check-out (HANYA tampilkan check-out) ----
-    if (!checkFilters.checkin && checkFilters.checkout) {
-      if (action === "check-out") {
-        acc.push({
-          employeeId,
-          name,
-          checkOut: timestamp,
-          status,
-          action: "Check Out",
-          timestamp,
-        });
-      }
-      return acc;
-    }
-
-    // ---- DEFAULT — show all individual logs (jika tidak ada filter aktif) ----
-    if (!checkFilters.checkin && !checkFilters.checkout) {
+      // Tampilkan dalam format paired (1 row per employee)
       acc.push({
         employeeId,
-        name,
-        status,
-        action: action === "check-in" ? "Check In" : "Check Out",
-        timestamp,
+        name: name || "Unknown Employee",
+        checkIn,
+        checkInStatus,
+        checkOut,
+        checkOutStatus,
+        workingHours,
       });
+      return acc;
+    }
+
+    // ---- CASE 2: Only check-in filter ----
+    if (checkFilters.checkin && !checkFilters.checkout) {
+      if (checkIn) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          checkIn,
+          status: checkInStatus || "ontime",
+          action: "Check In",
+          timestamp: checkIn,
+        });
+      }
+      return acc;
+    }
+
+    // ---- CASE 3: Only check-out filter ----
+    if (!checkFilters.checkin && checkFilters.checkout) {
+      if (checkOut) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          checkOut,
+          status: checkOutStatus || "ontime",
+          action: "Check Out",
+          timestamp: checkOut,
+        });
+      }
+      return acc;
+    }
+
+    // ---- CASE 4: DEFAULT — show all (expand ke 2 rows jika ada check-in dan check-out) ----
+    if (!checkFilters.checkin && !checkFilters.checkout) {
+      // Buat row untuk check-in jika ada
+      if (checkIn) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          status: checkInStatus || "ontime",
+          action: "Check In",
+          timestamp: checkIn,
+        });
+      }
+
+      // Buat row untuk check-out jika ada
+      if (checkOut) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          status: checkOutStatus || "ontime",
+          action: "Check Out",
+          timestamp: checkOut,
+        });
+      }
     }
 
     return acc;
@@ -113,32 +122,41 @@ const AttendanceLogs = () => {
 
   console.group("🧩 Attendance Data Debug");
   console.log("Raw data from backend:", attendanceData);
-  console.log("Active filters:", { filter, checkFilters });
-
-  // Debug: Show action values
-  if (attendanceData.length > 0) {
-    console.log(
-      "🔍 Action values in raw data:",
-      attendanceData.map((r) => ({
-        id: r.employeeId,
-        action: r.action,
-        type: typeof r.action,
-      }))
-    );
-  }
-
   console.log("Filtered & processed data:", filteredData);
+  console.log("Active filters:", { filter, checkFilters });
   console.groupEnd();
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
-        <AttendanceHeader
-          onRefresh={() => fetchAttendanceData(filter)}
-          onExport={handleExportCSV}
-          loading={loading}
-          dataLength={filteredData.length}
-        />
+        {/* Header dengan Refresh dan Export Button */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Attendance Log
+            </h1>
+            <p className="text-slate-400">
+              Monitor and manage employee attendance
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => fetchAttendanceData(filter)}
+              disabled={loading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
+            >
+              🔄 {loading ? "Loading..." : "Refresh"}
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={filteredData.length === 0}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:bg-emerald-400"
+            >
+              📁 Export CSV
+            </button>
+          </div>
+        </div>
+
         <AttendanceFilter
           filter={filter}
           setFilter={setFilter}
@@ -161,9 +179,17 @@ const AttendanceLogs = () => {
 
         {!loading && !error && filteredData.length === 0 && (
           <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
-            <p className="text-slate-400 text-lg">
+            <p className="text-slate-400 text-lg mb-4">
               📭 Tidak ada data untuk filter yang dipilih
             </p>
+            {attendanceData.length > 0 && (
+              <p className="text-slate-500 text-sm">
+                Found {attendanceData.length} records in database, but no
+                check-in/check-out data.
+                <br />
+                Try changing your filter settings.
+              </p>
+            )}
           </div>
         )}
 
@@ -188,7 +214,9 @@ const AttendanceLogs = () => {
                     <tr
                       key={
                         record._id ||
-                        `${record.employeeId}-${record.timestamp}-${rowIndex}`
+                        `${record.employeeId}-${
+                          record.timestamp || record.checkIn || record.checkOut
+                        }-${rowIndex}`
                       }
                       className="hover:bg-slate-700/30 transition-colors duration-150"
                     >
@@ -198,8 +226,7 @@ const AttendanceLogs = () => {
                             record,
                             header,
                             cellIndex,
-                            formatDateTime,
-                            calculateWorkingHours
+                            formatDateTime
                           )
                       )}
                     </tr>

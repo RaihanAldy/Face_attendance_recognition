@@ -3,9 +3,8 @@ import { useState, useEffect } from "react";
 
 const Settings = () => {
   const [settings, setSettings] = useState({
-    startTime: "08:37",
+    startTime: "08:00",
     endTime: "17:00",
-    syncFrequency: 15,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +25,6 @@ const Settings = () => {
         setSettings({
           startTime: data.startTime || "08:00",
           endTime: data.endTime || "17:00",
-          syncFrequency: data.syncFrequency || 15,
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -50,7 +48,7 @@ const Settings = () => {
   };
 
   const validateSettings = () => {
-    const { startTime, endTime, syncFrequency } = settings;
+    const { startTime, endTime } = settings;
 
     if (!startTime || !endTime) {
       return "Waktu mulai dan akhir harus diisi";
@@ -58,10 +56,6 @@ const Settings = () => {
 
     if (startTime >= endTime) {
       return "Waktu akhir harus setelah waktu mulai";
-    }
-
-    if (syncFrequency < 1) {
-      return "Frekuensi sinkronisasi minimal 1 menit";
     }
 
     return null;
