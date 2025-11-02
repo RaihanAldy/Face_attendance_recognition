@@ -18,7 +18,6 @@ export default function Sidebar() {
   const location = useLocation();
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
-    { id: "face-scan", label: "Face Scan", icon: ScanFace, path: "/face-scan" },
     {
       id: "attendance",
       label: "Attendance Log",

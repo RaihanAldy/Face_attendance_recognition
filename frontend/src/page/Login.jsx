@@ -16,36 +16,61 @@ const Login = ({ onLogin }) => {
     setError("");
 
     try {
-      // Simulasi API call untuk admin login
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log("🔐 Attempting admin login...");
       
-      // Hanya izinkan email dengan domain admin
-      if (!email.includes('admin')) {
-        throw new Error("Hanya admin yang dapat login di sini");
-      }
+      // Extract username from email (before @)
+      const username = email.split('@')[0];
+      
+      // ✅ CONNECT TO BACKEND API
+      const response = await fetch('http://localhost:5000/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username,  // or use email directly
+          password: password
+        })
+      });
 
-      // Simple validation
-      if (email === "admin@company.com" && password === "admin123") {
-        const token = "admin-jwt-token-" + Date.now();
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        console.log("✅ Login successful:", data);
+        
+        // Call parent onLogin callback
         const userData = {
-          name: "Administrator",
+          name: data.name || "Administrator",
           email: email,
-          role: "admin"
+          role: data.role || "admin"
         };
-        onLogin(token, "admin", userData);
+        
+        onLogin(data.token, "admin", userData);
+        
+        // Navigate to analytics dashboard
         navigate("/analytics", { replace: true });
       } else {
-        throw new Error("Email atau password salah");
+        throw new Error(data.error || "Login gagal");
       }
+      
     } catch (error) {
-      setError(error.message);
+      console.error("❌ Login error:", error);
+      
+      // User-friendly error messages
+      let errorMessage = error.message;
+      
+      if (error.message === "Failed to fetch") {
+        errorMessage = "Tidak dapat terhubung ke server. Pastikan backend running di http://localhost:5000";
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
       <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 w-full max-w-md border border-slate-700/50 shadow-2xl">
         {/* Header */}
         <div className="text-center mb-8">
@@ -107,7 +132,7 @@ const Login = ({ onLogin }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full mt-6 py-3 px-4 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            className="w-full mt-6 py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
           >
             {isLoading ? (
               <div className="flex items-center justify-center space-x-2">
@@ -121,11 +146,14 @@ const Login = ({ onLogin }) => {
         </form>
 
         {/* Demo Credentials */}
-        <div className="mt-6 p-4 bg-slate-700/30 rounded-xl">
+        <div className="mt-6 p-4 bg-slate-700/30 rounded-xl border border-slate-600/30">
           <h4 className="text-slate-300 text-sm font-medium mb-2">Demo Credentials:</h4>
           <div className="text-slate-400 text-sm space-y-1">
-            <p>Email: <span className="text-blue-400">admin@company.com</span></p>
-            <p>Password: <span className="text-blue-400">admin123</span></p>
+            <p>Email: <span className="text-blue-400 font-mono">admin@company.com</span></p>
+            <p>Password: <span className="text-blue-400 font-mono">admin123</span></p>
+            <p className="text-xs text-slate-500 mt-2">
+              💡 Username akan diambil dari email (sebelum @)
+            </p>
           </div>
         </div>
 
