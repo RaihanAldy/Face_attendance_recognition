@@ -1,8 +1,12 @@
-import React, { useState } from "react";
-import { employeesData } from "../data/mockData";
+import React, { useState, useEffect } from "react";
+
+const API_BASE_URL = "http://localhost:5000/api";
 
 const Employees = () => {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [employeesData, setEmployeesData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [newEmployee, setNewEmployee] = useState({
     name: "",
     employeeId: "",
@@ -12,6 +16,31 @@ const Employees = () => {
     phone: "",
   });
 
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/employees`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setEmployeesData(data);
+      setLoading(false);
+    } catch (error) {
+      console.error("❌ Error fetching employees:", error);
+      setError(error.message);
+      setLoading(false);
+      setEmployeesData([]); // Set empty array on error
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewEmployee((prev) => ({
@@ -20,24 +49,82 @@ const Employees = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add API call to save new employee
-    setShowAddModal(false);
-    setNewEmployee({
-      name: "",
-      employeeId: "",
-      department: "",
-      position: "",
-      email: "",
-      phone: "",
-    });
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/employees`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employee_id: newEmployee.employeeId,
+          name: newEmployee.name,
+          department: newEmployee.department,
+          position: newEmployee.position,
+          email: newEmployee.email,
+          phone: newEmployee.phone,
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh employee list
+        await fetchEmployees();
+        setShowAddModal(false);
+        setNewEmployee({
+          name: "",
+          employeeId: "",
+          department: "",
+          position: "",
+          email: "",
+          phone: "",
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error adding employee:", error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 bg-gray-950 rounded-lg shadow-md">
+        <h1 className="text-3xl font-bold text-gray-200 mb-6">Employees</h1>
+        <div className="bg-gray-900 p-6 rounded-lg animate-pulse">
+          <div className="h-64 bg-gray-800 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-gray-950 rounded-lg shadow-md">
+        <h1 className="text-3xl font-bold text-gray-200 mb-6">Employees</h1>
+        <div className="bg-red-900/20 border border-red-500 p-6 rounded-lg">
+          <h2 className="text-red-400 font-semibold mb-2">⚠️ Error Loading Employees</h2>
+          <p className="text-gray-400 mb-4">{error}</p>
+          <p className="text-gray-500 text-sm mb-4">
+            Make sure the backend server is running on http://localhost:5000
+          </p>
+          <button
+            onClick={fetchEmployees}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-gray-950 rounded-lg shadow-md">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-200">Employees</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-200">Employees</h1>
+          <p className="text-gray-400 text-sm mt-1">Total: {employeesData.length} employees</p>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -65,31 +152,39 @@ const Employees = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
-            {employeesData.map((employee) => (
-              <tr
-                key={employee.id}
-                className="hover:bg-gray-800 transition-colors"
-              >
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.employeeId}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.department}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.position}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.email}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sky-100">
-                  {employee.phone}
+            {employeesData.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="px-6 py-8 text-center text-gray-400">
+                  No employees found. Add your first employee to get started.
                 </td>
               </tr>
-            ))}
+            ) : (
+              employeesData.map((employee) => (
+                <tr
+                  key={employee._id || employee.employee_id}
+                  className="hover:bg-gray-800 transition-colors"
+                >
+                  <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                    {employee.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                    {employee.employee_id}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                    {employee.department || 'General'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                    {employee.position || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                    {employee.email || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sky-100">
+                    {employee.phone || '-'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

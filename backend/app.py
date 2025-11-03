@@ -22,14 +22,107 @@ def health_check():
         'face_model': 'loaded' if face_engine.model else 'error'
     })
 
+@app.route('/api/employees/debug', methods=['GET'])
+def employees_debug():
+    """Debug endpoint to see ALL employees including inactive"""
+    try:
+        all_employees = list(db.employees.find({}))
+        for emp in all_employees:
+            emp['_id'] = str(emp['_id'])
+            if 'created_at' in emp and emp['created_at']:
+                emp['created_at'] = str(emp['created_at'])
+        print(f"📊 Total employees in DB: {len(all_employees)}")
+        return jsonify({
+            'total': len(all_employees),
+            'employees': all_employees
+        })
+    except Exception as e:
+        print(f"❌ Debug error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/attendance/debug', methods=['GET'])
+def attendance_debug():
+    """Debug endpoint to see attendance records with their types"""
+    try:
+        # Get recent 20 attendance records
+        records = list(db.attendance.find({}).sort('timestamp', -1).limit(20))
+        
+        result = []
+        for rec in records:
+            result.append({
+                'employee_id': rec.get('employee_id'),
+                'timestamp': rec.get('timestamp').isoformat() if rec.get('timestamp') else None,
+                'action': rec.get('action', 'NO ACTION FIELD'),  # Check action field
+                'type': rec.get('type', 'NO TYPE FIELD'),  # Check type field
+                'confidence': rec.get('confidence', 0)
+            })
+        
+        # Count by action
+        check_in_action = db.attendance.count_documents({'action': 'check_in'})
+        check_out_action = db.attendance.count_documents({'action': 'check_out'})
+        check_in_action_space = db.attendance.count_documents({'action': 'check in'})
+        check_out_action_space = db.attendance.count_documents({'action': 'check out'})
+        
+        # Count by type (backward compatibility)
+        check_in_type = db.attendance.count_documents({'type': 'check_in'})
+        check_out_type = db.attendance.count_documents({'type': 'check_out'})
+        
+        no_field_count = db.attendance.count_documents({'action': {'$exists': False}, 'type': {'$exists': False}})
+        
+        print(f"📊 Attendance Stats:")
+        print(f"  - action='check_in': {check_in_action}")
+        print(f"  - action='check in' (with space): {check_in_action_space}")
+        print(f"  - action='check_out': {check_out_action}")
+        print(f"  - action='check out' (with space): {check_out_action_space}")
+        print(f"  - type='check_in': {check_in_type}")
+        print(f"  - type='check_out': {check_out_type}")
+        print(f"  - No action/type field: {no_field_count}")
+        
+        return jsonify({
+            'total_records': len(result),
+            'stats': {
+                'action_check_in': check_in_action,
+                'action_check_in_space': check_in_action_space,
+                'action_check_out': check_out_action,
+                'action_check_out_space': check_out_action_space,
+                'type_check_in': check_in_type,
+                'type_check_out': check_out_type,
+                'no_field': no_field_count
+            },
+            'recent_records': result
+        })
+    except Exception as e:
+        print(f"❌ Debug error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/employees', methods=['GET', 'POST'])
 def employees():
-    try:
-        employees = db.get_all_employees()
-        return jsonify(employees)
-    except Exception as e:
-        print(f"❌ Get employees error: {e}")
-        return jsonify({'error': str(e)}), 500
+    if request.method == 'GET':
+        try:
+            employees = db.get_all_employees()
+            print(f"📊 Returning {len(employees)} active employees")
+            return jsonify(employees)
+        except Exception as e:
+            print(f"❌ Get employees error: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.json
+            result = db.register_employee(
+                employee_id=data.get('employee_id'),
+                name=data.get('name'),
+                department=data.get('department', 'General')
+            )
+            
+            if result.get('success'):
+                return jsonify(result), 201
+            else:
+                return jsonify(result), 400
+                
+        except Exception as e:
+            print(f"❌ Register employee error: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/attendance', methods=['GET', 'POST'])
 def attendance():
@@ -226,6 +319,232 @@ def dashboard_analytics():
     except Exception as e:
         print(f"❌ Analytics error: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics/attendance-trend', methods=['GET'])
+def attendance_trend():
+    """Get attendance trend untuk 7 hari (Senin - Minggu)"""
+    try:
+        from datetime import timedelta
+        
+        result = []
+        today = datetime.now()
+        
+        # Cari hari Senin minggu ini (0 = Monday, 6 = Sunday)
+        days_since_monday = today.weekday()  # 0-6 (Mon-Sun)
+        monday_this_week = today - timedelta(days=days_since_monday)
+        
+        # Generate data untuk 7 hari (Senin - Minggu)
+        for i in range(7):
+            date = monday_this_week + timedelta(days=i)
+            start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_of_day = date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            
+            count = len(db.attendance.distinct('employee_id', {
+                'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
+            }))
+            
+            result.append({
+                'day': date.strftime('%a'),  # Mon, Tue, Wed, Thu, Fri, Sat, Sun
+                'count': count,
+                'date': date.strftime('%Y-%m-%d')
+            })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Attendance trend error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics/working-duration', methods=['GET'])
+def working_duration():
+    """Calculate average working duration hari ini"""
+    try:
+        today = datetime.now()
+        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # Get all check-in and check-out today
+        attendance_records = db.get_attendance_with_checkout()
+        
+        durations = []
+        for record in attendance_records:
+            if record.get('checkIn') and record.get('checkOut'):
+                check_in = datetime.fromisoformat(record['checkIn'].replace('Z', '+00:00'))
+                check_out = datetime.fromisoformat(record['checkOut'].replace('Z', '+00:00'))
+                
+                duration_hours = (check_out - check_in).total_seconds() / 3600
+                durations.append(duration_hours)
+        
+        if durations:
+            avg_duration = sum(durations) / len(durations)
+            longest = max(durations)
+            shortest = min(durations)
+        else:
+            avg_duration = 0
+            longest = 0
+            shortest = 0
+        
+        return jsonify({
+            'average': round(avg_duration, 1),
+            'longest': round(longest, 1),
+            'shortest': round(shortest, 1)
+        })
+        
+    except Exception as e:
+        print(f"❌ Working duration error: {e}")
+        return jsonify({'error': str(e), 'average': 0, 'longest': 0, 'shortest': 0}), 500
+
+@app.route('/api/analytics/departments', methods=['GET'])
+def department_stats():
+    """Get attendance count by department"""
+    try:
+        today = datetime.now()
+        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        pipeline = [
+            {
+                '$match': {
+                    'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$employee_id'
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'employees',
+                    'localField': '_id',
+                    'foreignField': 'employee_id',
+                    'as': 'employee'
+                }
+            },
+            {
+                '$unwind': '$employee'
+            },
+            {
+                '$group': {
+                    '_id': '$employee.department',
+                    'count': {'$sum': 1}
+                }
+            },
+            {
+                '$sort': {'count': -1}
+            },
+            {
+                '$limit': 5
+            }
+        ]
+        
+        results = list(db.attendance.aggregate(pipeline))
+        
+        formatted = [
+            {
+                'type': item['_id'] if item['_id'] else 'General',
+                'count': item['count']
+            }
+            for item in results
+        ]
+        
+        return jsonify(formatted)
+        
+    except Exception as e:
+        print(f"❌ Department stats error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics/hourly-checkins', methods=['GET'])
+def hourly_checkins():
+    """Get check-in distribution by hour (ONLY check-in, NOT check-out)"""
+    try:
+        date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        date_obj = datetime.strptime(date, '%Y-%m-%d')
+        start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # Hitung total check-in untuk logging
+        total_checkins = db.attendance.count_documents({
+            'timestamp': {'$gte': start_of_day, '$lte': end_of_day},
+            'type': 'check_in'
+        })
+        
+        print(f"📊 Hourly check-ins for {date}: {total_checkins} total check-ins")
+        
+        pipeline = [
+            {
+                '$match': {
+                    'timestamp': {'$gte': start_of_day, '$lte': end_of_day},
+                    'action': 'check-in'  # ✅ HANYA check-in (dengan dash)
+                }
+            },
+            {
+                '$project': {
+                    'hour': {'$hour': '$timestamp'}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$hour',
+                    'count': {'$sum': 1}
+                }
+            },
+            {
+                '$sort': {'_id': 1}
+            }
+        ]
+        
+        results = list(db.attendance.aggregate(pipeline))
+        
+        # Create 24-hour array
+        hourly_data = [{'hour': f'{i:02d}', 'checkIns': 0} for i in range(24)]
+        
+        for item in results:
+            hour_index = item['_id']
+            if 0 <= hour_index < 24:
+                hourly_data[hour_index]['checkIns'] = item['count']
+        
+        return jsonify(hourly_data)
+        
+    except Exception as e:
+        print(f"❌ Hourly check-ins error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analytics/summary', methods=['GET'])
+def analytics_summary():
+    """Get summary statistics untuk dashboard cards"""
+    try:
+        today = datetime.now()
+        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        # Total attendance today
+        total_today = len(db.attendance.distinct('employee_id', {
+            'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
+        }))
+        
+        # Late arrivals (setelah jam 9 pagi)
+        late_threshold = start_of_day.replace(hour=9, minute=0)
+        late_count = db.attendance.count_documents({
+            'timestamp': {'$gte': late_threshold, '$lte': end_of_day},
+            'type': 'check_in'
+        })
+        
+        # Total employees
+        total_employees = db.employees.count_documents({'is_active': True})
+        
+        # Compliance rate
+        compliance = round((total_today / total_employees * 100) if total_employees > 0 else 0, 1)
+        
+        return jsonify({
+            'total': total_today,
+            'critical': late_count,
+            'compliance': compliance
+        })
+        
+    except Exception as e:
+        print(f"❌ Summary error: {e}")
+        return jsonify({'error': str(e), 'total': 0, 'critical': 0, 'compliance': 0}), 500
 
 @app.route('/api/system/cleanup', methods=['POST'])
 def cleanup_system():

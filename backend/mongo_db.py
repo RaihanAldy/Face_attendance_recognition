@@ -43,11 +43,23 @@ class MongoDBManager:
             return {'success': False, 'error': str(e)}
     
     def get_all_employees(self):
-        employees = list(self.employees.find({'is_active': True}))
+        # Get employees yang is_active = True ATAU tidak punya field is_active (default active)
+        employees = list(self.employees.find({
+            '$or': [
+                {'is_active': True},
+                {'is_active': {'$exists': False}}  # Include employees tanpa field is_active
+            ]
+        }))
+        
         for emp in employees:
             emp['_id'] = str(emp['_id'])
-            emp['created_at'] = emp['created_at'].isoformat()
-            emp['last_updated'] = emp['last_updated'].isoformat()
+            if 'created_at' in emp and emp['created_at']:
+                emp['created_at'] = emp['created_at'].isoformat()
+            if 'last_updated' in emp and emp['last_updated']:
+                emp['last_updated'] = emp['last_updated'].isoformat()
+            # Set default is_active jika tidak ada
+            if 'is_active' not in emp:
+                emp['is_active'] = True
         return employees
 
     def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
