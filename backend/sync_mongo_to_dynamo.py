@@ -5,22 +5,24 @@ from pymongo import MongoClient
 import boto3
 from botocore.exceptions import ClientError
 from dateutil import parser
+from dotenv import load_dotenv
+load_dotenv()
 
 # ------------------------------------
 # CONFIG
 # ------------------------------------
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-DB_NAME = os.getenv('DB_NAME', 'attendance_system')
-ATT_COLLECTION = os.getenv('ATT_COLLECTION', 'attendance')
-CHECKPOINT_COLL = os.getenv('CHECKPOINT_COLL', 'sync_checkpoints')
-DYNAMO_TABLE = os.getenv('DYNAMO_TABLE', 'attendance_metadata')
-AWS_REGION = os.getenv('AWS_REGION', 'ap-southeast-2')
+MONGODB_URI = os.getenv('MONGODB_URI')
+DB_NAME = os.getenv('DATABASE_NAME')
+ATT_COLLECTION = os.getenv('ATT_COLLECTION')
+CHECKPOINT_COLL = os.getenv('CHECKPOINT_COLL')
+DYNAMO_TABLE = os.getenv('DYNAMO_TABLE')
+AWS_REGION = os.getenv('AWS_REGION')
 
 session = boto3.Session()
 dynamodb = session.resource('dynamodb', region_name=AWS_REGION)
 table = dynamodb.Table(DYNAMO_TABLE)
 
-mc = MongoClient(MONGO_URI)
+mc = MongoClient(MONGODB_URI)
 db = mc[DB_NAME]
 att = db[ATT_COLLECTION]
 checkpoints = db[CHECKPOINT_COLL]
@@ -54,21 +56,22 @@ def set_last_checkpoint(ts_iso):
 
 
 def transform(doc):
-    ts = doc.get('timestamp')
-    ts_iso = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+    checkin = doc.get('checkin') or {}
+    checkout = doc.get('checkout') or {}
+
+    # pilih timestamp paling relevan untuk sort key
+    ts = checkout.get('timestamp') or checkin.get('timestamp') or datetime.now(timezone.utc).isoformat()
 
     return {
-        'PK': doc['employee_id'],
-        'SK': ts_iso,
-        'employees': doc.get('employees', ''),
-        'department': doc.get('department', ''),
+        'employee_id': doc.get('employee_id', ''),
+        'timestamp': ts,
+        'employee_name': doc.get('employee_name', ''),
         'date': doc.get('date', ''),
-        'day_of_week': doc.get('day_of_week', ''),
-        'action': doc.get('action', ''),
-        'status': doc.get('status', ''),
-        'lateness_minutes': int(doc.get('lateness_minutes', 0)),
-        'work_duration': int(doc.get('work_duration', 0)),
-        'confidence': float(doc.get('confidence', 0.0)),
+        'checkin_status': checkin.get('status', ''),
+        'checkin_time': checkin.get('timestamp', ''),
+        'checkout_status': checkout.get('status', ''),
+        'checkout_time': checkout.get('timestamp', ''),
+        'work_duration_minutes': int(doc.get('work_duration_minutes', 0) or 0),
         'source_id': str(doc.get('_id')),
         'synced_at': iso_now()
     }
@@ -86,7 +89,7 @@ def chunked(iterable, size=25):
 
 
 def batch_write(items):
-    with table.batch_writer(overwrite_by_pkeys=['PK', 'SK']) as batch:
+    with table.batch_writer(overwrite_by_pkeys=['employee_id', 'timestamp']) as batch:
         for it in items:
             batch.put_item(Item=it)
 
@@ -101,7 +104,7 @@ def main():
     # incremental sync
     if last_sync:
         last_dt = parser.isoparse(last_sync)
-        query['updated_at'] = {'$gt': last_dt}
+        query['updatedAt'] = {'$gt': last_dt}
     else:
         # first sync → last 24 hours
         since = datetime.utcnow() - timedelta(days=1)

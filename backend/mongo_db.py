@@ -10,7 +10,7 @@ load_dotenv()
 
 class MongoDBManager:
     def __init__(self):
-        self.client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://localhost:27017'))
+        self.client = MongoClient(os.getenv('MONGODB_URI', 'mongodb+srv://db_user:RwSakAlJOcc7ZNC9@facerecognition.e2qalds.mongodb.net/'))
         self.db = self.client[os.getenv('DATABASE_NAME', 'attendance_system')]
         self.employees = self.db.employees
         self.attendance = self.db.attendance
