@@ -10,12 +10,12 @@ import {
 
 export default function BarChartTrend({ data }) {
   return (
-    <div className="bg-slate-900 p-4 rounded-2xl shadow-md">
-      <h2 className="text-lg font-semibold mb-3 text-gray-200">
+    <div className="bg-slate-900 p-6 rounded-2xl shadow-md">
+      <h2 className="text-lg font-semibold mb-4 text-gray-200">
         Top Departments by Attendance
       </h2>
-      <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={data}>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis dataKey="type" stroke="#9ca3af" />
           <YAxis stroke="#9ca3af" />
