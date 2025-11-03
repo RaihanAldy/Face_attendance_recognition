@@ -5,8 +5,8 @@ from face_engine import face_engine
 """ from sync_mongo_to_dynamo import sync_mongo_to_dynamo as sync_manager """
 from datetime import datetime
 import traceback
-import json
-import os
+from sync_mongo_to_dynamo import main as sync_mongo_to_dynamo 
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 
@@ -17,13 +17,30 @@ CORS(app,
      allow_headers=["Content-Type", "Authorization", "Accept"],
      supports_credentials=True)
 
-# Start background tasks
-""" sync_manager.start()
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_DEFAULT_REGION = os.getenv('AWS_DEFAULT_REGION') """
 
-# ==================== HEALTH CHECK & ROUTES ====================
+# ================= Scheduler Setup =================
+scheduler = BackgroundScheduler()
+
+def scheduled_sync():
+    print(f"⏰ Running scheduled sync at {datetime.now().isoformat()}")
+    try:
+        sync_mongo_to_dynamo.main()
+    except Exception as e:
+        print(f"❌ Error during scheduled sync: {e}")
+
+# jalankan setiap hari jam 02:00 pagi (ubah sesuai kebutuhan)
+scheduler.add_job(scheduled_sync, 'cron', hour=2, minute=0)
+scheduler.start()
+
+@app.route('/api/sync', methods=['POST'])
+def manual_sync():
+    try:
+        sync_mongo_to_dynamo()  # fungsi sync Anda
+        return jsonify({"message": "Sync berhasil dijalankan!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ==================== HEALTH & ROUTES ====================
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -33,7 +50,7 @@ def health_check():
         'database': 'connected',
         'face_model': 'loaded' if face_engine.model else 'error'
     })
-    
+ 
 @app.route('/api/routes', methods=['GET'])
 def list_routes():
     """List all available API routes"""
@@ -736,4 +753,17 @@ if __name__ == '__main__':
     print("📊 MongoDB: Connected")
     print("✅ All endpoints ready:")
     print("🎯 CORS enabled for: http://localhost:5173")
+    print("")
+    print("Attendance Structure:")
+    print("  - 1 document per employee per day")
+    print("  - Nested checkin/checkout objects")
+    print("  - Auto-calculated work duration")
+    print("=" * 60)
+    with app.app_context():
+        print("🚀 Flask starting, checking for unsynced data...")
+        try:
+            sync_mongo_to_dynamo()
+        except Exception as e:
+            print(f"❌ Error during startup sync: {e}")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)

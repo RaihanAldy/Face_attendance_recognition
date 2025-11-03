@@ -5,11 +5,9 @@ const Navbar = ({ onLogout, userRole: propUserRole }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showDropdown, setShowDropdown] = useState(false);
-  const [user, setUser] = useState({
-    name: "John Doe",
-    email: "john.doe@company.com",
-    role: propUserRole || "employee"
-  });
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -21,6 +19,28 @@ const Navbar = ({ onLogout, userRole: propUserRole }) => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
+
+    // Get user data from localStorage
+    const storedUser = localStorage.getItem("userData");
+    const userName = localStorage.getItem("userName") || "User";
+    const userEmail = localStorage.getItem("userEmail") || "user@example.com";
+    setNotifications([
+      { message: "Sistem berhasil disinkronkan", time: "Baru saja" },
+      { message: "Koneksi jaringan stabil", time: "1 menit lalu" },
+    ]);
+
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      // Create default user data if not exists
+      const defaultUser = {
+        name: userName,
+        email: userEmail,
+        role: userRole || "employee",
+      };
+      setUser(defaultUser);
+      localStorage.setItem("userData", JSON.stringify(defaultUser));
+    }
 
     return () => {
       window.removeEventListener("online", handleOnline);
@@ -66,16 +86,49 @@ const Navbar = ({ onLogout, userRole: propUserRole }) => {
             {/* Logo & Brand */}
             <div className="flex items-center space-x-2">
               <ScanFace className="h-8 w-8 text-blue-500" />
-              <span className="text-white text-xl font-bold">Attendance System</span>
+              <span className="text-white text-xl font-bold">
+                Attendance System
+              </span>
             </div>
 
             {/* Right Side - Status & User */}
             <div className="flex items-center space-x-4">
               {/* Notifications */}
-              <button className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                >
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                </button>
+
+                {/* Notifications Dropdown */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-lg shadow-lg py-2 z-50">
+                    <div className="px-4 py-2 border-b border-slate-700">
+                      <h3 className="text-sm font-semibold text-slate-200">
+                        Notifications
+                      </h3>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.map((notification, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0"
+                        >
+                          <p className="text-sm text-slate-200">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {notification.time}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Connection Status */}
               <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800">

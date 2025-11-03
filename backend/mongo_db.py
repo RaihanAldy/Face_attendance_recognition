@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from datetime import datetime, timedelta, time
+from datetime import datetime, time, timedelta
 import os
 from dotenv import load_dotenv
 import json
@@ -10,8 +10,8 @@ load_dotenv()
 
 class MongoDBManager:
     def __init__(self):
-        self.client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://localhost:27017'))
-        self.db = self.client[os.getenv('DATABASE_NAME', 'attendance_system')]
+        self.client = MongoClient(os.getenv('MONGODB_URI'))
+        self.db = self.client[os.getenv('DATABASE_NAME')]
         
         self.employees = self.db.employees
         self.attendance = self.db.attendance
@@ -398,144 +398,101 @@ class MongoDBManager:
     def record_attendance_auto(self, employee_id, confidence=0.0):
         """Auto-detect check-in/check-out dengan struktur JSON target"""
         try:
-            employee = self.employees.find_one({'employee_id': employee_id})
-            if not employee:
-                return {
-                    'success': False, 
-                    'error': f'Employee {employee_id} not found'
-                }
-
-            timestamp = datetime.now()
-            date_str = timestamp.strftime('%Y-%m-%d')
+            # Cari record terakhir untuk employee ini
+            last_record = self.attendance.find_one(
+                {'employee_id': employee_id},
+                sort=[('timestamp', -1)]
+            )
             
-            # Cari record untuk hari ini
-            existing_record = self.attendance.find_one({
-                'employee_id': employee_id,
-                'date': date_str
-            })
-
-            action = 'check_in'  # Default action
+            print(f"🔍 DEBUG get_last_attendance_status for {employee_id}:")
+            print(f"   Last record: {last_record}")
             
-            if existing_record:
-                # Jika sudah ada check-in tapi belum check-out, maka check-out
-                if existing_record.get('checkin') and not existing_record.get('checkout'):
-                    action = 'check_out'
-                # Jika sudah ada check-out, maka check-in baru (untuk hari yang sama - mungkin overtime)
-                else:
-                    action = 'check_in'
-            else:
-                # Tidak ada record untuk hari ini, check-in
-                action = 'check_in'
+            if not last_record:
+                return None  # Tidak ada record sebelumnya
+                
+            return {
+                'last_action': last_record.get('action'),  # ✅ PASTIKAN FIELD NAME BENAR
+                'last_timestamp': last_record.get('timestamp'),
+                'last_date': last_record.get('date')
+            }
+            
+        except Exception as e:
+            print(f"❌ Error getting last attendance status: {e}")
+            return None
 
-            if action == 'check_in':
-                if existing_record:
-                    # Sudah ada record untuk hari ini, buat check-in baru (overtime scenario)
-                    attendance_record = {
-                        'date': date_str,
-                        'employee_id': employee_id,
-                        'employee_name': employee.get('name', 'Unknown'),
-                        'checkin': {
-                            'status': self.calculate_attendance_status(timestamp, 'check_in'),
-                            'timestamp': timestamp
-                        },
-                        'createdAt': timestamp,
-                        'updatedAt': timestamp,
-                        'work_duration_minutes': 0
-                    }
-                    
-                    result = self.attendance.insert_one(attendance_record)
-                    attendance_id = str(result.inserted_id)
-                else:
-                    # Record baru
-                    attendance_record = {
-                        'date': date_str,
-                        'employee_id': employee_id,
-                        'employee_name': employee.get('name', 'Unknown'),
-                        'checkin': {
-                            'status': self.calculate_attendance_status(timestamp, 'check_in'),
-                            'timestamp': timestamp
-                        },
-                        'createdAt': timestamp,
-                        'updatedAt': timestamp,
-                        'work_duration_minutes': 0
-                    }
-                    
-                    result = self.attendance.insert_one(attendance_record)
-                    attendance_id = str(result.inserted_id)
-                    
-            else:  # check_out
-                checkin_time = existing_record.get('checkin', {}).get('timestamp')
-                work_duration = 0
+    def determine_attendance_action(self, employee_id):
+        """Tentukan action otomatis (check-in atau check-out) - DEBUG VERSION"""
+        try:
+            last_status = self.get_last_attendance_status(employee_id)
+            
+            print(f"🔍 DEBUG determine_attendance_action for {employee_id}:")
+            print(f"   Last status: {last_status}")
+            
+            if not last_status:
+                print("   ➡️ No previous record -> CHECK_IN")
+                return 'check_in'
                 
-                if checkin_time:
-                    work_duration = (timestamp - checkin_time).total_seconds() / 60
+            last_action = last_status.get('last_action')
+            last_date = last_status.get('last_date')
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            
+            print(f"   Last action: '{last_action}'")
+            print(f"   Last date: '{last_date}'")
+            print(f"   Current date: '{current_date}'")
+            
+            # Jika hari berbeda, selalu check-in
+            if last_date != current_date:
+                print("   ➡️ Different day -> CHECK_IN")
+                return 'check_in'
                 
-                update_data = {
-                    'checkout': {
-                        'status': self.calculate_attendance_status(timestamp, 'check_out'),
-                        'timestamp': timestamp
-                    },
-                    'updatedAt': timestamp,
-                    'work_duration_minutes': int(work_duration)
-                }
-                
-                result = self.attendance.update_one(
-                    {'_id': existing_record['_id']},
-                    {'$set': update_data}
-                )
-                
-                attendance_id = str(existing_record['_id'])
-
-            if attendance_id:
-                return {
-                    'success': True,
-                    'action': action,
-                    'status': self.calculate_attendance_status(timestamp, action),
-                    'timestamp': timestamp.isoformat(),
-                    'employee': {
-                        'employee_id': employee_id,
-                        'name': employee.get('name'),
-                        'department': employee.get('department')
-                    },
-                    'attendance_id': attendance_id
-                }
+            # Jika hari sama, toggle berdasarkan action terakhir
+            if last_action == 'check_in':  # ✅ PASTIKAN INI 'check_in' BUKAN 'check-in'
+                print("   ➡️ Last was check_in -> CHECK_OUT")
+                return 'check_out'
             else:
-                return {
-                    'success': False,
-                    'error': 'Failed to record attendance'
-                }
+                print("   ➡️ Last was check_out or other -> CHECK_IN")
+                return 'check_in'
                 
         except Exception as e:
-            print(f"❌ Error in auto attendance recording: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-
-    def get_pending_attendance(self):
-        """Get semua pending attendance yang menunggu approval"""
+            print(f"❌ Error determining attendance action: {e}")
+            return 'check_in' # Fallback ke check-in
+        
+    # ==================== ATTENDANCE QUERIES ====================
+    
+    def get_attendance_with_checkout(self, date_str=None):
+        """Get attendance records for a given date (using new structure)"""
         try:
-            pending_records = list(self.pending_attendance.find().sort('created_at', -1))
-            
-            formatted_results = []
-            for record in pending_records:
-                formatted_record = {
-                    '_id': str(record.get('_id')),
-                    'employee_name': record.get('employee_name'),
-                    'timestamp': record.get('timestamp').isoformat() if record.get('timestamp') else None,
-                    'date': record.get('date'),
-                    'type': record.get('type', 'manual'),
-                    'status': record.get('status', 'pending'),
-                    'created_at': record.get('created_at').isoformat() if record.get('created_at') else None,
-                    'submitted_at': record.get('submitted_at').isoformat() if record.get('submitted_at') else None
-                }
-                formatted_results.append(formatted_record)
-            
-            return formatted_results
-            
+            if not date_str:
+                date_str = datetime.now().strftime('%Y-%m-%d')
+
+            query = {'date': date_str} if date_str != 'all' else {}
+            records = list(self.attendance.find(query).sort('employee_id', 1))
+
+            formatted = []
+            for rec in records:
+                checkin = rec.get('checkin', {})
+                checkout = rec.get('checkout', {})
+                formatted.append({
+                    '_id': str(rec.get('_id')),
+                    'employee_id': rec.get('employee_id'),
+                    'employee_name': rec.get('employee_name', 'Unknown'),
+                    'department': rec.get('department', 'General'),
+                    'checkIn': checkin.get('timestamp'),
+                    'checkInStatus': checkin.get('status'),
+                    'checkOut': checkout.get('timestamp'),
+                    'checkOutStatus': checkout.get('status'),
+                    'workDuration': f"{rec.get('work_duration_minutes', 0)//60}h {rec.get('work_duration_minutes', 0)%60}m",
+                    'status': 'Present' if checkin else 'Absent',
+                    'createdAt': rec.get('createdAt'),
+                    'updatedAt': rec.get('updatedAt'),
+                })
+
+            print(f"✅ Found {len(formatted)} attendance records for {date_str}")
+            return formatted
         except Exception as e:
             print(f"❌ Error getting pending attendance: {e}")
             return []
+
 
     def approve_pending_attendance(self, pending_id):
         """Approve pending attendance dan pindahkan ke attendance collection"""
@@ -651,15 +608,65 @@ class MongoDBManager:
             return []
 
     def get_attendance_with_checkout(self, date_str=None):
-        """Get attendance data dengan pairing check-in/check-out"""
+        """
+        Get attendance data dengan pairing check-in/check-out untuk view gabungan
+        """
         try:
-            if not date_str:
-                date_str = datetime.now().strftime('%Y-%m-%d')
-            
+            if date_str and date_str != 'all':
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
+                match_filter = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
+            else:
+                match_filter = {}
+
             pipeline = [
                 {
-                    '$match': {
-                        'date': date_str
+                    '$match': match_filter
+                },
+                {
+                    '$sort': {'timestamp': 1}
+                },
+                {
+                    '$group': {
+                        '_id': '$employee_id',
+                        'employee_id': {'$first': '$employee_id'},
+                        'check_in': {
+                            '$min': {
+                                '$cond': [
+                                    {'$eq': ['$action', 'check_in']},
+                                    '$timestamp',
+                                    None
+                                ]
+                            }
+                        },
+                        'check_out': {
+                            '$max': {
+                                '$cond': [
+                                    {'$eq': ['$action', 'check_out']},
+                                    '$timestamp',
+                                    None
+                                ]
+                            }
+                        },
+                        'check_in_status': {
+                            '$first': {
+                                '$cond': [
+                                    {'$eq': ['$action', 'check_in']},
+                                    '$status',
+                                    None
+                                ]
+                            }
+                        },
+                        'check_out_status': {
+                            '$first': {
+                                '$cond': [
+                                    {'$eq': ['$action', 'check_out']},
+                                    '$status',
+                                    None
+                                ]
+                            }
+                        }
                     }
                 },
                 {
@@ -671,52 +678,61 @@ class MongoDBManager:
                     }
                 },
                 {
-                    '$unwind': {
-                        'path': '$employee_info',
-                        'preserveNullAndEmptyArrays': True
-                    }
+                    '$unwind': '$employee_info'
                 },
                 {
                     '$project': {
                         '_id': 1,
                         'employeeId': '$employee_id',
-                        'name': '$employee_name',
+                        'name': '$employee_info.name',
+                        'employees': '$employee_info.name',
+                        'checkIn': '$check_in',
+                        'checkOut': '$check_out',
+                        'checkInStatus': '$check_in_status',
+                        'checkOutStatus': '$check_out_status',
                         'department': '$employee_info.department',
-                        'date': 1,
-                        'checkIn': '$checkin.timestamp',
-                        'checkInStatus': '$checkin.status',
-                        'checkOut': '$checkout.timestamp',
-                        'checkOutStatus': '$checkout.status',
-                        'work_duration_minutes': 1,
-                        'createdAt': 1,
-                        'updatedAt': 1
+                        'workingHours': {
+                            '$cond': [
+                                {'$and': ['$check_in', '$check_out']},
+                                {
+                                    '$divide': [
+                                        {'$subtract': ['$check_out', '$check_in']},
+                                        3600000  # Convert to hours
+                                    ]
+                                },
+                                0
+                            ]
+                        }
                     }
                 }
             ]
             
             results = list(self.attendance.aggregate(pipeline))
             
+            # Format untuk frontend
             formatted_results = []
             for item in results:
                 formatted_item = {
-                    '_id': str(item.get('_id')),
-                    'employeeId': item.get('employeeId'),
-                    'name': item.get('name'),
-                    'department': item.get('department', 'General'),
-                    'date': item.get('date'),
+                    '_id': str(item.get('_id', '')),
+                    'employeeId': item.get('employeeId', 'N/A'),
+                    'name': item.get('name', 'Unknown'),
+                    'employees': item.get('employees', 'Unknown'),
                     'checkIn': item.get('checkIn').isoformat() if item.get('checkIn') else None,
-                    'checkInStatus': item.get('checkInStatus'),
                     'checkOut': item.get('checkOut').isoformat() if item.get('checkOut') else None,
+                    'checkInStatus': item.get('checkInStatus'),
                     'checkOutStatus': item.get('checkOutStatus'),
-                    'work_duration_minutes': item.get('work_duration_minutes', 0),
-                    'status': 'Present' if item.get('checkIn') else 'Absent'
+                    'department': item.get('department', 'General'),
+                    'workingHours': f"{int(item.get('workingHours', 0))}h {int((item.get('workingHours', 0) % 1) * 60)}m"
                 }
+                
                 formatted_results.append(formatted_item)
             
+            print(f"✅ Found {len(formatted_results)} paired attendance records for {date_str or 'today'}")
             return formatted_results
-            
+
         except Exception as e:
             print(f"❌ Error getting attendance with checkout: {e}")
+            traceback.print_exc()
             return []
 
     def get_all_attendance(self):
@@ -866,10 +882,37 @@ class MongoDBManager:
                 'attendance_rate': 0,
                 'total_employees': 0,
                 'present_today': 0,
-                'late_count': 0,
-                'early_count': 0,
-                'on_time_count': 0
+                'avg_confidence': 0,
+                'peak_hour': 'N/A'
             }
+    
+    def get_recent_recognitions(self, limit=10):
+        """Get recent check-in/out events using new structure"""
+        try:
+            records = list(
+                self.attendance.find().sort('updatedAt', -1).limit(limit)
+            )
+
+            recent = []
+            for rec in records:
+                checkin = rec.get('checkin', {})
+                checkout = rec.get('checkout', {})
+                recent.append({
+                    '_id': str(rec.get('_id')),
+                    'employee_id': rec.get('employee_id'),
+                    'employee_name': rec.get('employee_name', 'Unknown'),
+                    'department': rec.get('department', 'General'),
+                    'last_action': 'check_out' if checkout else 'check_in',
+                    'last_status': checkout.get('status') if checkout else checkin.get('status'),
+                    'timestamp': checkout.get('timestamp') or checkin.get('timestamp'),
+                    'work_duration_minutes': rec.get('work_duration_minutes', 0)
+                })
+
+            return recent
+        except Exception as e:
+            print(f"❌ Error getting recent recognitions: {e}")
+            traceback.print_exc()
+            return []
 
 # Global instance
 db = MongoDBManager()
