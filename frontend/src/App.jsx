@@ -13,16 +13,8 @@ import FaceRegistration from "./page/FaceRegistration";
 import Analytics from "./page/Analytics";
 import AttendanceLog from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
+import Settings from "./page/Settings";
 
-// Komponen Settings sementara
-const Settings = () => {
-  return (
-    <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold mb-4">Settings</h1>
-      <p className="text-slate-400">Settings page coming soon...</p>
-    </div>
-  );
-};
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
