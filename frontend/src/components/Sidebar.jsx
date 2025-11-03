@@ -25,7 +25,6 @@ export default function Sidebar() {
       path: "/attendance",
     },
     { id: "employees", label: "Employees", icon: Users, path: "/employees" },
-    { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
     { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
   ];
 
