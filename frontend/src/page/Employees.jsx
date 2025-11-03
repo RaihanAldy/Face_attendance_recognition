@@ -1,18 +1,75 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { UserPlus, Search, Trash2, Loader2 } from "lucide-react";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Employees = () => {
   const [employeesData, setEmployeesData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   // Fetch employees dari API
   const fetchEmployees = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      const res = await axios.get("http://localhost:5000/api/employees");
-      setEmployeesData(res.data);
-    } catch (error) {
-      console.error("❌ Error fetching employees:", error);
+      const response = await fetch(`${API_BASE_URL}/api/employees`);
+      if (!response.ok) throw new Error("Failed to fetch employees");
+
+      const data = await response.json();
+      setEmployees(data);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching employees:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewEmployee((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/employees`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newEmployee),
+      });
+
+      if (!response.ok) throw new Error("Failed to add employee");
+
+      const result = await response.json();
+      await fetchEmployees();
+
+      setShowAddModal(false);
+      setNewEmployee({
+        name: "",
+        department: "",
+        position: "",
+        email: "",
+        phone: "",
+      });
+
+      alert(`✅ Employee added successfully! ID: ${result.employee_id}`);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error adding employee:", err);
+      alert(`❌ Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -24,6 +81,19 @@ const Employees = () => {
 
   if (loading)
     return <div className="text-sky-200 p-6">Loading employees...</div>;
+
+  // Pagination logic
+  const totalPages = Math.ceil(employeesData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentData = employeesData.slice(
+    startIndex,
+    startIndex + itemsPerPage
+  );
+
+  const goToPage = (pageNumber) => {
+    if (pageNumber < 1 || pageNumber > totalPages) return;
+    setCurrentPage(pageNumber);
+  };
 
   return (
     <div className="p-6 bg-gray-950 rounded-lg shadow-md">
@@ -53,7 +123,7 @@ const Employees = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800">
-            {employeesData.map((employee) => (
+            {currentData.map((employee) => (
               <tr
                 key={employee.employee_id}
                 className="hover:bg-gray-800 transition-colors"
@@ -80,6 +150,41 @@ const Employees = () => {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Pagination controls */}
+      <div className="flex justify-between items-center mt-6 text-gray-300">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-4 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+        >
+          Previous
+        </button>
+
+        <div className="flex items-center gap-2">
+          {[...Array(totalPages)].map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToPage(index + 1)}
+              className={`px-3 py-1 rounded-lg ${
+                currentPage === index + 1
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 hover:bg-gray-700"
+              }`}
+            >
+              {index + 1}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-4 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+        >
+          Next
+        </button>
       </div>
     </div>
   );

@@ -1,17 +1,47 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response  # ✅ TAMBAH make_response
 from flask_cors import CORS
 from mongo_db import db
 from face_engine import face_engine
-from sync_manager import sync_manager
+""" from sync_mongo_to_dynamo import sync_mongo_to_dynamo as sync_manager """
 from datetime import datetime
 from datetime import timedelta
 import traceback
+from sync_mongo_to_dynamo import main as sync_mongo_to_dynamo 
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173"])
 
-# Start background tasks
-sync_manager.start()
+# ✅ PERBAIKI KONFIGURASI CORS
+CORS(app, 
+     origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization", "Accept"],
+     supports_credentials=True)
+
+
+# ================= Scheduler Setup =================
+scheduler = BackgroundScheduler()
+
+def scheduled_sync():
+    print(f"⏰ Running scheduled sync at {datetime.now().isoformat()}")
+    try:
+        sync_mongo_to_dynamo.main()
+    except Exception as e:
+        print(f"❌ Error during scheduled sync: {e}")
+
+# jalankan setiap hari jam 02:00 pagi (ubah sesuai kebutuhan)
+scheduler.add_job(scheduled_sync, 'cron', hour=2, minute=0)
+scheduler.start()
+
+@app.route('/api/sync', methods=['POST'])
+def manual_sync():
+    try:
+        sync_mongo_to_dynamo()  # fungsi sync Anda
+        return jsonify({"message": "Sync berhasil dijalankan!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ==================== HEALTH & ROUTES ====================
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -21,6 +51,22 @@ def health_check():
         'database': 'connected',
         'face_model': 'loaded' if face_engine.model else 'error'
     })
+ 
+@app.route('/api/routes', methods=['GET'])
+def list_routes():
+    """List all available API routes"""
+    routes = []
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint != 'static':
+            routes.append({
+                'endpoint': rule.endpoint,
+                'methods': list(rule.methods),
+                'path': str(rule)
+            })
+    return jsonify({
+        'total_routes': len(routes),
+        'routes': sorted(routes, key=lambda x: x['path'])
+    }), 200
 
 # ==================== SETTINGS ENDPOINTS ====================
 
@@ -84,40 +130,18 @@ def get_schedule():
 def get_employees():
     """Get all employees"""
     try:
-        employees = db.get_all_employees()
+        employees = db.get_all_employees()  # ✅ PERBAIKI: employee_name -> employees
         return jsonify(employees)
     except Exception as e:
         print(f"❌ Get employees error: {e}")
         return jsonify({'error': str(e)}), 500
 
-# ==================== ATTENDANCE ENDPOINTS ====================
-
 @app.route('/api/attendance', methods=['GET', 'POST'])
 def attendance():
-    """
-    GET: Get attendance records by date
-    POST: Record new attendance
-    """
     if request.method == 'GET':
-        try:
-            date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-            format_type = request.args.get('format', 'raw')
-            
-            print(f"📅 GET /api/attendance - date: {date}, format: {format_type}")
-            
-            if format_type == 'paired':
-                attendance_data = db.get_attendance_with_checkout(date)
-                print(f"✅ Returning {len(attendance_data)} paired records")
-            else:
-                attendance_data = db.get_attendance_by_date(date)
-                print(f"✅ Returning {len(attendance_data)} raw records")
-            
-            return jsonify(attendance_data)
-            
-        except Exception as e:
-            print(f"❌ Error getting attendance: {e}")
-            traceback.print_exc()
-            return jsonify({'error': str(e)}), 500
+        date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        attendance_data = db.get_attendance_by_date(date)
+        return jsonify(attendance_data)
     
     elif request.method == 'POST':
         try:
@@ -138,39 +162,133 @@ def attendance():
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
-@app.route('/api/attendance/checkin', methods=['POST'])
-def check_in():
-    """Record check-in with punctuality status"""
+@app.route('/api/attendance/manual', methods=['POST', 'OPTIONS'])
+def manual_attendance():
+    # ✅ Handle preflight (OPTIONS)
+    if request.method == 'OPTIONS':
+        response = make_response("", 200)
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
+
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
+        employees = data.get('employees')
+        photo_base64 = data.get('photo')
+        timestamp_str = data.get('timestamp', datetime.now().isoformat())
+
+        if not employees:
+            return jsonify({"success": False, "error": "Employee name is required"}), 400
+
+        if not photo_base64:
+            return jsonify({"success": False, "error": "Photo is required"}), 400
+
+        print(f"📝 Manual attendance for: {employees}")
+
+        # ✅ Handle timestamp parsing dengan benar
+        try:
+            if timestamp_str.endswith('Z'):
+                timestamp_str = timestamp_str[:-1] + '+00:00'
+            timestamp = datetime.fromisoformat(timestamp_str)
+        except Exception as time_error:
+            print(f"⚠️ Error parsing timestamp, using current time: {time_error}")
+            timestamp = datetime.now()
+
+        # ✅ SIMPAN KE pending_attendance BUKAN attendance
+        pending_record = {
+            "employee_name": employees,  # Gunakan field yang konsisten
+            "photo": photo_base64,
+            "timestamp": timestamp,
+            "type": "manual",
+            "status": "pending",  # Status pending untuk menunggu approval
+            "created_at": datetime.now(),
+            "date": timestamp.strftime('%Y-%m-%d'),
+            "submitted_at": datetime.now()
+        }
+
+        # ✅ SIMPAN KE COLLECTION pending_attendance
+        result = db.pending_attendance.insert_one(pending_record)
+
+        response = jsonify({
+            "success": True,
+            "message": "Manual attendance submitted successfully and waiting for approval",
+            "pending_id": str(result.inserted_id),
+            "employee_name": employees,
+            "timestamp": timestamp.isoformat(),
+            "status": "pending"
+        })
+
+        # ✅ Tambah header CORS pada response utama
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        return response, 200
+
+    except Exception as e:
+        print(f"❌ Manual attendance error: {e}")
+        traceback.print_exc()
+        response = jsonify({"success": False, "error": str(e)})
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        return response, 500
+  
+@app.route('/api/attendance/auto', methods=['POST'])
+def record_attendance_auto():
+    """Record attendance dengan auto-detect check-in/check-out - FIXED"""
     try:
         data = request.json
+        print(f"🤖 AUTO ATTENDANCE - Data: {data}")
+        
         employee_id = data.get('employeeId')
-        confidence = data.get('confidence', 0.95)
+        confidence = data.get('confidence', 0.0)
         
         if not employee_id:
-            return jsonify({'success': False, 'error': 'Missing employeeId'}), 400
+            return jsonify({'success': False, 'error': 'Employee ID is required'}), 400
         
-        print(f"📥 Check-in request for: {employee_id}, confidence: {confidence}")
+        # Langsung panggil record_attendance_auto dari MongoDBManager
+        result = db.record_attendance_auto(employee_id, confidence)
         
-        # ✅ record_attendance now returns dict with 'id' and 'punctuality'
-        result = db.record_attendance(
+        if result and result.get('success'):
+            return jsonify({
+                'success': True, 
+                'action': result.get('action'),
+                'status': result.get('status'),
+                'punctuality': result.get('punctuality'),
+                'timestamp': result.get('timestamp'),
+                'employee': result.get('employee'),  # ✅ TAMBAH INI
+                'message': f"Successfully recorded {result.get('action')}"
+            })
+        else:
+            error_msg = result.get('error') if result else 'Failed to record attendance'
+            return jsonify({'success': False, 'error': error_msg}), 500
+                
+    except Exception as e:
+        print(f"❌ Error recording auto attendance: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/attendance/checkin', methods=['POST'])
+def check_in():
+    try:
+        data = request.json
+        employee_id = data.get('employeeId', 'EMP-001')
+        confidence = data.get('confidence', 0.95)
+        
+        attendance_id = db.record_attendance(
             employee_id=employee_id,
             confidence=confidence,
             attendance_type='check_in'
         )
         
-        if result:
-            punctuality = result.get('punctuality', 'on-time')
-            print(f"✅ Check-in recorded: {employee_id} - Punctuality: {punctuality}")
-            
-            return jsonify({
-                'success': True,
-                'attendanceId': result['id'],
-                'punctuality': punctuality  # ✅ Send punctuality to frontend
-            })
+        if attendance_id:
+            print(f"✅ Check-in recorded in MongoDB: {employee_id}")
+            return jsonify({'success': True, 'attendanceId': attendance_id})
         else:
-            print(f"❌ Failed to record check-in for: {employee_id}")
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
-            
+        
     except Exception as e:
         print(f"❌ Check-in error: {e}")
         traceback.print_exc()
@@ -178,84 +296,81 @@ def check_in():
 
 @app.route('/api/attendance/checkout', methods=['POST'])
 def check_out():
-    """Record check-out with punctuality status"""
     try:
         data = request.json
-        employee_id = data.get('employeeId')
+        employee_id = data.get('employeeId', 'EMP-001')
         confidence = data.get('confidence', 0.95)
         
-        if not employee_id:
-            return jsonify({'success': False, 'error': 'Missing employeeId'}), 400
-        
-        print(f"📤 Check-out request for: {employee_id}, confidence: {confidence}")
-        
-        # ✅ record_attendance now returns dict with 'id' and 'punctuality'
-        result = db.record_attendance(
+        attendance_id = db.record_attendance(
             employee_id=employee_id,
-            confidence=confidence,
+            confidence=confidence, 
             attendance_type='check_out'
         )
         
-        if result:
-            punctuality = result.get('punctuality', 'on-time')
-            print(f"✅ Check-out recorded: {employee_id} - Punctuality: {punctuality}")
-            
-            return jsonify({
-                'success': True,
-                'attendanceId': result['id'],
-                'punctuality': punctuality  # ✅ Send punctuality to frontend
-            })
+        if attendance_id:
+            print(f"✅ Check-out recorded in MongoDB: {employee_id}")
+            return jsonify({'success': True, 'attendanceId': attendance_id})
         else:
-            print(f"❌ Failed to record check-out for: {employee_id}")
             return jsonify({'success': False, 'error': 'Failed to record attendance'}), 500
-            
+        
     except Exception as e:
         print(f"❌ Check-out error: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/attendance/log', methods=['GET'])
+def get_attendance_log():
+    try:
+        date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        
+        # ✅ GUNAKAN MONGODB, BUKAN IN-MEMORY
+        attendance_data = db.get_attendance_with_checkout(date)
+        
+        return jsonify(attendance_data)
+        
+    except Exception as e:
+        print(f"❌ Attendance log error: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/api/attendance/employee/<employee_id>', methods=['GET'])
 def get_employee_attendance(employee_id):
     """Get attendance history untuk employee tertentu"""
     try:
         date = request.args.get('date', None)
-        print(f"📊 Getting attendance for employee: {employee_id}, date: {date}")
-        
         attendance_data = db.get_attendance_by_employee_id(employee_id, date)
+        
         return jsonify(attendance_data)
         
     except Exception as e:
         print(f"❌ Error getting employee attendance: {e}")
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/attendance/stats/daily', methods=['GET'])
 def get_daily_attendance_stats():
-    """Get daily attendance statistics - FIXED untuk collection baru"""
+    """Get daily attendance statistics"""
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-        print(f"📈 Getting daily stats for: {date}")
         
-        # Pipeline untuk collection attendance_logs yang baru
         pipeline = [
             {
                 '$match': {
-                    'date': date,
-                    'check_in_time': {'$exists': True}
+                    'timestamp': {
+                        '$gte': datetime.strptime(date, '%Y-%m-%d').replace(hour=0, minute=0, second=0),
+                        '$lte': datetime.strptime(date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+                    }
                 }
             },
             {
                 '$group': {
                     '_id': '$employee_id',
-                    'checkInTime': {'$first': '$check_in_time'},
-                    'confidence': {'$first': '$confidence'},
-                    'status': {'$first': '$check_in_status'},
-                    'lateness': {'$first': '$lateness_minutes'}
+                    'checkInTime': {'$first': '$timestamp'},
+                    'confidence': {'$first': '$confidence'}
                 }
             },
             {
                 '$lookup': {
-                    'from': 'employees',
+                    'from': 'employees',  # ✅ PERBAIKI: employee_name -> employees
                     'localField': '_id',
                     'foreignField': 'employee_id',
                     'as': 'employee'
@@ -270,81 +385,290 @@ def get_daily_attendance_stats():
                     'employeeName': '$employee.name',
                     'department': '$employee.department',
                     'checkIn': '$checkInTime',
-                    'confidence': 1,
-                    'status': 1,
-                    'latenessMinutes': '$lateness'
+                    'confidence': 1
                 }
             }
         ]
         
-        results = list(db.attendance.aggregate(pipeline))  # FIXED: attendance_logs bukan attendance
+        # Execute aggregation
+        results = list(db.attendance.aggregate(pipeline))
         
-        # Format results
+        # Convert untuk JSON
         for item in results:
             item['_id'] = str(item['_id'])
-            if 'checkIn' in item and item['checkIn']:
+            if 'checkIn' in item:
                 item['checkIn'] = item['checkIn'].isoformat()
-        
-        print(f"✅ Found {len(results)} attendance records for {date}")
+                
         return jsonify(results)
         
     except Exception as e:
         print(f"❌ Error getting daily stats: {e}")
-        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/attendance/pending', methods=['GET'])
+def get_pending_attendance():
+    """Get semua pending attendance"""
+    try:
+        pending_data = db.get_pending_attendance()
+        return jsonify(pending_data)
+    except Exception as e:
+        print(f"❌ Error getting pending attendance: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/attendance/pending/<pending_id>/approve', methods=['POST'])
+def approve_pending_attendance(pending_id):
+    """Approve pending attendance"""
+    try:
+        result = db.approve_pending_attendance(pending_id)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        print(f"❌ Error approving pending attendance: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/attendance/pending/<pending_id>/reject', methods=['POST'])
+def reject_pending_attendance(pending_id):
+    """Reject pending attendance"""
+    try:
+        data = request.json
+        reason = data.get('reason', 'No reason provided')
+        
+        result = db.reject_pending_attendance(pending_id, reason)
+        
+        if result.get('success'):
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        print(f"❌ Error rejecting pending attendance: {e}")
+        return jsonify({'error': str(e)}), 500
+    
 # ==================== FACE RECOGNITION ENDPOINTS ====================
+@app.route('/api/extract-face', methods=['POST'])
+def extract_face():
+    """
+    Extract face embedding dari image untuk real-time recognition
+    
+    Request body:
+    {
+        "image": "data:image/jpeg;base64,/9j/4AAQ..."
+    }
+    
+    Response:
+    {
+        "success": true,
+        "embedding": [512 dimensions],
+        "confidence": 0.98,
+        "face_detected": true,
+        "bbox": [x1, y1, x2, y2]
+    }
+    """
+    try:
+        data = request.json
+        image_data = data.get('image')
+        
+        if not image_data:
+            return jsonify({'success': False, 'error': 'No image provided'}), 400
+        
+        print("🔍 Extracting face embedding from image...")
+        
+        # Extract embedding menggunakan InsightFace engine
+        result = face_engine.extract_face_embedding(image_data)
+        
+        if result.get('success'):
+            print(f"✅ Face embedding extracted: {len(result['embedding'])} dimensions")
+            print(f"   Detection confidence: {result['confidence']:.3f}")
+            return jsonify(result)
+        else:
+            print(f"⚠️ Face extraction failed: {result.get('error')}")
+            return jsonify(result), 400
+            
+    except Exception as e:
+        print(f"❌ Error extracting face: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/recognize-face', methods=['POST'])
 def recognize_face_embedding():
-    """Recognize face from embedding"""
     try:
         data = request.json
-        face_embedding = data.get('faceEmbedding')
         
-        if not face_embedding:
-            return jsonify({'success': False, 'error': 'No face embedding provided'}), 400
+        # Check apakah ada image atau embedding
+        if 'image' in data:
+            # Extract embedding dari image dulu
+            print("📸 Image provided, extracting embedding...")
+            extract_result = face_engine.extract_face_embedding(data['image'])
+            
+            if not extract_result.get('success'):
+                return jsonify({
+                    'success': False,
+                    'error': extract_result.get('error', 'Failed to extract face'),
+                    'face_detected': extract_result.get('face_detected', False)
+                }), 400
+            
+            face_embedding = extract_result['embedding']
+            extraction_confidence = extract_result['confidence']
+            
+        elif 'faceEmbedding' in data:
+            # Direct embedding
+            face_embedding = data['faceEmbedding']
+            extraction_confidence = 0.95  # Default karena tidak ada detection
+            
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No image or faceEmbedding provided'
+            }), 400
         
         print(f"🔍 Face recognition request - embedding size: {len(face_embedding)}")
         
-        result = db.recognize_face(face_embedding)
+        # Lower threshold for testing
+        result = db.recognize_face(face_embedding, threshold=0.5)
         
         if result.get('success'):
             employee = result['employee']
-            print(f"✅ Face recognized: {employee['name']} ({employee['employee_id']}) - Similarity: {employee['similarity']:.3f}")
+            
+            # Combine confidence:
+            # - extraction_confidence: Detection quality (0-1)
+            # - similarity: Match quality (0-1)
+            # Final confidence = weighted average
+            final_confidence = (extraction_confidence * 0.3 + employee['similarity'] * 0.7)
+            employee['confidence'] = final_confidence
+            
+            print(f"✅ Face recognized: {employee['name']} ({employee['employee_id']})")
+            print(f"   Similarity: {employee['similarity']:.3f}")
+            print(f"   Detection confidence: {extraction_confidence:.3f}")
+            print(f"   Final confidence: {final_confidence:.3f}")
+            
+            return jsonify({
+                'success': True,
+                'employee': employee,
+                'message': 'Face recognized successfully'
+            })
         else:
-            print(f"⚠️ No match found - Best similarity: {result.get('similarity', 0):.3f}")
-        
-        return jsonify(result)
+            best_similarity = result.get('similarity', 0)
+            print(f"⚠️ No match found - Best similarity: {best_similarity:.3f} (threshold: 0.6)")
+            
+            return jsonify({
+                'success': False,
+                'message': 'No matching employee found',
+                'similarity': best_similarity,
+                'threshold': 0.6
+            }), 404
         
     except Exception as e:
         print(f"❌ Face recognition error: {e}")
-        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/register', methods=['POST'])
 def register_employee():
-    """Register new employee with face embedding"""
+    """
+    Register new employee dengan face recognition
+    
+    Request body:
+    {
+        "name": "John Doe",
+        "department": "IT",
+        "position": "Developer",
+        "email": "john@company.com",
+        "phone": "08123456789",
+        "images": [
+            "data:image/jpeg;base64,...",
+            "data:image/jpeg;base64,...",
+            "data:image/jpeg;base64,..."
+        ]
+    }
+    
+    OR single image:
+    {
+        "name": "John Doe",
+        ...
+        "image": "data:image/jpeg;base64,..."
+    }
+    
+    Response:
+    {
+        "success": true,
+        "employee_id": "EMP-001",
+        "message": "Employee registered successfully",
+        "embedding_count": 3,
+        "avg_confidence": 0.97
+    }
+    """
     try:
         data = request.json
+        print(f"📝 REGISTRATION - Data keys: {data.keys()}")
+        
         name = data.get('name')
         department = data.get('department', 'General')
         position = data.get('position', '')
         email = data.get('email', '')
         phone = data.get('phone', '')
-        face_embedding = data.get('faceEmbedding')
         
         if not name:
             return jsonify({'success': False, 'error': 'Name is required'}), 400
         
-        if not face_embedding or not isinstance(face_embedding, list):
-            return jsonify({'success': False, 'error': 'Invalid face embedding'}), 400
+        # Extract embeddings dari images
+        if 'images' in data and data['images']:
+            # Multiple images (RECOMMENDED untuk better accuracy)
+            print(f"📸 Processing {len(data['images'])} images...")
+            extract_result = face_engine.extract_multiple_embeddings(data['images'])
+            
+            if not extract_result.get('success'):
+                return jsonify({
+                    'success': False,
+                    'error': extract_result.get('error', 'Failed to extract faces from images')
+                }), 400
+            
+            face_embeddings = extract_result['embeddings']
+            avg_confidence = extract_result['avg_confidence']
+            
+        elif 'image' in data:
+            # Single image
+            print("📸 Processing single image...")
+            extract_result = face_engine.extract_face_embedding(data['image'])
+            
+            if not extract_result.get('success'):
+                return jsonify({
+                    'success': False,
+                    'error': extract_result.get('error', 'Failed to extract face from image')
+                }), 400
+            
+            face_embeddings = [extract_result['embedding']]
+            avg_confidence = extract_result['confidence']
+            
+        elif 'faceEmbeddings' in data or 'faceEmbedding' in data:
+            # Direct embeddings (backward compatibility - NOT RECOMMENDED)
+            print("⚠️ Using direct embeddings (not recommended)")
+            face_embeddings = data.get('faceEmbeddings') or [data.get('faceEmbedding')]
+            avg_confidence = 0.95
+            
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No images or embeddings provided. Please provide "images" or "image" field.'
+            }), 400
         
-        print(f"📝 Registration request - name: {name}, dept: {department}")
+        print(f"✅ Extracted {len(face_embeddings)} face embedding(s)")
+        print(f"   Average detection confidence: {avg_confidence:.3f}")
         
+        # Validate embeddings
+        for i, emb in enumerate(face_embeddings):
+            if not isinstance(emb, list) or len(emb) != 512:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid embedding {i+1}: expected 512 dimensions, got {len(emb)}'
+                }), 400
+        
+        # Register ke database
         result = db.register_employee_face(
             name=name,
-            face_embedding=face_embedding,
+            face_embeddings=face_embeddings,  # Support multiple embeddings
             department=department,
             position=position,
             email=email,
@@ -352,80 +676,95 @@ def register_employee():
         )
         
         if result.get('success'):
-            employee_id = result.get('employee_id')
-            print(f"✅ Employee registered: {employee_id} - {name}")
-            return jsonify(result), 201
+            print(f"✅ Employee registered: {result.get('employee_id')}")
+            return jsonify({
+                'success': True,
+                'employee_id': result.get('employee_id'),
+                'message': 'Employee registered successfully',
+                'embedding_count': len(face_embeddings),
+                'avg_confidence': avg_confidence
+            })
         else:
-            error_msg = result.get('error', 'Unknown error')
-            print(f"❌ Registration failed: {error_msg}")
-            return jsonify(result), 500
-        
+            return jsonify({
+                'success': False,
+                'error': result.get('error')
+            }), 500
+            
     except Exception as e:
         print(f"❌ Registration error: {e}")
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
+@app.route('/api/face-engine/info', methods=['GET'])
+def get_face_engine_info():
+    """Get information about the face recognition engine"""
+    try:
+        info = face_engine.get_model_info()
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
+@app.route('/api/verify-face', methods=['POST'])
+def verify_face():
+    """Verify two faces using face recognition engine"""
+    try:
+        data = request.json
+        
+        image1 = data.get('image1')
+        image2 = data.get('image2')
+        threshold = data.get('threshold', 0.6)
+        
+        if not image1 or not image2:
+            return jsonify({'error': 'Both image1 and image2 are required'}), 400
+        
+        result = face_engine.verify_face(image1, image2, threshold)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"❌ Face verification error: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/test-face-engine', methods=['GET'])
+def test_face_engine():
+    """Test if face engine is loaded"""
+    try:
+        info = face_engine.get_model_info()
+        return jsonify({
+            'status': 'ok',
+            'face_engine': info,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+        
 # ==================== UTILITY ENDPOINTS ====================
 
 @app.route('/api/system/cleanup', methods=['POST'])
 def cleanup_system():
-    """System cleanup"""
     return jsonify({'success': True, 'message': 'Cleanup completed'})
 
-@app.route('/api/test-db', methods=['GET'])
-def test_db():
-    """Test database connection and data"""
-    try:
-        # Test employees
-        employees_count = db.employees.count_documents({})
-        
-        # Test attendance logs
-        attendance_count = db.attendance.count_documents({})
-        
-        # Get today's date
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_logs = list(db.attendance.find({'date': today}).limit(5))
-        
-        return jsonify({
-            'success': True,
-            'employees_count': employees_count,
-            'attendance_count': attendance_count,
-            'today_logs_count': len(today_logs),
-            'today_logs_sample': [
-                {
-                    'employee_id': log.get('employee_id'),
-                    'employees': log.get('employees'),
-                    'check_in_time': log.get('check_in_time').isoformat() if log.get('check_in_time') else None,
-                    'check_out_time': log.get('check_out_time').isoformat() if log.get('check_out_time') else None
-                }
-                for log in today_logs
-            ]
-        })
-        
-    except Exception as e:
-        print(f"❌ Test DB error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ==================== ERROR HANDLERS ====================
-
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
-
-# ==================== MAIN ====================
-
 if __name__ == '__main__':
-    print("=" * 60)
-    print("🚀 Starting Face Recognition Attendance System")
-    print("=" * 60)
+    print("🚀 Starting Attendance System...")
     print("📍 API Server: http://localhost:5000")
     print("📊 MongoDB: Connected")
-    print("📁 Using collection: attendance")
+    print("✅ All endpoints ready:")
     print("🎯 CORS enabled for: http://localhost:5173")
+    print("")
+    print("Attendance Structure:")
+    print("  - 1 document per employee per day")
+    print("  - Nested checkin/checkout objects")
+    print("  - Auto-calculated work duration")
+    print("=" * 60)
+    with app.app_context():
+        print("🚀 Flask starting, checking for unsynced data...")
+        try:
+            sync_mongo_to_dynamo()
+        except Exception as e:
+            print(f"❌ Error during startup sync: {e}")
     
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,11 +1,22 @@
+# Environment variables
 .env
+<<<<<<< HEAD
 backend/__pycache__/mongo_db.cpython-310.pyc
+=======
+.env.local
+.env.production
+
+>>>>>>> origin/main
 # Python
 __pycache__/
 *.pyc
 *.pyo
+<<<<<<< HEAD
 *.pyd
 
 # Virtual environment
 venv/
 .venv/
+=======
+*.pyd
+>>>>>>> origin/main

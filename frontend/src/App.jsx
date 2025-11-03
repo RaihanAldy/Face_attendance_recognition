@@ -1,12 +1,20 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import FaceScan from "./page/FaceScan";
+import FaceRegistration from "./page/FaceRegistration";
 import Analytics from "./page/Analytics";
-import AttendanceLogs from "./page/AttendanceLogs";
+import AttendanceLog from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
 import Settings from "./page/Settings";
+
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -14,10 +22,10 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    const role = localStorage.getItem('userRole');
-    
-    if (token && role === 'admin') {
+    const token = localStorage.getItem("authToken");
+    const role = localStorage.getItem("userRole");
+
+    if (token && role === "admin") {
       setIsAuthenticated(true);
       setUserRole(role);
     }
@@ -25,22 +33,22 @@ export default function App() {
   }, []);
 
   const handleLogin = (token, role, userData) => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('userRole', role);
+    localStorage.setItem("authToken", token);
+    localStorage.setItem("userRole", role);
     if (userData) {
-      localStorage.setItem('userName', userData.name);
-      localStorage.setItem('userEmail', userData.email);
+      localStorage.setItem("userName", userData.name);
+      localStorage.setItem("userEmail", userData.email);
     }
     setIsAuthenticated(true);
     setUserRole(role);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userEmail');
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userData");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userEmail");
     setIsAuthenticated(false);
     setUserRole(null);
   };
@@ -61,11 +69,11 @@ export default function App() {
       <Router>
         <Routes>
           {/* Public Face Scan Page */}
-          <Route 
-            path="/" 
-            element={<FaceScan onLogin={handleLogin} />} 
-          />
-          
+          <Route path="/" element={<FaceScanWrapper onLogin={handleLogin} />} />
+
+          {/* Public Face Registration Page */}
+          <Route path="/register" element={<FaceRegistrationWrapper />} />
+
           {/* Redirect all other routes to Face Scan */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -78,31 +86,31 @@ export default function App() {
   // ============================================
   return (
     <Router>
-      <div className="flex bg-slate-950 min-h-screen">
-        {/* Sidebar Navigation */}
-        <Sidebar onLogout={handleLogout} />
+      <div className="flex bg-slate-950">
+        <Sidebar />
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Top Navigation Bar */}
-          <Navbar 
-            onLogout={handleLogout} 
-            userName={localStorage.getItem('userName')}
+          <Navbar
+            onLogout={handleLogout}
+            userName={localStorage.getItem("userName")}
             userRole={userRole}
           />
 
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto">
             <Routes>
-              {/* Admin Dashboard Routes */}
               <Route path="/dashboard" element={<Analytics />} />
-              <Route path="/attendance" element={<AttendanceLogs />} />
+              <Route path="/attendance" element={<AttendanceLog />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/settings" element={<Settings />} />
-              
+
+              {/* Admin can also access registration */}
+              <Route path="/register" element={<FaceRegistrationWrapper />} />
+
               {/* Redirect root to dashboard */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              
+
               {/* Catch all - redirect to dashboard */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
@@ -111,4 +119,31 @@ export default function App() {
       </div>
     </Router>
   );
+}
+
+// Wrapper component for FaceScan to use navigation
+function FaceScanWrapper({ onLogin }) {
+  const navigate = useNavigate();
+
+  const handleNavigateToRegistration = () => {
+    navigate("/register");
+  };
+
+  return (
+    <FaceScan
+      onLogin={onLogin}
+      onNavigateToRegistration={handleNavigateToRegistration}
+    />
+  );
+}
+
+// Wrapper component for FaceRegistration to use navigation
+function FaceRegistrationWrapper() {
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    navigate("/");
+  };
+
+  return <FaceRegistration onBack={handleBack} />;
 }
