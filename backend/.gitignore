@@ -1,2 +1,11 @@
 .env
 backend/__pycache__/mongo_db.cpython-310.pyc
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/

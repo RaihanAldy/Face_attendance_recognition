@@ -5,8 +5,37 @@ import os
 from dotenv import load_dotenv
 import traceback
 import uuid
+import threading
+
+from email_alert import send_late_email_alert
+from telegram_alert import send_telegram_alert
 
 load_dotenv()
+
+def run_all_notifications(employee_name, employee_email, employee_chat_id, lateness_minutes):
+    """
+    Menjalankan semua notifikasi (email & telegram) di background thread.
+    """
+    print(f"🧵 Thread notifikasi dimulai untuk {employee_name}...")
+    try:
+        # 1. Kirim Email
+        send_late_email_alert(
+            employee_name,
+            employee_email,
+            lateness_minutes
+        )
+        
+        # 2. Kirim Telegram
+        send_telegram_alert(
+            employee_name,
+            employee_chat_id,
+            lateness_minutes
+        )
+        
+        print(f"🧵 Thread notifikasi untuk {employee_name} selesai.")
+        
+    except Exception as e:
+        print(f"❌ Error di dalam thread notifikasi: {e}")
 
 class MongoDBManager:
     def __init__(self):
@@ -394,14 +423,41 @@ class MongoDBManager:
             print(f"{emoji} {attendance_type.upper()} - {existing_employee['name']} ({department}) | "
                 f"Status: {status.upper()} | Late: {lateness_minutes}m | Work: {work_duration}m")
 
+                        # 🚨 Kirim email notifikasi jika terlambat
+            if status == 'late' and attendance_type == 'check_in':
+                
+                # Ambil data kontak dari database
+                employee_name = existing_employee['name']
+                employee_email = existing_employee.get('email', '')
+                
+                # Nanti: Ambil 'telegram_chat_id' dari DB
+                # employee_chat_id = existing_employee.get('telegram_chat_id', None) 
+                
+                # Untuk Tes Sekarang: Pakai ID dari .env
+                # Pastikan os sudah di-import di atas
+                employee_chat_id_for_test = os.getenv("TESTER_TELEGRAM_CHAT_ID") 
+                
+                print(f"🚀 Memulai notifikasi (Email & Telegram) untuk {employee_name} di background thread...")
+                
+                # Buat dan jalankan thread baru
+                notification_thread = threading.Thread(
+                    target=run_all_notifications,  # Fungsi yang kita buat di Langkah 2
+                    args=(  # Argumen untuk fungsi tersebut
+                        employee_name,
+                        employee_email,
+                        employee_chat_id_for_test, # Ganti ini nanti dengan 'employee_chat_id'
+                        lateness_minutes
+                    )
+                )
+                notification_thread.start() # <-- API call tidak akan menunggu ini selesai
             return {
                 'success': True,
                 'id': str(result.inserted_id),
-                'status': status,
+                'punctuality': status,
                 'lateness_minutes': lateness_minutes,
                 'work_duration': work_duration
             }
-
+            
         except Exception as e:
             print(f"❌ Error recording attendance: {e}")
             traceback.print_exc()
