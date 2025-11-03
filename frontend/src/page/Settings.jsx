@@ -3,9 +3,8 @@ import { useState, useEffect } from "react";
 
 const Settings = () => {
   const [settings, setSettings] = useState({
-    startTime: "08:37",
+    startTime: "08:00",
     endTime: "17:00",
-    syncFrequency: 15,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +25,6 @@ const Settings = () => {
         setSettings({
           startTime: data.startTime || "08:00",
           endTime: data.endTime || "17:00",
-          syncFrequency: data.syncFrequency || 15,
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -49,17 +47,8 @@ const Settings = () => {
     }));
   };
 
-  const handleFrequencyChange = (e) => {
-    let value = parseInt(e.target.value, 10) || 1;
-
-    // Validasi nilai minimal
-    if (value < 1) value = 1;
-
-    handleInputChange("syncFrequency", value);
-  };
-
   const validateSettings = () => {
-    const { startTime, endTime, syncFrequency } = settings;
+    const { startTime, endTime } = settings;
 
     if (!startTime || !endTime) {
       return "Waktu mulai dan akhir harus diisi";
@@ -67,10 +56,6 @@ const Settings = () => {
 
     if (startTime >= endTime) {
       return "Waktu akhir harus setelah waktu mulai";
-    }
-
-    if (syncFrequency < 1) {
-      return "Frekuensi sinkronisasi minimal 1 menit";
     }
 
     return null;
@@ -184,22 +169,6 @@ const Settings = () => {
               onChange={(e) => handleTimeChange("endTime", e.target.value)}
               className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
             />
-          </div>
-
-          <div>
-            <label className="block text-gray-200 mb-2 text-sm font-medium">
-              Frekuensi Sinkronisasi (menit):
-            </label>
-            <input
-              type="number"
-              value={settings.syncFrequency}
-              min={1}
-              onChange={handleFrequencyChange}
-              className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
-            />
-            <p className="text-gray-400 text-xs mt-2">
-              Masukkan frekuensi sinkronisasi dalam menit (minimal 1 menit)
-            </p>
           </div>
 
           <div className="flex gap-3 pt-4">

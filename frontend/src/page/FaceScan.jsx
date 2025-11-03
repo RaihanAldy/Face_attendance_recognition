@@ -1,5 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ScanFace, Camera, AlertCircle, CheckCircle, XCircle, Lock, Settings, UserPlus, X } from "lucide-react";
+import {
+  ScanFace,
+  Camera,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Lock,
+  Settings,
+  UserPlus,
+  X,
+} from "lucide-react";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 
@@ -9,7 +19,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
   const [employeeData, setEmployeeData] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Hidden button states
+  // Hidden admin click
   const [clickCount, setClickCount] = useState(0);
   const [showAdminMenu, setShowAdminMenu] = useState(false);
 
@@ -18,7 +28,8 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
   const streamRef = useRef(null);
   const isStartingRef = useRef(false);
   const clickTimeoutRef = useRef(null);
-  
+  const alertTimeoutRef = useRef(null);
+
   const MySwal = withReactContent(Swal);
 
   // Cleanup on unmount
@@ -26,17 +37,18 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     return () => {
       stopCamera();
       if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current);
+      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hidden button handler - Click logo 5x dalam 3 detik
+  /* ---------------- Hidden admin click ---------------- */
   const handleLogoClick = () => {
-    setClickCount(prev => prev + 1);
+    setClickCount((prev) => prev + 1);
 
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
     }
-
     clickTimeoutRef.current = setTimeout(() => {
       setClickCount(0);
     }, 3000);
@@ -44,189 +56,118 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     if (clickCount + 1 >= 5) {
       setShowAdminMenu(true);
       setClickCount(0);
-      
-      if (navigator.vibrate) {
-        navigator.vibrate(200);
-      }
+      if (navigator.vibrate) navigator.vibrate(200);
     }
   };
 
-  // Admin login handler
+  /* ---------------- Admin login ---------------- */
   const handleAdminLogin = async () => {
     const { value: formValues } = await MySwal.fire({
-      title: '🔐 Admin Login',
+      title: "🔐 Admin Login",
       html: `
         <input id="swal-input1" class="swal2-input" placeholder="Username" type="text">
         <input id="swal-input2" class="swal2-input" placeholder="Password" type="password">
       `,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Login',
-      cancelButtonText: 'Batal',
-      confirmButtonColor: '#3b82f6',
+      confirmButtonText: "Login",
+      cancelButtonText: "Batal",
+      confirmButtonColor: "#3b82f6",
       preConfirm: () => {
-        const username = document.getElementById('swal-input1').value;
-        const password = document.getElementById('swal-input2').value;
-        
+        const username = document.getElementById("swal-input1").value;
+        const password = document.getElementById("swal-input2").value;
         if (!username || !password) {
-          Swal.showValidationMessage('Username dan password harus diisi!');
+          Swal.showValidationMessage("Username dan password harus diisi!");
           return false;
         }
-        
         return { username, password };
-      }
+      },
     });
 
     if (formValues) {
       try {
-        const response = await fetch('http://localhost:5000/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("http://localhost:5000/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formValues),
         });
 
         if (response.ok) {
           const result = await response.json();
-          
           MySwal.fire({
-            title: 'Login Berhasil!',
-            text: `Selamat datang, ${result.name || 'Admin'}`,
-            icon: 'success',
+            title: "Login Berhasil!",
+            text: `Selamat datang, ${result.name || "Admin"}`,
+            icon: "success",
             timer: 2000,
             showConfirmButton: false,
           });
-
-          if (onLogin) {
-            onLogin(result.token, 'admin', result);
-          }
-          
+          onLogin?.(result.token, "admin", result);
           setShowAdminMenu(false);
+          return;
         } else {
-          throw new Error('Login gagal');
+          throw new Error("Login gagal");
         }
-      } catch (error) {
-        // Demo login untuk testing
-        if (formValues.username === 'admin' && formValues.password === 'admin123') {
+      } catch (err) {
+        // Demo fallback
+        console.log("Admin login error, fallback to demo:", err);
+
+        if (
+          formValues.username === "admin" &&
+          formValues.password === "admin123"
+        ) {
           MySwal.fire({
-            title: 'Login Berhasil!',
-            text: 'Selamat datang, Admin',
-            icon: 'success',
+            title: "Login Berhasil!",
+            text: "Selamat datang, Admin",
+            icon: "success",
             timer: 2000,
             showConfirmButton: false,
           });
-
-          if (onLogin) {
-            onLogin('demo-token-123', 'admin', {
-              name: 'Admin Demo',
-              email: 'admin@demo.com'
-            });
-          }
-          
+          onLogin?.("demo-token-123", "admin", {
+            name: "Admin Demo",
+            email: "admin@demo.com",
+          });
           setShowAdminMenu(false);
         } else {
           MySwal.fire({
-            title: 'Login Gagal',
-            text: 'Username atau password salah!',
-            icon: 'error',
-            confirmButtonText: 'Coba Lagi',
+            title: "Login Gagal",
+            text: "Username atau password salah!",
+            icon: "error",
+            confirmButtonText: "Coba Lagi",
           });
         }
       }
     }
   };
 
-  // Navigate to registration page
   const handleNavigateToRegistration = () => {
     setShowAdminMenu(false);
-    if (onNavigateToRegistration) {
-      onNavigateToRegistration();
-    }
+    onNavigateToRegistration?.();
   };
 
-  // ✅ NEW: Capture image dari video dan kirim ke backend
-  const captureAndExtractFace = async () => {
-    try {
-      if (!videoRef.current) {
-        throw new Error("Video element not available");
-      }
-
-      const video = videoRef.current;
-      
-      // Create canvas untuk capture
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Convert to base64
-      const imageData = canvas.toDataURL('image/jpeg', 0.95);
-      
-      console.log("📸 Image captured from video");
-      console.log(`   Size: ${canvas.width}x${canvas.height}`);
-      console.log("🔍 Sending to backend for face extraction...");
-      
-      // Send ke backend untuk extract face
-      const response = await fetch("http://localhost:5000/api/extract-face", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          image: imageData 
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || "Failed to extract face");
-      }
-      
-      console.log("✅ Face extracted successfully");
-      console.log(`   Embedding length: ${result.embedding.length}`);
-      console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-      
-      return {
-        embedding: result.embedding,
-        confidence: result.confidence,
-        face_detected: result.face_detected
-      };
-      
-    } catch (error) {
-      console.error("❌ Error capturing/extracting face:", error);
-      throw error;
-    }
-  };
-
-  // Start camera
+  /* ---------------- Camera management ---------------- */
   const startCamera = async () => {
-    try {
-      console.log("🎥 Requesting camera access...");
+    if (isStartingRef.current) {
+      console.log("Camera is starting, skip duplicate start");
+      return false;
+    }
 
+    isStartingRef.current = true;
+    setErrorMessage("");
+
+    try {
+      // Stop existing stream if present
       if (streamRef.current) {
         stopCamera();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((res) => setTimeout(res, 80));
       }
 
-      // Wait for video element
-      let retries = 0;
-      const maxRetries = 10;
-      while (!videoRef.current && retries < maxRetries) {
-        console.log(`⏳ Waiting for video element... (${retries + 1}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        retries++;
+      // Wait for video element to be mounted
+      let tries = 0;
+      while (!videoRef.current && tries < 10) {
+        await new Promise((res) => setTimeout(res, 100));
+        tries++;
       }
-
-      if (!videoRef.current) {
-        throw new Error("Video element not found after waiting");
-      }
+      if (!videoRef.current) throw new Error("Video element not found");
 
       const constraints = {
         video: {
@@ -234,23 +175,18 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
+        audio: false,
       };
 
+      // IMPORTANT: getUserMedia may throw NotAllowedError / NotFoundError
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-      if (!stream) {
-        throw new Error("No stream returned from camera");
-      }
-
-      console.log("✅ Stream obtained:", stream.id);
-
       videoRef.current.srcObject = stream;
       streamRef.current = stream;
 
       // Wait for video to be ready
       await new Promise((resolve, reject) => {
         const video = videoRef.current;
-        let resolved = false;
+        let finished = false;
 
         const cleanup = () => {
           video.removeEventListener("loadedmetadata", onLoadedMetadata);
@@ -259,46 +195,38 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         };
 
         const onLoadedMetadata = () => {
-          console.log("📹 Video metadata loaded");
+          // nothing
         };
 
         const onCanPlay = () => {
-          if (!resolved) {
-            resolved = true;
-            cleanup();
-            console.log("✅ Video can play");
-
-            video.play()
-              .then(() => {
-                console.log("▶️ Video playing");
-                resolve();
-              })
-              .catch((err) => {
-                console.error("❌ Play error:", err);
-                reject(err);
-              });
-          }
+          if (finished) return;
+          finished = true;
+          cleanup();
+          video
+            .play()
+            .then(resolve)
+            .catch((e) => reject(e));
         };
 
         const onError = (err) => {
-          if (!resolved) {
-            resolved = true;
-            cleanup();
-            console.error("❌ Video error:", err);
-            reject(new Error(`Video error: ${err.message || "Unknown"}`));
-          }
+          console.log("Video playback error:", err);
+
+          if (finished) return;
+          finished = true;
+          cleanup();
+          reject(new Error("Video playback error"));
         };
 
         video.addEventListener("loadedmetadata", onLoadedMetadata);
         video.addEventListener("canplay", onCanPlay);
         video.addEventListener("error", onError);
 
+        // Fallback timeout
         setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
+          if (!finished) {
+            finished = true;
             cleanup();
             if (video.videoWidth > 0 && video.videoHeight > 0) {
-              console.log("⏰ Timeout but video has dimensions, accepting");
               video.play().then(resolve).catch(reject);
             } else {
               reject(new Error("Video load timeout - no dimensions"));
@@ -308,19 +236,45 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       });
 
       setIsScanning(true);
+      setScanStatus("scanning");
       isStartingRef.current = false;
       return true;
     } catch (error) {
-      console.error("Error accessing camera:", error);
-      alert(
-        "Tidak dapat mengakses kamera. Pastikan permission sudah diberikan."
-      );
+      console.error("Camera access failed:", error);
+      isStartingRef.current = false;
+      setIsScanning(false);
       setScanStatus("failed");
+
+      let detailedError = "Tidak dapat mengakses kamera. ";
+      if (error.name === "NotAllowedError") {
+        detailedError +=
+          "Permission kamera ditolak. Silakan izinkan akses kamera di browser.";
+      } else if (error.name === "NotFoundError") {
+        detailedError += "Tidak ada kamera yang ditemukan.";
+      } else {
+        detailedError += error.message || "Unknown error";
+      }
+
+      setErrorMessage(detailedError);
+
+      MySwal.fire({
+        title: "Gagal Akses Kamera",
+        text: detailedError,
+        icon: "error",
+        timer: 5000,
+        timerProgressBar: true,
+        showConfirmButton: true,
+      });
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+
       return false;
     }
   };
 
-  // Stop camera
   const stopCamera = () => {
     try {
       console.log("🛑 Stopping camera...");
@@ -334,145 +288,154 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         });
         streamRef.current = null;
       }
-
       if (videoRef.current) {
+        videoRef.current.pause();
         videoRef.current.srcObject = null;
       }
-
-      setIsScanning(false);
-      isStartingRef.current = false;
-    } catch (error) {
-      console.error("Error stopping camera:", error);
+    } catch (err) {
+      console.error("stopCamera error:", err);
+    } finally {
       setIsScanning(false);
       isStartingRef.current = false;
     }
   };
 
-  // ✅ UPDATED: Recognize face dengan real image capture
+  /* ---------------- Capture & face extraction ---------------- */
+  // Capture frame from video, then send to backend for face extraction
+  const captureAndExtractFace = async () => {
+    try {
+      if (!videoRef.current) throw new Error("Video element not available");
+
+      const video = videoRef.current;
+
+      // Create canvas with smaller size for lower payload if video is big
+      const scale = Math.min(1, 640 / video.videoWidth || 1);
+      const w = Math.max(160, Math.round(video.videoWidth * scale));
+      const h = Math.max(120, Math.round(video.videoHeight * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, w, h);
+
+      // toDataURL quality tuned to 0.9
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
+
+      // Send to backend for face extraction
+      const res = await fetch("http://localhost:5000/api/extract-face", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to extract face");
+      }
+
+      // result should contain embedding, confidence, face_detected
+      return {
+        embedding: result.embedding,
+        confidence: result.confidence,
+        face_detected: result.face_detected,
+      };
+    } catch (err) {
+      console.error("captureAndExtractFace error:", err);
+      throw err;
+    }
+  };
+
   const recognizeFace = async () => {
     try {
-      console.log("🔍 Starting face recognition...");
-      
-      // Capture dan extract face dari video
+      console.log("Start recognition...");
+      setScanStatus("scanning");
+
       const faceData = await captureAndExtractFace();
-      
+
       if (!faceData.face_detected) {
         setScanStatus("failed");
-        setErrorMessage("Tidak ada wajah terdeteksi. Posisikan wajah di tengah frame.");
-        
+        setErrorMessage(
+          "Tidak ada wajah terdeteksi. Posisikan wajah di tengah frame."
+        );
         await MySwal.fire({
           title: "Wajah Tidak Terdeteksi",
           text: "Pastikan wajah Anda berada di tengah frame dengan pencahayaan yang baik.",
           icon: "warning",
           timer: 3000,
-          timerProgressBar: true,
           showConfirmButton: true,
           confirmButtonText: "Coba Lagi",
         });
-        
         return;
       }
-      
-      console.log("🔍 Sending recognition request...");
 
-      // Recognize menggunakan embedding
-      const response = await fetch("http://localhost:5000/api/recognize-face", {
+      // Send embedding to recognition endpoint
+      const res = await fetch("http://localhost:5000/api/recognize-face", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          faceEmbedding: faceData.embedding 
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ faceEmbedding: faceData.embedding }),
       });
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          // Wajah tidak dikenali
-          setScanStatus("failed");
-          setErrorMessage("Wajah tidak dikenali. Silakan registrasi terlebih dahulu.");
+      const result = await res.json();
 
-          await MySwal.fire({
-            title: "Wajah Tidak Dikenali",
-            text: "Silakan hubungi admin untuk registrasi atau coba lagi.",
-            icon: "warning",
-            timer: 3000,
-            timerProgressBar: true,
-            showConfirmButton: true,
-            confirmButtonText: "Coba Lagi",
-          });
-
-          setTimeout(() => {
-            handleStopScan();
-          }, 1000);
-          
-          return;
-        }
-        
-        throw new Error(`Recognition API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ Recognition result:", result);
-
-      if (result.success) {
+      if (result.success && result.employee) {
         const employee = result.employee;
-        
-        setEmployeeData({
-          name: employee.name,
+
+        // ✅ PERBAIKAN: Pastikan nama employee selalu ada
+        const employeeName = employee.name || "Unknown Employee";
+
+        console.log("✅ Employee recognized:", {
+          name: employeeName,
           id: employee.employee_id,
-          department: employee.department,
-          confidence: employee.confidence || employee.similarity,
+          department: employee.department || "General",
+          confidence: employee.confidence || employee.similarity || 0.95,
         });
-        
+
         setScanStatus("success");
 
-        console.log(`✅ Face recognized: ${employee.name}`);
-        console.log(`   Similarity: ${(employee.similarity * 100).toFixed(1)}%`);
-        console.log(`   Final Confidence: ${((employee.confidence || employee.similarity) * 100).toFixed(1)}%`);
-
-        // Record attendance automatically
+        // ✅ PERBAIKAN: Kirim data employee yang lengkap ke recordAttendance
         await recordAttendance(
           employee.employee_id,
-          employee.confidence || employee.similarity
+          employee.confidence || employee.similarity || 0.95,
+          employeeName, // ✅ Kirim nama juga
+          employee.department || "General"
         );
       } else {
         setScanStatus("failed");
         setErrorMessage("Wajah tidak dikenali. Silakan coba lagi.");
-
         await MySwal.fire({
           title: "Wajah Tidak Dikenali",
           text: "Silakan coba lagi atau hubungi admin untuk registrasi.",
           icon: "warning",
           timer: 3000,
-          timerProgressBar: true,
           showConfirmButton: true,
-          confirmButtonText: "Coba Lagi",
         });
-
-        setTimeout(() => {
-          handleStopScan();
-        }, 1000);
+        setTimeout(handleStopScan, 1000);
       }
-    } catch (error) {
-      console.error("Recognition error:", error);
+    } catch (err) {
+      console.error("recognizeFace error:", err);
       setScanStatus("failed");
-      
-      let errorMsg = "Terjadi kesalahan saat mengenali wajah.";
-      
-      if (error.message.includes("No face detected")) {
-        errorMsg = "Tidak ada wajah terdeteksi. Posisikan wajah dengan benar.";
-      } else if (error.message.includes("Failed to fetch")) {
-        errorMsg = "Backend tidak merespon. Pastikan server running di http://localhost:5000";
+
+      let msg = "Terjadi kesalahan saat mengenali wajah.";
+      if (err.message?.includes("Failed to fetch")) {
+        msg =
+          "Backend tidak merespon. Pastikan server running di http://localhost:5000";
+      } else if (err.message?.toLowerCase().includes("no face")) {
+        msg = "Tidak ada wajah terdeteksi. Posisikan wajah dengan benar.";
       } else {
-        errorMsg = error.message;
+        msg = err.message || msg;
       }
-      
-      setErrorMessage(errorMsg);
-      
+
+      setErrorMessage(msg);
       MySwal.fire({
         title: "Kesalahan",
-        text: errorMsg,
+        text: msg,
         icon: "error",
         timer: 5000,
         timerProgressBar: true,
@@ -481,41 +444,56 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     }
   };
 
-  // Record attendance (auto-detect check-in/check-out)
-  const recordAttendance = async (employeeId, confidence) => {
+  /* ---------------- Attendance recording ---------------- */
+  const recordAttendance = async (
+    employeeId,
+    confidence,
+    employeeName,
+    department
+  ) => {
     try {
-      console.log(`📝 Recording attendance for ${employeeId}...`);
-      console.log(`   Confidence: ${(confidence * 100).toFixed(1)}%`);
-      
-      const response = await fetch(`http://localhost:5000/api/attendance/auto`, {
+      console.log(
+        `Recording attendance for ${employeeId} - ${employeeName} (${(
+          confidence * 100
+        ).toFixed(1)}%)`
+      );
+
+      const res = await fetch(`http://localhost:5000/api/attendance/auto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          employeeId, 
-          confidence: confidence
+        body: JSON.stringify({
+          employeeId,
+          confidence,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
 
-      const result = await response.json();
-      console.log("✅ Attendance recorded:", result);
+      const result = await res.json();
 
-      const employeeName = result.employee?.name || employeeData?.name || "Unknown";
+      // ✅ PERBAIKAN: Gunakan status dari backend response
+      const statusFromBackend = result.status || "ontime";
 
+      // ✅ PERBAIKAN: Mapping status dengan settings yang benar
       const statusConfig = {
-        "on-time": { emoji: "✅", text: "Tepat Waktu", color: "#10b981" },
-        "late": { emoji: "⏰", text: "Terlambat", color: "#f59e0b" },
-        "early": { emoji: "⚡", text: "Pulang Cepat", color: "#eab308" },
-        "ontime": { emoji: "✅", text: "Tepat Waktu", color: "#10b981" }
+        ontime: { emoji: "✅", text: "Tepat Waktu", color: "#10b981" },
+        late: { emoji: "⏰", text: "Terlambat", color: "#f59e0b" },
+        early: { emoji: "⚡", text: "Pulang Cepat", color: "#eab308" },
       };
 
-      const status = statusConfig[result.punctuality || result.status] || statusConfig["ontime"];
+      const status = statusConfig[statusFromBackend] || statusConfig["ontime"];
       const actionType = result.action || "check_in";
       const currentTime = new Date().toLocaleTimeString("id-ID");
+
+      // ✅ PERBAIKAN: Tampilkan detail settings yang digunakan
+      const finalEmployeeName =
+        employeeName ||
+        result.employee_name ||
+        result.employee?.name ||
+        "Unknown Employee";
 
       await MySwal.fire({
         title: `${status.emoji} Berhasil!`,
@@ -524,21 +502,25 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
             <p style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">
               ${actionType === "check_in" ? "Check-In" : "Check-Out"} Berhasil
             </p>
-            <p style="font-size: 16px; color: ${status.color}; margin-bottom: 12px;">
+            <p style="font-size: 16px; color: ${
+              status.color
+            }; margin-bottom: 12px;">
               Status: ${status.text}
             </p>
             <div style="background: #1e293b; padding: 12px; border-radius: 8px; margin-top: 12px;">
-              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                👤 ${employeeName}
-              </p>
-              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                🆔 ${employeeId}
-              </p>
-              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                🕒 ${currentTime}
-              </p>
-              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">
-                📊 Confidence: ${(confidence * 100).toFixed(1)}%
+              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">👤 ${finalEmployeeName}</p>
+              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">🆔 ${employeeId}</p>
+              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">🏢 ${
+                department || "General"
+              }</p>
+              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">🕒 ${currentTime}</p>
+              <p style="color: #cbd5e1; font-size: 14px; margin: 4px 0;">📊 Confidence: ${(
+                confidence * 100
+              ).toFixed(1)}%</p>
+              <p style="color: #94a3b8; font-size: 12px; margin: 4px 0; border-top: 1px solid #334155; padding-top: 8px;">
+                ⚙️ Berdasarkan settings: ${
+                  actionType === "check_in" ? "Check-in" : "Check-out"
+                } time validation
               </p>
             </div>
           </div>
@@ -550,38 +532,36 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         confirmButtonText: "OK",
       });
 
-      setTimeout(() => {
-        handleStopScan();
-      }, 1500);
-
+      setTimeout(handleStopScan, 1500);
       return result;
-      
-    } catch (error) {
-      console.error("❌ Attendance recording failed:", error);
-      
+    } catch (err) {
+      console.error("Attendance recording failed:", err);
+
+      let errorMsg = err.message || "Gagal mencatat absensi";
+      if (err.message.includes("Employee not found")) {
+        errorMsg =
+          "Employee ID tidak ditemukan di database. Pastikan karyawan sudah terdaftar.";
+      }
+
       await MySwal.fire({
         title: "Absensi Gagal",
-        html: `
-          <div style="text-align: center;">
-            <p>Gagal mencatat absensi:</p>
-            <p style="color: #ef4444; font-size: 14px; margin-top: 8px;">${error.message}</p>
-          </div>
-        `,
+        html: `<div style="text-align:center;">
+                <p>Gagal mencatat absensi:</p>
+                <p style="color:#ef4444; font-size:14px; margin-top:8px;">${errorMsg}</p>
+                <p style="color:#94a3b8; font-size:12px; margin-top:8px;">Employee ID: ${employeeId}</p>
+              </div>`,
         icon: "error",
         confirmButtonText: "OK",
       });
-
       handleStopScan();
-      throw error;
+      throw err;
     }
   };
 
-  // Start scan handler
+  /* ---------------- UI handlers ---------------- */
   const handleStartScan = async () => {
     if (isStartingRef.current || isScanning) return;
-
     setErrorMessage("");
-    setEmployeeData(null);
     setScanStatus("scanning");
     setEmployeeData(null);
     const cameraStarted = await startCamera();
@@ -590,37 +570,37 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     return;
     }
 
-    // Wait 2 seconds then recognize
-    setTimeout(async () => {
-      await recognizeFace();
-    }, 2000);
+    // Wait briefly and then recognize
+    setTimeout(() => {
+      recognizeFace();
+    }, 1200);
   };
 
-  // Stop scan handler
   const handleStopScan = () => {
     stopCamera();
     setIsScanning(false);
     setScanStatus("idle");
-    setEmployeeData(null);
     setErrorMessage("");
   };
 
+  /* ---------------- Render ---------------- */
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
         {/* Hidden Button - Click Logo 5x */}
         <div className="text-center mb-8 relative">
-          <div 
+          <div
             onClick={handleLogoClick}
             className="inline-block cursor-pointer hover:scale-105 transition-transform"
             title="Click 5x untuk menu admin"
           >
             <ScanFace className="h-16 w-16 text-blue-500 mx-auto mb-2" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Face Recognition</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Face Recognition
+          </h1>
           <p className="text-slate-300">Scan wajah Anda untuk absensi</p>
-          
-          {/* Click indicator */}
+
           {clickCount > 0 && clickCount < 5 && (
             <div className="absolute top-0 right-0 bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
               {clickCount}/5
@@ -688,7 +668,9 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
               autoPlay
               playsInline
               muted
-              className={`w-full h-full object-cover ${!isScanning ? "hidden" : ""}`}
+              className={`w-full h-full object-cover ${
+                !isScanning ? "hidden" : ""
+              }`}
             />
 
             {/* Placeholder */}
@@ -697,7 +679,9 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                 <div>
                   <ScanFace className="h-24 w-24 text-slate-700 mx-auto mb-4" />
                   <p className="text-slate-500">Face Recognition</p>
-                  <p className="text-slate-600 text-sm mt-2">Klik "Mulai Scan" untuk memulai</p>
+                  <p className="text-slate-600 text-sm mt-2">
+                    Klik "Mulai Scan" untuk memulai
+                  </p>
                 </div>
               </div>
             )}
@@ -718,13 +702,17 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                 {!isScanning && (
                   <>
                     <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
-                    <span className="text-sm text-slate-400">Recognition Mode</span>
+                    <span className="text-sm text-slate-400">
+                      Recognition Mode
+                    </span>
                   </>
                 )}
                 {isScanning && scanStatus === "scanning" && (
                   <>
                     <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-slate-400">Scanning Wajah...</span>
+                    <span className="text-sm text-slate-400">
+                      Scanning Wajah...
+                    </span>
                   </>
                 )}
                 {isScanning && scanStatus === "success" && (

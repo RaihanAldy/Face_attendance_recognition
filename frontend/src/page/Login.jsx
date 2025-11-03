@@ -80,7 +80,9 @@ const Login = ({ onLogin }) => {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-white">Admin Login</h2>
-          <p className="text-slate-400 mt-2">Hanya untuk administrator sistem</p>
+          <p className="text-slate-400 mt-2">
+            Hanya untuk administrator sistem
+          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -90,7 +92,7 @@ const Login = ({ onLogin }) => {
                 Email Admin
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
@@ -117,7 +119,11 @@ const Login = ({ onLogin }) => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>

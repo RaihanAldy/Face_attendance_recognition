@@ -40,7 +40,6 @@ class MongoDBManager:
                     '_id': 'default',
                     'startTime': '08:00',
                     'endTime': '17:00',
-                    'syncFrequency': 15,
                     'lateThreshold': 15,
                     'earlyLeaveThreshold': 30,
                     'created_at': datetime.now(),
@@ -54,44 +53,79 @@ class MongoDBManager:
     # ==================== ATTENDANCE STATUS CALCULATION ====================
     
     def calculate_attendance_status(self, timestamp, action):
-        """
-        Calculate attendance status based on time and settings
-        For check_in: 'ontime' or 'late'
-        For check_out: 'ontime' or 'early'
-        """
         try:
-            schedule = self.get_work_schedule()
-            if not schedule:
+            # Ambil settings dari database
+            settings = self.settings.find_one({'_id': 'default'})
+            if not settings:
+                print("⚠️ Settings not found, using default 'ontime'")
                 return 'ontime'
             
-            start_time_str = schedule['start_time']
-            end_time_str = schedule['end_time']
+            start_time_str = settings.get('startTime', '08:00')
+            end_time_str = settings.get('endTime', '17:00')
+            late_threshold = settings.get('lateThreshold', 15)  # menit
+            early_leave_threshold = settings.get('earlyLeaveThreshold', 30)  # menit
             
+            # Parse waktu
             start_hour, start_min = map(int, start_time_str.split(':'))
             end_hour, end_min = map(int, end_time_str.split(':'))
             
+            # Buat datetime objects untuk comparison
+            current_time = timestamp.time()
             start_time = time(start_hour, start_min)
             end_time = time(end_hour, end_min)
             
-            current_time = timestamp.time()
+            # ✅ PERBAIKAN: Cek apakah di luar jam kerja
+            if current_time < start_time or current_time > end_time:
+                print(f"⚠️ Di luar jam kerja: {current_time} (Jam kerja: {start_time} - {end_time})")
+                return 'ontime'  # Di luar jam kerja selalu dianggap ontime
+            
+            # ✅ FIX: Hitung threshold dengan benar
+            # Untuk late threshold: tambahkan menit ke start_time
+            late_minutes = start_min + late_threshold
+            late_hour = start_hour + (late_minutes // 60)
+            late_min = late_minutes % 60
+            start_time_with_threshold = time(late_hour, late_min)
+            
+            # Untuk early threshold: kurangi menit dari end_time
+            early_minutes = end_min - early_leave_threshold
+            if early_minutes < 0:
+                early_hour = end_hour - 1
+                early_min = 60 + early_minutes
+            else:
+                early_hour = end_hour
+                early_min = early_minutes
+            end_time_with_threshold = time(early_hour, early_min)
+            
+            print(f"🔍 Status calculation:")
+            print(f"   Current time: {current_time}")
+            print(f"   Start time: {start_time} (late after: {start_time_with_threshold})")
+            print(f"   End time: {end_time} (early before: {end_time_with_threshold})")
+            print(f"   Action: {action}")
             
             if action == 'check_in':
-                # Check-in <= startTime = ontime
-                # Check-in > startTime = late
-                if current_time <= start_time:
-                    return 'ontime'
+                # Check-in <= startTime+threshold = ontime
+                # Check-in > startTime+threshold = late
+                if current_time <= start_time_with_threshold:
+                    status = 'ontime'
+                    print(f"   ✅ Check-in ONTIME (<= {start_time_with_threshold})")
                 else:
-                    return 'late'
+                    status = 'late'
+                    print(f"   ⚠️ Check-in LATE (> {start_time_with_threshold})")
             
             elif action == 'check_out':
-                # Check-out < endTime = early
-                # Check-out >= endTime = ontime
-                if current_time < end_time:
-                    return 'early'
+                # Check-out >= endTime-threshold = ontime
+                # Check-out < endTime-threshold = early
+                if current_time >= end_time_with_threshold:
+                    status = 'ontime'
+                    print(f"   ✅ Check-out ONTIME (>= {end_time_with_threshold})")
                 else:
-                    return 'ontime'
+                    status = 'early'
+                    print(f"   ⚠️ Check-out EARLY (< {end_time_with_threshold})")
+            else:
+                status = 'ontime'
             
-            return 'ontime'
+            print(f"   Final status: {status}")
+            return status
             
         except Exception as e:
             print(f"❌ Error calculating attendance status: {e}")
@@ -356,86 +390,122 @@ class MongoDBManager:
     # ==================== ATTENDANCE LOGGING ====================
     
     def record_attendance_auto(self, employee_id, confidence=0.0):
-        """Record attendance dengan auto-detect check-in/check-out - FIXED VERSION"""
         try:
-            # Tentukan action otomatis
-            attendance_type = self.determine_attendance_action(employee_id)
-            
-            print(f"🎯 Auto-detected action for {employee_id}: {attendance_type}")
-
-            # Validasi employee exists
+            # Ambil employee data
             employee = self.employees.find_one({'employee_id': employee_id})
             if not employee:
-                return {
-                    'success': False, 
-                    'error': f'Employee {employee_id} not found'
-                }
+                print(f"❌ Employee {employee_id} not found in database")
+                return {'success': False, 'error': f'Employee {employee_id} not found'}
 
+            employee_name = employee.get('name', 'Unknown Employee')
+            today_str = datetime.now().strftime('%Y-%m-%d')
             timestamp = datetime.now()
-            
-            # Calculate status based on time
-            status = self.calculate_attendance_status(timestamp, attendance_type)
-            
-            # Prepare attendance record
-            attendance_record = {
+
+            print(f"\n{'='*60}")
+            print(f"📝 RECORD_ATTENDANCE_AUTO")
+            print(f"{'='*60}")
+            print(f"Employee ID: {employee_id}")
+            print(f"Employee Name: {employee_name}")
+            print(f"Date: {today_str}")
+            print(f"Timestamp: {timestamp}")
+
+            # Cari existing record
+            existing_record = self.attendance.find_one({
                 'employee_id': employee_id,
-                'employees': employee.get('name', 'Unknown'),
-                'department': employee.get('department', 'General'),
-                'action': attendance_type,
-                'status': status,
-                'timestamp': timestamp,
-                'date': timestamp.strftime('%Y-%m-%d'),
-                'day_of_week': timestamp.strftime('%A'),
-                'confidence': float(confidence),
-                'last_updated': timestamp
-            }
+                'date': today_str
+            })
 
-            # Calculate lateness for check-in
-            if attendance_type == 'check_in':
-                schedule = self.get_work_schedule()
-                if schedule:
-                    start_time_str = schedule['start_time']
-                    start_hour, start_min = map(int, start_time_str.split(':'))
-                    start_time = time(start_hour, start_min)
-                    
-                    if timestamp.time() > start_time:
-                        time_diff = datetime.combine(timestamp.date(), start_time) - timestamp
-                        attendance_record['lateness_minutes'] = abs(int(time_diff.total_seconds() / 60))
+            print(f"Existing record: {'Yes' if existing_record else 'No'}")
 
-            # Insert record
-            result = self.attendance.insert_one(attendance_record)
-            
-            if result.inserted_id:
-                print(f"✅ Attendance recorded: {employee_id} - {attendance_type} - {status}")
-                
-                return {
-                    'success': True,
-                    'action': attendance_type,
-                    'status': status,
-                    'punctuality': status,
-                    'timestamp': timestamp.isoformat(),
-                    'employee': {
-                        'employee_id': employee_id,
-                        'name': employee.get('name'),
-                        'department': employee.get('department')
-                    }
-                }
+            # Tentukan aksi otomatis (check-in / check-out)
+            attendance_type = 'check_in'
+            if existing_record and existing_record.get('checkin') and not existing_record.get('checkout'):
+                attendance_type = 'check_out'
+                print(f"Action: CHECK-OUT (already has check-in)")
             else:
-                return {
-                    'success': False,
-                    'error': 'Failed to insert attendance record'
+                print(f"Action: CHECK-IN")
+
+            # ✅ HITUNG STATUS BERDASARKAN SETTINGS
+            status = self.calculate_attendance_status(timestamp, attendance_type)
+            print(f"Calculated status: {status}")
+
+            if attendance_type == 'check_in':
+                record_data = {
+                    'employee_id': employee_id,
+                    'employee_name': employee_name,
+                    'date': today_str,
+                    'checkin': {
+                        'status': status,
+                        'timestamp': timestamp.isoformat()
+                    },
+                    'checkout': None,  # ✅ TAMBAHKAN FIELD INI
+                    'work_duration_minutes': 0,  # ✅ TAMBAHKAN FIELD INI
+                    'createdAt': timestamp,
+                    'updatedAt': timestamp
                 }
-                
+
+                # Insert or update
+                result = self.attendance.update_one(
+                    {'employee_id': employee_id, 'date': today_str},
+                    {'$set': record_data},
+                    upsert=True
+                )
+
+                print(f"✅ Check-in recorded - Status: {status}")
+                return {
+                    'success': True, 
+                    'message': 'Check-in recorded', 
+                    'action': 'check_in',
+                    'status': status,
+                    'employee_name': employee_name,
+                    'data': record_data
+                }
+
+            elif attendance_type == 'check_out':
+                # Update dokumen dengan data checkout
+                update_fields = {
+                    'checkout': {
+                        'status': status,
+                        'timestamp': timestamp.isoformat()
+                    },
+                    'updatedAt': timestamp
+                }
+
+                # Hitung durasi kerja jika checkin ada
+                if existing_record and existing_record.get('checkin'):
+                    checkin_time_str = existing_record['checkin']['timestamp']
+                    # Handle both ISO format with/without timezone
+                    if 'Z' in checkin_time_str:
+                        checkin_time = datetime.fromisoformat(checkin_time_str.replace('Z', '+00:00'))
+                    else:
+                        checkin_time = datetime.fromisoformat(checkin_time_str)
+                    
+                    diff_minutes = int((timestamp - checkin_time).total_seconds() / 60)
+                    update_fields['work_duration_minutes'] = diff_minutes
+                    print(f"Work duration: {diff_minutes} minutes")
+
+                result = self.attendance.update_one(
+                    {'employee_id': employee_id, 'date': today_str},
+                    {'$set': update_fields}
+                )
+
+                print(f"✅ Check-out recorded - Status: {status}")
+                return {
+                    'success': True, 
+                    'message': 'Check-out recorded', 
+                    'action': 'check_out',
+                    'status': status,
+                    'employee_name': employee_name,
+                    'data': update_fields
+                }
+
         except Exception as e:
-            print(f"❌ Error in auto attendance recording: {e}")
+            print(f"❌ Error recording attendance: {e}")
             traceback.print_exc()
-            return {
-                'success': False,
-                'error': str(e)
-            }
-        
+            return {'success': False, 'error': str(e)}
+
     def get_all_attendance(self):
-        """Get semua attendance records tanpa filter"""
+        """Ambil semua data attendance (format baru)."""
         try:
             print("📊 Fetching ALL attendance records...")
             
@@ -480,7 +550,7 @@ class MongoDBManager:
             print(f"❌ Error getting attendance records: {e}")
             traceback.print_exc()
             return []
-
+        
     def get_last_attendance_status(self, employee_id):
         """Get status attendance terakhir untuk employee tertentu"""
         try:
@@ -904,6 +974,7 @@ class MongoDBManager:
             
         except Exception as e:
             print(f"❌ Error getting employee attendance: {e}")
+            traceback.print_exc()
             return []
         
     def get_settings(self):

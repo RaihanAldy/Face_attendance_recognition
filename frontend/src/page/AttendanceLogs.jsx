@@ -1,250 +1,252 @@
-import React, { useState , useEffect} from "react";
+import React, { useState, useEffect } from "react";
+import { useAttendanceData } from "../utils/attendanceData";
+import AttendanceFilter from "../components/attendance/AttendanceFilter";
+import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
+import { exportCSV } from "../utils/csvExport";
+import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
 
-const AttendanceLog = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-  const [attendanceData, setAttendanceData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+const AttendanceLogs = () => {
+  const [filter, setFilter] = useState("today");
+  const [checkFilters, setCheckFilters] = useState({
+    checkin: false,
+    checkout: false,
+  });
 
-  // Mock data - replace with actual API call
-  const fetchAttendanceData = async (date = "") => {
-    try {
-      setLoading(true);
-      setError("");
-      
-      // ✅ PERUBAHAN: API call ke backend untuk get attendance data
-      const response = await fetch(`http://localhost:5000/api/attendance/log?date=${date}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setAttendanceData(data);
-    } catch (err) {
-      console.error("Error fetching data absensi:", err);
-      setError("Gagal memuat data Absensi. Periksa koneksi server.");
-      setAttendanceData([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { attendanceData, loading, error, fetchAttendanceData } =
+    useAttendanceData(filter);
 
   useEffect(() => {
     fetchAttendanceData(dateFilter);
   }, [dateFilter]);
 
-  // ✅ PERUBAHAN: Format date untuk display
-  const formatDateTime = (timestamp) => {
-    if (!timestamp) return "-";
-    
-    try {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+  // ✅ Filter logic berdasarkan struktur baru (1 doc per employee per day)
+  const filteredData = attendanceData.reduce((acc, record) => {
+    const {
+      employeeId,
+      name,
+      checkIn,
+      checkInStatus,
+      checkOut,
+      checkOutStatus,
+      workingHours,
+    } = record;
+
+    // Skip jika tidak ada data sama sekali
+    if (!checkIn && !checkOut) {
+      console.log("⚠️ Skipping record - no checkin/checkout data:", employeeId);
+      return acc;
+    }
+
+    // ---- CASE 1: Pair mode (check-in & check-out ON) ----
+    if (checkFilters.checkin && checkFilters.checkout) {
+      // Tampilkan dalam format paired (1 row per employee)
+      acc.push({
+        employeeId,
+        name: name || "Unknown Employee",
+        checkIn,
+        checkInStatus,
+        checkOut,
+        checkOutStatus,
+        workingHours,
       });
-    } catch (error) {
-      return "-";
+      return acc;
     }
-  };
 
-  // ✅ PERUBAHAN: Calculate working hours dari timestamp
-  const calculateWorkingHours = (checkIn, checkOut) => {
-    if (!checkIn || !checkOut) return "-";
-    
-    try {
-      const start = new Date(checkIn);
-      const end = new Date(checkOut);
-      
-      // Jika checkOut sebelum checkIn (invalid), return 0
-      if (end <= start) return "0h";
-      
-      const diffMs = end - start;
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      
-      return `${hours}h ${minutes}m`;
-    } catch (error) {
-      return "-";
+    // ---- CASE 2: Only check-in filter ----
+    if (checkFilters.checkin && !checkFilters.checkout) {
+      if (checkIn) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          checkIn,
+          status: checkInStatus || "ontime",
+          action: "Check In",
+          timestamp: checkIn,
+        });
+      }
+      return acc;
     }
-  };
 
-  // ✅ PERUBAHAN: Filter data berdasarkan search query
-  const filteredData = attendanceData.filter(record => {
-    const matchesSearch = 
-      record.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.employeeId?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesSearch;
-  });
+    // ---- CASE 3: Only check-out filter ----
+    if (!checkFilters.checkin && checkFilters.checkout) {
+      if (checkOut) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          checkOut,
+          status: checkOutStatus || "ontime",
+          action: "Check Out",
+          timestamp: checkOut,
+        });
+      }
+      return acc;
+    }
 
-  // ✅ PERUBAHAN: Handle refresh data
-  const handleRefresh = () => {
-    fetchAttendanceData(dateFilter);
-  };
+    // ---- CASE 4: DEFAULT — show all (expand ke 2 rows jika ada check-in dan check-out) ----
+    if (!checkFilters.checkin && !checkFilters.checkout) {
+      // Buat row untuk check-in jika ada
+      if (checkIn) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          status: checkInStatus || "ontime",
+          action: "Check In",
+          timestamp: checkIn,
+        });
+      }
 
-  // ✅ PERUBAHAN: Handle export to CSV
+      // Buat row untuk check-out jika ada
+      if (checkOut) {
+        acc.push({
+          employeeId,
+          name: name || "Unknown Employee",
+          status: checkOutStatus || "ontime",
+          action: "Check Out",
+          timestamp: checkOut,
+        });
+      }
+    }
+
+    return acc;
+  }, []);
+
   const handleExportCSV = () => {
-    try {
-      const headers = ["Nama", "ID Karyawan", "Check In", "Check Out", "Status", "Jam Kerja", "Confidence"];
-      
-      const csvData = filteredData.map(record => [
-        record.name || "-",
-        record.employeeId || "-",
-        formatDateTime(record.timestamp) || "-",
-        "-", // Check out - perlu implementasi terpisah
-        "Present",
-        calculateWorkingHours(record.timestamp, new Date().toISOString()), // Asumsi masih bekerja
-        record.confidence ? `${Math.round(record.confidence * 100)}%` : "-"
-      ]);
-      
-      const csvContent = [
-        headers.join(","),
-        ...csvData.map(row => row.join(","))
-      ].join("\n");
-      
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `attendance-${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Export error:", error);
-      alert("Gagal mengexport data CSV");
-    }
+    exportCSV(
+      filteredData,
+      filter,
+      checkFilters,
+      formatDateTime,
+      calculateWorkingHours
+    );
   };
+
+  console.group("🧩 Attendance Data Debug");
+  console.log("Raw data from backend:", attendanceData);
+  console.log("Filtered & processed data:", filteredData);
+  console.log("Active filters:", { filter, checkFilters });
+  console.groupEnd();
 
   return (
-    <div className="p-6 bg-navy-950 rounded-lg shadow-md">
-      <div className="flex justify-between items-center mb-6">
-      <h1 className="text-3xl font-bold mb-6 text-gray-200">Attendance Log</h1>
-
-      <div className="flex gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-          <button
-            onClick={handleExportCSV}
-            disabled={filteredData.length === 0}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Export CSV
-          </button>
+    <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header dengan Refresh dan Export Button */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Attendance Log
+            </h1>
+            <p className="text-slate-400">
+              Monitor and manage employee attendance
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => fetchAttendanceData(filter)}
+              disabled={loading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
+            >
+              🔄 {loading ? "Loading..." : "Refresh"}
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={filteredData.length === 0}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:bg-emerald-400"
+            >
+              📁 Export CSV
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search by name or ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="px-4 py-2 bg-navy-900 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100 placeholder-blue-200"
+        <AttendanceFilter
+          filter={filter}
+          setFilter={setFilter}
+          checkFilters={checkFilters}
+          setCheckFilters={setCheckFilters}
         />
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          className="px-4 py-2 bg-navy-900 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-        />
+
+        {error && (
+          <div className="text-red-400 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+            ⚠️ {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="text-blue-400 text-center py-12">
+            <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-3"></div>
+            <p>Memuat data absensi...</p>
+          </div>
+        )}
+
+        {!loading && !error && filteredData.length === 0 && (
+          <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
+            <p className="text-slate-400 text-lg mb-4">
+              📭 Tidak ada data untuk filter yang dipilih
+            </p>
+            {attendanceData.length > 0 && (
+              <p className="text-slate-500 text-sm">
+                Found {attendanceData.length} records in database, but no
+                check-in/check-out data.
+                <br />
+                Try changing your filter settings.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!loading && filteredData.length > 0 && (
+          <div className="bg-slate-800/50 backdrop-blur rounded-xl overflow-hidden border border-slate-700/50 shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-700/50">
+                  <tr>
+                    {getTableHeaders(filter, checkFilters).map((header, i) => (
+                      <th
+                        key={i}
+                        className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider text-sm"
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/50">
+                  {filteredData.map((record, rowIndex) => (
+                    <tr
+                      key={
+                        record._id ||
+                        `${record.employeeId}-${
+                          record.timestamp || record.checkIn || record.checkOut
+                        }-${rowIndex}`
+                      }
+                      className="hover:bg-slate-700/30 transition-colors duration-150"
+                    >
+                      {getTableHeaders(filter, checkFilters).map(
+                        (header, cellIndex) =>
+                          renderTableCell(
+                            record,
+                            header,
+                            cellIndex,
+                            formatDateTime
+                          )
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Footer */}
+        {!loading && filteredData.length > 0 && (
+          <div className="mt-4 text-center text-slate-400 text-sm">
+            Menampilkan {filteredData.length} record{" "}
+            {filter === "today" ? "hari ini" : "total"}
+          </div>
+        )}
       </div>
-
-      {error && (
-        <div className="mb-4 p-3 bg-red-900/50 border border-red-800 rounded-lg text-red-400">
-          {error}
-        </div>
-      )}
-
-      {loading && (
-        <div className="text-center py-8 text-blue-400">
-          Memuat data absensi...
-        </div>
-      )}
-
-      {!loading && filteredData.length === 0 && (
-        <div className="text-center py-8 text-blue-400">
-          {attendanceData.length === 0 
-            ? "Belum ada data absensi hari ini" 
-            : "Tidak ada data yang sesuai dengan pencarian"}
-        </div>
-      )}
-    {!loading && filteredData.length > 0 && (
-      <div className="overflow-x-auto rounded-lg border border-navy-800">
-        <table className="min-w-full bg-navy-900">
-          <thead className="bg-navy-800">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Karyawan
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                ID
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Check In
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Check Out
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-blue-400 uppercase tracking-wider">
-                Jam Kerja
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-navy-800">
-            {filteredData.map((record, index) => {
-              const checkIn = record.checkIn ? new Date(record.checkIn) : null;
-              const checkOut = record.checkOut ? new Date(record.checkOut) : null;
-              
-              const status = checkIn && checkOut ? "Selesai" : 
-                            checkIn ? "Sedang Bekerja" : "Belum Check-In";
-
-              const statusColor = checkIn && checkOut ? "bg-emerald-900 text-emerald-300 border-emerald-700" :
-                                  checkIn ? "bg-blue-900 text-blue-300 border-blue-700" :
-                                  "bg-gray-900 text-gray-300 border-gray-700";
-
-              return (
-                <tr key={record._id || index} className="hover:bg-navy-800 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {record.name || `Employee ${record.employeeId}`}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {record.employeeId}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {checkIn ? checkIn.toLocaleTimeString('id-ID') : "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {checkOut ? checkOut.toLocaleTimeString('id-ID') : "Masih Bekerja"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-sm rounded-full border ${statusColor}`}>
-                      {status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-blue-100">
-                    {record.workingHours || "0h"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    )}
     </div>
   );
 };
 
-export default AttendanceLog;
+export default AttendanceLogs;
