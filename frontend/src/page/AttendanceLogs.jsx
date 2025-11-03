@@ -200,7 +200,7 @@ const AttendanceLogs = () => {
                         (header, i) => (
                           <th
                             key={i}
-                            className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider text-sm"
+                            className="px-6 py-4 text-center font-semibold text-slate-300 uppercase tracking-wider text-sm"
                           >
                             {header}
                           </th>
