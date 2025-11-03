@@ -30,25 +30,25 @@ A modern, privacy-focused attendance system that uses **zero-shot face recogniti
 
 ## ✨ Features
 
-🤖 AI-Powered Recognition
+--> AI-Powered Recognition
 - **Zero-shot learning** - Recognize new employees without pre-training
 - **Real-time face detection** with confidence scoring
 - **Continuous learning** - Improves accuracy with each interaction
 - **Multi-face detection** in single frame
 
-💾 Smart Data Management
+--> Smart Data Management
 - **Offline-first architecture** - Fully functional without internet
 - **MongoDB integration** for scalable data storage
 - **Auto-employee creation** on first recognition
 - **Periodic sync capability** for cloud backup
 
-🎨 Modern User Experience
+--> Modern User Experience
 - **Real-time dashboard** with live camera feed
 - **Responsive design** works on desktop and mobile
 - **Check-in/Check-out system** with working hours calculation
 - **Advanced filtering** and search capabilities
 
-🔒 Privacy & Security
+--> Privacy & Security
 - **No raw image storage** - only mathematical embeddings
 - **Local processing** - face recognition happens on-premise
 - **GDPR compliant design**

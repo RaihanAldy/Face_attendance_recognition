@@ -1,150 +1,230 @@
-import React, { useState } from 'react';
+import { Settings as SettingIcons } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const Settings = () => {
-  const [profileData, setProfileData] = useState({
-    name: 'Admin User',
-    email: 'admin@example.com',
-    phone: '+1234567890',
-    role: 'Administrator',
-    avatar: null
+  const [settings, setSettings] = useState({
+    startTime: "08:37",
+    endTime: "17:00",
+    syncFrequency: 15,
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState({ type: "", text: "" });
 
-  const [generalSettings, setGeneralSettings] = useState({
-    notifications: true,
-    emailAlerts: true,
-    darkMode: true,
-    language: 'en',
-    timezone: 'UTC+7'
-  });
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        setIsLoading(true);
+        // ✅ UPDATE: Tambahkan base URL backend
+        const res = await fetch("http://localhost:5000/api/settings");
 
-  const handleProfileUpdate = (e) => {
-    e.preventDefault();
-    // Handle profile update logic here
-    console.log('Profile updated:', profileData);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        const data = await res.json();
+        setSettings({
+          startTime: data.startTime || "08:00",
+          endTime: data.endTime || "17:00",
+          syncFrequency: data.syncFrequency || 15,
+        });
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+        setMessage({
+          type: "error",
+          text: "Gagal memuat pengaturan",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleInputChange = (field, value) => {
+    setSettings((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
-  const handleSettingsUpdate = (e) => {
-    e.preventDefault();
-    // Handle settings update logic here
-    console.log('Settings updated:', generalSettings);
+  const handleFrequencyChange = (e) => {
+    let value = parseInt(e.target.value, 10) || 1;
+
+    // Validasi nilai minimal
+    if (value < 1) value = 1;
+
+    handleInputChange("syncFrequency", value);
   };
+
+  const validateSettings = () => {
+    const { startTime, endTime, syncFrequency } = settings;
+
+    if (!startTime || !endTime) {
+      return "Waktu mulai dan akhir harus diisi";
+    }
+
+    if (startTime >= endTime) {
+      return "Waktu akhir harus setelah waktu mulai";
+    }
+
+    if (syncFrequency < 1) {
+      return "Frekuensi sinkronisasi minimal 1 menit";
+    }
+
+    return null;
+  };
+
+  const handleSave = async () => {
+    const validationError = validateSettings();
+    if (validationError) {
+      setMessage({
+        type: "error",
+        text: validationError,
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setMessage({ type: "", text: "" });
+
+      // ✅ UPDATE: Tambahkan base URL backend
+      const response = await fetch("http://localhost:5000/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
+      }
+
+      const result = await response.json();
+
+      setMessage({
+        type: "success",
+        text: result.message || "Pengaturan berhasil disimpan!",
+      });
+
+      // Auto clear success message after 3 seconds
+      setTimeout(() => {
+        setMessage({ type: "", text: "" });
+      }, 3000);
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      setMessage({
+        type: "error",
+        text: error.message || "Error menyimpan pengaturan",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleTimeChange = (field, value) => {
+    handleInputChange(field, value);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 p-8 flex items-center justify-center">
+        <div className="text-white text-lg">Memuat pengaturan...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 bg-navy-950 rounded-lg shadow-md">
-      <h1 className="text-3xl font-bold mb-6 text-gray-200">Settings</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Profile Settings */}
-        <div className="bg-navy-900 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4 text-blue-100">Profile Settings</h2>
-          <form onSubmit={handleProfileUpdate}>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-blue-200 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  value={profileData.name}
-                  onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                  className="w-full px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-blue-200 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={profileData.email}
-                  onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                  className="w-full px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-blue-200 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  value={profileData.phone}
-                  onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                  className="w-full px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Save Profile
-              </button>
-            </div>
-          </form>
+    <div className="min-h-screen bg-slate-950 p-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center space-x-2 mb-6">
+          <SettingIcons size={36} className="text-white shrink-0" />
+          <h1 className="text-4xl font-bold text-white leading-none">
+            Settings
+          </h1>
         </div>
+        {/* Message Alert */}
+        {message.text && (
+          <div
+            className={`mb-6 p-4 rounded-lg ${
+              message.type === "error"
+                ? "bg-red-500/20 border border-red-500 text-red-200"
+                : "bg-green-500/20 border border-green-500 text-green-200"
+            }`}
+          >
+            {message.text}
+          </div>
+        )}
+        <div className="bg-slate-900 rounded-xl p-6 space-y-6">
+          <div>
+            <label className="block text-gray-200 mb-2 text-sm font-medium">
+              Jam Masuk:
+            </label>
+            <input
+              type="time"
+              value={settings.startTime}
+              onChange={(e) => handleTimeChange("startTime", e.target.value)}
+              className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
 
-        {/* General Settings */}
-        <div className="bg-navy-900 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4 text-blue-100">General Settings</h2>
-          <form onSubmit={handleSettingsUpdate}>
-            <div className="space-y-4">
-              <div>
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={generalSettings.notifications}
-                    onChange={(e) => setGeneralSettings({...generalSettings, notifications: e.target.checked})}
-                    className="form-checkbox h-5 w-5 text-blue-600"
-                  />
-                  <span className="text-blue-200">Enable Notifications</span>
-                </label>
-              </div>
-              <div>
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={generalSettings.emailAlerts}
-                    onChange={(e) => setGeneralSettings({...generalSettings, emailAlerts: e.target.checked})}
-                    className="form-checkbox h-5 w-5 text-blue-600"
-                  />
-                  <span className="text-blue-200">Email Alerts</span>
-                </label>
-              </div>
-              <div>
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    checked={generalSettings.darkMode}
-                    onChange={(e) => setGeneralSettings({...generalSettings, darkMode: e.target.checked})}
-                    className="form-checkbox h-5 w-5 text-blue-600"
-                  />
-                  <span className="text-blue-200">Dark Mode</span>
-                </label>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-blue-200 mb-1">Language</label>
-                <select
-                  value={generalSettings.language}
-                  onChange={(e) => setGeneralSettings({...generalSettings, language: e.target.value})}
-                  className="w-full px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-                >
-                  <option value="en">English</option>
-                  <option value="id">Bahasa Indonesia</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-blue-200 mb-1">Timezone</label>
-                <select
-                  value={generalSettings.timezone}
-                  onChange={(e) => setGeneralSettings({...generalSettings, timezone: e.target.value})}
-                  className="w-full px-4 py-2 bg-navy-800 border border-navy-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-blue-100"
-                >
-                  <option value="UTC+7">Jakarta (UTC+7)</option>
-                  <option value="UTC+8">Singapore (UTC+8)</option>
-                  <option value="UTC+9">Tokyo (UTC+9)</option>
-                </select>
-              </div>
-              <button
-                type="submit"
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Save Settings
-              </button>
-            </div>
-          </form>
+          <div>
+            <label className="block text-gray-200 mb-2 text-sm font-medium">
+              Jam Pulang:
+            </label>
+            <input
+              type="time"
+              value={settings.endTime}
+              onChange={(e) => handleTimeChange("endTime", e.target.value)}
+              className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-200 mb-2 text-sm font-medium">
+              Frekuensi Sinkronisasi (menit):
+            </label>
+            <input
+              type="number"
+              value={settings.syncFrequency}
+              min={1}
+              onChange={handleFrequencyChange}
+              className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
+            />
+            <p className="text-gray-400 text-xs mt-2">
+              Masukkan frekuensi sinkronisasi dalam menit (minimal 1 menit)
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Menyimpan...
+                </>
+              ) : (
+                "Simpan Pengaturan"
+              )}
+            </button>
+
+            <button
+              onClick={() => window.history.back()}
+              className="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+            >
+              Kembali
+            </button>
+          </div>
         </div>
       </div>
     </div>
