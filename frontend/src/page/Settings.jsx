@@ -172,6 +172,7 @@ const Settings = () => {
           </div>
 
           <div className="flex gap-3 pt-4">
+            {/* Tombol Simpan */}
             <button
               onClick={handleSave}
               disabled={isSaving}
@@ -187,6 +188,46 @@ const Settings = () => {
               )}
             </button>
 
+            {/* Tombol Sync Manual */}
+            <button
+              onClick={async () => {
+                try {
+                  setMessage({ type: "", text: "" });
+                  setIsSaving(true);
+
+                  const res = await fetch("http://localhost:5000/api/sync", {
+                    method: "POST",
+                  });
+
+                  if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(
+                      errorData.error || `HTTP error! status: ${res.status}`
+                    );
+                  }
+
+                  const data = await res.json();
+                  setMessage({
+                    type: "success",
+                    text: data.message || "Sync berhasil dijalankan!",
+                  });
+                  setTimeout(() => setMessage({ type: "", text: "" }), 3000);
+                } catch (error) {
+                  console.error("Sync gagal:", error);
+                  setMessage({
+                    type: "error",
+                    text: error.message || "Sync gagal",
+                  });
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+            >
+              Sync Manual
+            </button>
+
+            {/* Tombol Kembali */}
             <button
               onClick={() => window.history.back()}
               className="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"

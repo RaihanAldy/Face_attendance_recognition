@@ -1,17 +1,15 @@
 from pymongo import MongoClient
 from datetime import datetime, time, timedelta
-import calendar
 import os
 from dotenv import load_dotenv
 import traceback
-import uuid
 
 load_dotenv()
 
 class MongoDBManager:
     def __init__(self):
-        self.client = MongoClient(os.getenv('MONGODB_URI', 'mongodb+srv://db_user:RwSakAlJOcc7ZNC9@facerecognition.e2qalds.mongodb.net/'))
-        self.db = self.client[os.getenv('DATABASE_NAME', 'attendance_system')]
+        self.client = MongoClient(os.getenv('MONGODB_URI'))
+        self.db = self.client[os.getenv('DATABASE_NAME')]
         self.employees = self.db.employees
         self.attendance = self.db.attendance
         self.analytics = self.db.analytics
@@ -668,168 +666,40 @@ class MongoDBManager:
     # ==================== ATTENDANCE QUERIES ====================
     
     def get_attendance_with_checkout(self, date_str=None):
-        """Get attendance data dengan pairing check-in/check-out"""
+        """Get attendance records for a given date (using new structure)"""
         try:
-            if date_str:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-            else:
-                start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+            if not date_str:
+                date_str = datetime.now().strftime('%Y-%m-%d')
 
-            pipeline = [
-                {
-                    '$match': {
-                        'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
-                    }
-                },
-                {
-                    '$sort': {'timestamp': 1}
-                },
-                {
-                    '$group': {
-                        '_id': '$employee_id',
-                        'records': {
-                            '$push': {
-                                'action': '$action',
-                                'status': '$status',
-                                'timestamp': '$timestamp',
-                                'confidence': '$confidence'
-                            }
-                        }
-                    }
-                },
-                {
-                    '$lookup': {
-                        'from': 'employees',
-                        'localField': '_id',
-                        'foreignField': 'employee_id',
-                        'as': 'employee_info'
-                    }
-                },
-                {
-                    '$project': {
-                        'employeeId': '$_id',
-                        'name': {
-                            '$ifNull': [
-                                {'$arrayElemAt': ['$employee_info.name', 0]},
-                                'Unknown'
-                            ]
-                        },
-                        'department': {
-                            '$ifNull': [
-                                {'$arrayElemAt': ['$employee_info.department', 0]},
-                                'General'
-                            ]
-                        },
-                        'checkIn': {
-                            '$arrayElemAt': [
-                                {
-                                    '$map': {
-                                        'input': {
-                                            '$filter': {
-                                                'input': '$records',
-                                                'as': 'record',
-                                                'cond': {'$eq': ['$$record.action', 'check_in']}
-                                            }
-                                        },
-                                        'as': 'filtered',
-                                        'in': '$$filtered.timestamp'
-                                    }
-                                },
-                                0
-                            ]
-                        },
-                        'checkInStatus': {
-                            '$arrayElemAt': [
-                                {
-                                    '$map': {
-                                        'input': {
-                                            '$filter': {
-                                                'input': '$records',
-                                                'as': 'record',
-                                                'cond': {'$eq': ['$$record.action', 'check_in']}
-                                            }
-                                        },
-                                        'as': 'filtered',
-                                        'in': '$$filtered.status'
-                                    }
-                                },
-                                0
-                            ]
-                        },
-                        'checkOut': {
-                            '$arrayElemAt': [
-                                {
-                                    '$map': {
-                                        'input': {
-                                            '$filter': {
-                                                'input': '$records',
-                                                'as': 'record',
-                                                'cond': {'$eq': ['$$record.action', 'check_out']}
-                                            }
-                                        },
-                                        'as': 'filtered',
-                                        'in': '$$filtered.timestamp'
-                                    }
-                                },
-                                0
-                            ]
-                        },
-                        'checkOutStatus': {
-                            '$arrayElemAt': [
-                                {
-                                    '$map': {
-                                        'input': {
-                                            '$filter': {
-                                                'input': '$records',
-                                                'as': 'record',
-                                                'cond': {'$eq': ['$$record.action', 'check_out']}
-                                            }
-                                        },
-                                        'as': 'filtered',
-                                        'in': '$$filtered.status'
-                                    }
-                                },
-                                0
-                            ]
-                        },
-                        'confidence': {'$arrayElemAt': ['$records.confidence', 0]}
-                    }
-                }
-            ]
-            
-            results = list(self.attendance.aggregate(pipeline))
-            
-            formatted_results = []
-            for item in results:
-                check_in = item.get('checkIn')
-                check_out = item.get('checkOut')
-                
-                formatted_item = {
-                    '_id': str(item.get('_id', '')),
-                    'employeeId': item.get('employeeId', 'N/A'),
-                    'name': item.get('name', 'Unknown'),
-                    'department': item.get('department', 'General'),
-                    'checkIn': check_in.isoformat() if check_in else None,
-                    'checkInStatus': item.get('checkInStatus', 'ontime'),
-                    'checkOut': check_out.isoformat() if check_out else None,
-                    'checkOutStatus': item.get('checkOutStatus', 'ontime'),
-                    'confidence': item.get('confidence', 0),
-                    'status': 'Present' if check_in else 'Absent',
-                    'workingHours': self.calculate_working_hours(check_in, check_out)
-                }
-                
-                formatted_results.append(formatted_item)
-            
-            print(f"✅ Found {len(formatted_results)} attendance records for {date_str or 'today'}")
-            return formatted_results
-            
+            query = {'date': date_str} if date_str != 'all' else {}
+            records = list(self.attendance.find(query).sort('employee_id', 1))
+
+            formatted = []
+            for rec in records:
+                checkin = rec.get('checkin', {})
+                checkout = rec.get('checkout', {})
+                formatted.append({
+                    '_id': str(rec.get('_id')),
+                    'employee_id': rec.get('employee_id'),
+                    'employee_name': rec.get('employee_name', 'Unknown'),
+                    'department': rec.get('department', 'General'),
+                    'checkIn': checkin.get('timestamp'),
+                    'checkInStatus': checkin.get('status'),
+                    'checkOut': checkout.get('timestamp'),
+                    'checkOutStatus': checkout.get('status'),
+                    'workDuration': f"{rec.get('work_duration_minutes', 0)//60}h {rec.get('work_duration_minutes', 0)%60}m",
+                    'status': 'Present' if checkin else 'Absent',
+                    'createdAt': rec.get('createdAt'),
+                    'updatedAt': rec.get('updatedAt'),
+                })
+
+            print(f"✅ Found {len(formatted)} attendance records for {date_str}")
+            return formatted
         except Exception as e:
             print(f"❌ Error getting attendance with checkout: {e}")
             traceback.print_exc()
             return []
+
     
     def get_attendance_by_date(self, date_str=None):
         """Ambil data absensi dengan EMPLOYEE NAME YANG KONSISTEN"""
@@ -893,133 +763,6 @@ class MongoDBManager:
             traceback.print_exc()
             return []
 
-    def get_attendance_with_checkout(self, date_str=None):
-        """
-        Get attendance data dengan pairing check-in/check-out untuk view gabungan
-        """
-        try:
-            if date_str and date_str != 'all':
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
-                match_filter = {'timestamp': {'$gte': start_of_day, '$lte': end_of_day}}
-            else:
-                match_filter = {}
-
-            pipeline = [
-                {
-                    '$match': match_filter
-                },
-                {
-                    '$sort': {'timestamp': 1}
-                },
-                {
-                    '$group': {
-                        '_id': '$employee_id',
-                        'employee_id': {'$first': '$employee_id'},
-                        'check_in': {
-                            '$min': {
-                                '$cond': [
-                                    {'$eq': ['$action', 'check_in']},
-                                    '$timestamp',
-                                    None
-                                ]
-                            }
-                        },
-                        'check_out': {
-                            '$max': {
-                                '$cond': [
-                                    {'$eq': ['$action', 'check_out']},
-                                    '$timestamp',
-                                    None
-                                ]
-                            }
-                        },
-                        'check_in_status': {
-                            '$first': {
-                                '$cond': [
-                                    {'$eq': ['$action', 'check_in']},
-                                    '$status',
-                                    None
-                                ]
-                            }
-                        },
-                        'check_out_status': {
-                            '$first': {
-                                '$cond': [
-                                    {'$eq': ['$action', 'check_out']},
-                                    '$status',
-                                    None
-                                ]
-                            }
-                        }
-                    }
-                },
-                {
-                    '$lookup': {
-                        'from': 'employees',
-                        'localField': 'employee_id',
-                        'foreignField': 'employee_id',
-                        'as': 'employee_info'
-                    }
-                },
-                {
-                    '$unwind': '$employee_info'
-                },
-                {
-                    '$project': {
-                        '_id': 1,
-                        'employeeId': '$employee_id',
-                        'name': '$employee_info.name',
-                        'employees': '$employee_info.name',
-                        'checkIn': '$check_in',
-                        'checkOut': '$check_out',
-                        'checkInStatus': '$check_in_status',
-                        'checkOutStatus': '$check_out_status',
-                        'department': '$employee_info.department',
-                        'workingHours': {
-                            '$cond': [
-                                {'$and': ['$check_in', '$check_out']},
-                                {
-                                    '$divide': [
-                                        {'$subtract': ['$check_out', '$check_in']},
-                                        3600000  # Convert to hours
-                                    ]
-                                },
-                                0
-                            ]
-                        }
-                    }
-                }
-            ]
-            
-            results = list(self.attendance.aggregate(pipeline))
-            
-            # Format untuk frontend
-            formatted_results = []
-            for item in results:
-                formatted_item = {
-                    '_id': str(item.get('_id', '')),
-                    'employeeId': item.get('employeeId', 'N/A'),
-                    'name': item.get('name', 'Unknown'),
-                    'employees': item.get('employees', 'Unknown'),
-                    'checkIn': item.get('checkIn').isoformat() if item.get('checkIn') else None,
-                    'checkOut': item.get('checkOut').isoformat() if item.get('checkOut') else None,
-                    'checkInStatus': item.get('checkInStatus'),
-                    'checkOutStatus': item.get('checkOutStatus'),
-                    'department': item.get('department', 'General'),
-                    'workingHours': f"{int(item.get('workingHours', 0))}h {int((item.get('workingHours', 0) % 1) * 60)}m"
-                }
-                
-                formatted_results.append(formatted_item)
-            
-            print(f"✅ Found {len(formatted_results)} paired attendance records for {date_str or 'today'}")
-            return formatted_results
-
-        except Exception as e:
-            print(f"❌ Error getting attendance with checkout: {e}")
-            traceback.print_exc()
-            return []
 
     def calculate_working_hours(self, check_in, check_out):
         """Calculate working hours between check-in and check-out"""
@@ -1129,51 +872,31 @@ class MongoDBManager:
             }
     
     def get_recent_recognitions(self, limit=10):
-        """Get recent attendance records"""
+        """Get recent check-in/out events using new structure"""
         try:
-            pipeline = [
-                {
-                    '$sort': {'timestamp': -1}
-                },
-                {
-                    '$limit': limit
-                },
-                {
-                    '$lookup': {
-                        'from': 'employees',
-                        'localField': 'employee_id',
-                        'foreignField': 'employee_id',
-                        'as': 'employee'
-                    }
-                },
-                {
-                    '$project': {
-                        'employees': 1,
-                        'action': 1,
-                        'status': 1,
-                        'timestamp': 1,
-                        'confidence': 1,
-                        'employeeId': '$employee_id',
-                        'name': '$employees',
-                        'department': {
-                            '$ifNull': [
-                                {'$arrayElemAt': ['$employee.department', 0]},
-                                'General'
-                            ]
-                        }
-                    }
-                }
-            ]
-            
-            results = list(self.attendance.aggregate(pipeline))
-            for item in results:
-                item['_id'] = str(item['_id'])
-                if 'timestamp' in item and item['timestamp']:
-                    item['timestamp'] = item['timestamp'].isoformat()
-            
-            return results
+            records = list(
+                self.attendance.find().sort('updatedAt', -1).limit(limit)
+            )
+
+            recent = []
+            for rec in records:
+                checkin = rec.get('checkin', {})
+                checkout = rec.get('checkout', {})
+                recent.append({
+                    '_id': str(rec.get('_id')),
+                    'employee_id': rec.get('employee_id'),
+                    'employee_name': rec.get('employee_name', 'Unknown'),
+                    'department': rec.get('department', 'General'),
+                    'last_action': 'check_out' if checkout else 'check_in',
+                    'last_status': checkout.get('status') if checkout else checkin.get('status'),
+                    'timestamp': checkout.get('timestamp') or checkin.get('timestamp'),
+                    'work_duration_minutes': rec.get('work_duration_minutes', 0)
+                })
+
+            return recent
         except Exception as e:
             print(f"❌ Error getting recent recognitions: {e}")
+            traceback.print_exc()
             return []
 
 # Global instance

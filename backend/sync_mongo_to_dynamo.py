@@ -146,6 +146,26 @@ def main():
     set_last_checkpoint(iso_now())
     print(f"✅ Successfully synced {count} records to DynamoDB")
 
+def sync_to_dynamo():
+    today = datetime.now().strftime("%Y-%m-%d")
+    records = list(att.find({"date": today}))
+
+    if not records:
+        print("No records to sync.")
+        return
+    
+    for record in records:
+        item = {
+            "record_id": str(record["_id"]),
+            "employee_id": record.get("employee_id"),
+            "date": record.get("date"),
+            "checkin": record.get("checkin"),
+            "checkout": record.get("checkout"),
+        }
+        table.put_item(Item=item)
+    
+    print(f"Synced {len(records)} records to DynamoDB.")
+
 
 if __name__ == '__main__':
     main()

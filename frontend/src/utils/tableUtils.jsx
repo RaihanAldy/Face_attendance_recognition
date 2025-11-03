@@ -145,7 +145,9 @@ export const renderTableCell = (record, header, index, formatDateTime) => {
               {record.workingHours}
             </span>
           ) : (
-            <span className="text-gray-500">-</span>
+            <span className="px-3 py-1 rounded-lg bg-purple-600/20 text-purple-300 text-sm font-medium border border-purple-500/30">
+              {record.workingHours || "0h 0m"}
+            </span>
           )}
         </td>
       );

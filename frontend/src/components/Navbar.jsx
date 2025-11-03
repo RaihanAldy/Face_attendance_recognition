@@ -7,6 +7,8 @@ const Navbar = ({ onLogout, userRole }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [user, setUser] = useState(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,6 +26,10 @@ const Navbar = ({ onLogout, userRole }) => {
     const storedUser = localStorage.getItem("userData");
     const userName = localStorage.getItem("userName") || "User";
     const userEmail = localStorage.getItem("userEmail") || "user@example.com";
+    setNotifications([
+      { message: "Sistem berhasil disinkronkan", time: "Baru saja" },
+      { message: "Koneksi jaringan stabil", time: "1 menit lalu" },
+    ]);
 
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -92,10 +98,41 @@ const Navbar = ({ onLogout, userRole }) => {
               {/* Search */}
 
               {/* Notifications */}
-              <button className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                >
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                </button>
+
+                {/* Notifications Dropdown */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-lg shadow-lg py-2 z-50">
+                    <div className="px-4 py-2 border-b border-slate-700">
+                      <h3 className="text-sm font-semibold text-slate-200">
+                        Notifications
+                      </h3>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.map((notification, index) => (
+                        <div
+                          key={index}
+                          className="px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0"
+                        >
+                          <p className="text-sm text-slate-200">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {notification.time}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Connection Status */}
               <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800">
