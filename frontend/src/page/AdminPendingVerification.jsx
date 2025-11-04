@@ -9,7 +9,6 @@ const AdminPendingVerification = () => {
   const [filter, setFilter] = useState("pending");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [reviewing, setReviewing] = useState(false);
-  const [adminNotes, setAdminNotes] = useState("");
 
   useEffect(() => {
     fetchPendingRequests();
@@ -43,7 +42,6 @@ const AdminPendingVerification = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
-          adminNotes,
           adminName: "Administrator",
         }),
       });
@@ -193,9 +191,6 @@ const AdminPendingVerification = () => {
                     <h3 className="text-xl font-semibold text-white mb-2">
                       {request.employees || request.employee_name || "Unknown"}
                     </h3>
-                    <p className="text-blue-400 text-sm font-medium mb-3">
-                      ID: {request.employee_id}
-                    </p>
                     <div className="text-sm text-slate-400">
                       <p>Submitted: {formatDateTime(request.submitted_at)}</p>
                     </div>
@@ -307,27 +302,7 @@ const AdminPendingVerification = () => {
                       <p className="text-slate-400">Reviewed At</p>
                       <p className="text-slate-300">{formatDateTime(selectedRequest.reviewed_at)}</p>
                     </div>
-                    <div className="col-span-2">
-                      <p className="text-slate-400 mb-1">Admin Notes</p>
-                      <p className="text-slate-300">{selectedRequest.admin_notes || "-"}</p>
-                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Admin Notes - only show if pending */}
-              {selectedRequest.status === "pending" && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Admin Notes (Optional)
-                  </label>
-                  <textarea
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="Add any notes about this verification..."
-                    rows={3}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  />
                 </div>
               )}
 
