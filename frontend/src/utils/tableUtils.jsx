@@ -34,7 +34,7 @@ export const getTableHeaders = (filter, checkFilters) => {
 
 // Fungsi untuk render isi setiap sel tabel
 export const renderTableCell = (record, header, index, formatDateTime) => {
-  const baseClass = "px-6 py-4 text-slate-300";
+  const baseClass = "px-3 py-4 text-slate-300 text-center";
 
   switch (header) {
     case "Employee ID":
@@ -46,7 +46,7 @@ export const renderTableCell = (record, header, index, formatDateTime) => {
 
     case "Nama":
       return (
-        <td key={index} className={baseClass}>
+        <td key={index} className={`${baseClass} text-left`}>
           {getEmployeeName(record)}
         </td>
       );
@@ -67,7 +67,7 @@ export const renderTableCell = (record, header, index, formatDateTime) => {
       return (
         <td key={index} className={`${baseClass} capitalize`}>
           <span
-            className={`px-2 py-1 rounded-full text-sm ${
+            className={`px-2 py-1 rounded-full text-xs ${
               statusValue === "ontime"
                 ? "bg-green-500/20 text-green-400"
                 : statusValue === "late"
@@ -145,7 +145,9 @@ export const renderTableCell = (record, header, index, formatDateTime) => {
               {record.workingHours}
             </span>
           ) : (
-            <span className="text-gray-500">-</span>
+            <span className="px-3 py-1 rounded-lg bg-purple-600/20 text-purple-300 text-sm font-medium border border-purple-500/30">
+              {record.workingHours || "0h 0m"}
+            </span>
           )}
         </td>
       );
