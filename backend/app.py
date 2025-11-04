@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from mongo_db import db
 from face_engine import face_engine
@@ -515,7 +515,80 @@ def test_face_engine():
             'status': 'error',
             'error': str(e)
         }), 500
-        
+
+@app.route('/api/attendance/manual', methods=['POST', 'OPTIONS'])
+def manual_attendance():
+    # ✅ Handle preflight (OPTIONS)
+    if request.method == 'OPTIONS':
+        response = make_response("", 200)
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
+
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"success": False, "error": "No data provided"}), 400
+
+        employees = data.get('employees')
+        photo_base64 = data.get('photo')
+        timestamp_str = data.get('timestamp', datetime.now().isoformat())
+
+        if not employees:
+            return jsonify({"success": False, "error": "Employee name is required"}), 400
+
+        if not photo_base64:
+            return jsonify({"success": False, "error": "Photo is required"}), 400
+
+        print(f"📝 Manual attendance for: {employees}")
+
+        # ✅ Handle timestamp parsing dengan benar
+        try:
+            if timestamp_str.endswith('Z'):
+                timestamp_str = timestamp_str[:-1] + '+00:00'
+            timestamp = datetime.fromisoformat(timestamp_str)
+        except Exception as time_error:
+            print(f"⚠️ Error parsing timestamp, using current time: {time_error}")
+            timestamp = datetime.now()
+
+        # ✅ SIMPAN KE pending_attendance BUKAN attendance
+        pending_record = {
+            "employee_name": employees,  # Gunakan field yang konsisten
+            "photo": photo_base64,
+            "timestamp": timestamp,
+            "type": "manual",
+            "status": "pending",  # Status pending untuk menunggu approval
+            "created_at": datetime.now(),
+            "date": timestamp.strftime('%Y-%m-%d'),
+            "submitted_at": datetime.now()
+        }
+
+        # ✅ SIMPAN KE COLLECTION pending_attendance
+        result = db.pending_attendance.insert_one(pending_record)
+
+        response = jsonify({
+            "success": True,
+            "message": "Manual attendance submitted successfully and waiting for approval",
+            "pending_id": str(result.inserted_id),
+            "employee_name": employees,
+            "timestamp": timestamp.isoformat(),
+            "status": "pending"
+        })
+
+        # ✅ Tambah header CORS pada response utama
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        return response, 200
+
+    except Exception as e:
+        print(f"❌ Manual attendance error: {e}")
+        traceback.print_exc()
+        response = jsonify({"success": False, "error": str(e)})
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        return response, 500
+
 # ==================== UTILITY ENDPOINTS ====================
 
 @app.route('/api/system/cleanup', methods=['POST'])

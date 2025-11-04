@@ -11,9 +11,10 @@ import Sidebar from "./components/Sidebar";
 import FaceScan from "./page/FaceScan";
 import FaceRegistration from "./page/FaceRegistration";
 import Analytics from "./page/Analytics";
-import AttendanceLogs from "./page/AttendanceLogs";
+import AttendanceLog from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
 import Settings from "./page/Settings";
+
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -85,11 +86,9 @@ export default function App() {
   // ============================================
   return (
     <Router>
-      <div className="flex bg-slate-950 min-h-screen">
-        {/* Sidebar Navigation */}
-        <Sidebar onLogout={handleLogout} />
+      <div className="flex bg-slate-950">
+        <Sidebar />
 
-        {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Top Navigation Bar */}
           <Navbar
@@ -101,9 +100,8 @@ export default function App() {
           {/* Page Content */}
           <main className="flex-1 overflow-y-auto">
             <Routes>
-              {/* Admin Dashboard Routes */}
               <Route path="/dashboard" element={<Analytics />} />
-              <Route path="/attendance" element={<AttendanceLogs />} />
+              <Route path="/attendance" element={<AttendanceLog />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/settings" element={<Settings />} />
 

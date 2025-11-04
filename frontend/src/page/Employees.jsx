@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { UserPlus, Search, Trash2, Loader2 } from "lucide-react";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Employees = () => {
   const [employeesData, setEmployeesData] = useState([]);
@@ -11,12 +13,63 @@ const Employees = () => {
 
   // Fetch employees dari API
   const fetchEmployees = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      const res = await axios.get("http://localhost:5000/api/employees");
-      setEmployeesData(res.data);
-    } catch (error) {
-      console.error("❌ Error fetching employees:", error);
+      const response = await fetch(`${API_BASE_URL}/api/employees`);
+      if (!response.ok) throw new Error("Failed to fetch employees");
+
+      const data = await response.json();
+      setEmployees(data);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching employees:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewEmployee((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/employees`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newEmployee),
+      });
+
+      if (!response.ok) throw new Error("Failed to add employee");
+
+      const result = await response.json();
+      await fetchEmployees();
+
+      setShowAddModal(false);
+      setNewEmployee({
+        name: "",
+        department: "",
+        position: "",
+        email: "",
+        phone: "",
+      });
+
+      alert(`✅ Employee added successfully! ID: ${result.employee_id}`);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error adding employee:", err);
+      alert(`❌ Error: ${err.message}`);
     } finally {
       setLoading(false);
     }

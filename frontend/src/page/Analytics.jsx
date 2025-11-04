@@ -1,15 +1,16 @@
 import {
   attendanceTrend,
-  attendanceRate,
+  workingDurationData,
   topDepartments,
   hourlyCheckIns,
   summary,
 } from "../data/mockData";
 import LineChart from "../components/charts/LineChartTrend";
-import DonutChart from "../components/charts/DonutChartTrend";
+import EmployeeRanking from "../components/charts/EmployeeRanking";
 import BarChart from "../components/charts/BarChartTrend";
 import SummaryCard from "../components/SummaryCard";
-import Heatmap from "../components/charts/heatmap";
+import WorkingDurationCard from "../components/WorkingDurationCard";
+import Heatmap from "../components/charts/Heatmap";
 
 export default function Analytics() {
   return (
@@ -31,9 +32,8 @@ export default function Analytics() {
           value={summary.critical}
           color="border-orange-500"
         />
-        <SummaryCard
-          title="Attendance Rate"
-          value={`${summary.compliance}%`}
+        <WorkingDurationCard
+          data={workingDurationData}
           color="border-green-500"
         />
       </div>
@@ -41,7 +41,7 @@ export default function Analytics() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <LineChart data={attendanceTrend} />
-        <DonutChart value={attendanceRate} />
+        <EmployeeRanking />
         <BarChart data={topDepartments} />
         <Heatmap data={hourlyCheckIns} />
       </div>

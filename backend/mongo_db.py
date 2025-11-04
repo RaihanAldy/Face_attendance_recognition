@@ -3,6 +3,9 @@ from datetime import datetime, time, timedelta
 import os
 from dotenv import load_dotenv
 import traceback
+import numpy as np
+from bson import ObjectId
+
 
 load_dotenv()
 
@@ -15,6 +18,7 @@ class MongoDBManager:
         self.analytics = self.db.analytics
         self.system_logs = self.db.system_logs
         self.settings = self.db.settings
+        self.pending_attendance = self.db.pending_attendance
         
         self._create_indexes()
         self._init_default_settings()
@@ -122,6 +126,12 @@ class MongoDBManager:
         self.attendance.create_index([('timestamp', -1)])
         self.attendance.create_index('date')
         self.attendance.create_index([('employee_id', 1), ('date', 1)])
+
+        self.pending_attendance.create_index('created_at')
+        self.pending_attendance.create_index('status')
+        self.pending_attendance.create_index('employee_name')
+        self.pending_attendance.create_index([('created_at', -1)])
+        self.pending_attendance.create_index([('status', 1), ('created_at', -1)])
         print("✅ Database indexes created")
 
     # ==================== ATTENDANCE STATUS CALCULATION ====================
@@ -352,7 +362,6 @@ class MongoDBManager:
                 embedding2 = embedding2[:min_length]
             
             # Convert to numpy for efficiency
-            import numpy as np
             emb1 = np.array(embedding1)
             emb2 = np.array(embedding2)
             
@@ -898,6 +907,198 @@ class MongoDBManager:
             print(f"❌ Error getting recent recognitions: {e}")
             traceback.print_exc()
             return []
+    
+        # ==================== PENDING ATTENDANCE MANAGEMENT SYSTEM ====================
+    
+    def add_pending_attendance(self, employee_name, photo_data=None, additional_data=None):
+        """Add attendance record to pending collection untuk approval manual"""
+        try:
+            # Cari employee berdasarkan nama
+            employee = self.employees.find_one({'name': employee_name})
+            
+            if not employee:
+                return {
+                    'success': False, 
+                    'error': f'Employee "{employee_name}" not found in database'
+                }
+            
+            pending_record = {
+                'employee_id': employee.get('employee_id'),
+                'employee_name': employee_name,
+                'department': employee.get('department', 'General'),
+                'photo': photo_data,  # Simpan foto sebagai binary data atau path
+                'timestamp': datetime.now(),
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'status': 'pending',  # pending, approved, rejected
+                'created_at': datetime.now(),
+                'updated_at': datetime.now(),
+                'additional_data': additional_data or {}  # Data tambahan jika ada
+            }
+            
+            result = self.pending_attendance.insert_one(pending_record)
+            
+            if result.inserted_id:
+                print(f"✅ Pending attendance added for {employee_name} (ID: {result.inserted_id})")
+                return {
+                    'success': True,
+                    'message': 'Attendance submitted for approval',
+                    'pending_id': str(result.inserted_id),
+                    'employee_name': employee_name
+                }
+            else:
+                return {'success': False, 'error': 'Failed to create pending attendance'}
+                
+        except Exception as e:
+            print(f"❌ Error adding pending attendance: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def get_pending_attendance(self, status='pending', limit=50):
+        """Get pending attendance records dengan filter status"""
+        try:
+            query = {'status': status} if status != 'all' else {}
+            
+            records = list(
+                self.pending_attendance.find(query)
+                .sort('created_at', -1)
+                .limit(limit)
+            )
+            
+            formatted_records = []
+            for record in records:
+                formatted_record = {
+                    '_id': str(record['_id']),
+                    'employee_id': record.get('employee_id'),
+                    'employee_name': record.get('employee_name'),
+                    'department': record.get('department'),
+                    'timestamp': record.get('timestamp').isoformat() if record.get('timestamp') else None,
+                    'date': record.get('date'),
+                    'status': record.get('status'),
+                    'created_at': record.get('created_at').isoformat() if record.get('created_at') else None,
+                    'updated_at': record.get('updated_at').isoformat() if record.get('updated_at') else None,
+                    'photo_exists': bool(record.get('photo')),  # Indikator apakah ada foto
+                    'additional_data': record.get('additional_data', {})
+                }
+                formatted_records.append(formatted_record)
+            
+            print(f"✅ Found {len(formatted_records)} pending attendance records (status: {status})")
+            return formatted_records
+            
+        except Exception as e:
+            print(f"❌ Error getting pending attendance: {e}")
+            return []
+    
+    def approve_pending_attendance(self, pending_id):
+        """Approve pending attendance dan pindahkan ke attendance collection"""
+        try:
+            # Cari pending record
+            pending_record = self.pending_attendance.find_one({'_id': ObjectId(pending_id)})
+            
+            if not pending_record:
+                return {'success': False, 'error': 'Pending attendance not found'}
+            
+            if pending_record.get('status') != 'pending':
+                return {'success': False, 'error': 'Attendance record already processed'}
+            
+            employee_id = pending_record.get('employee_id')
+            employee_name = pending_record.get('employee_name')
+            
+            # Record attendance menggunakan fungsi yang sudah ada
+            result = self.record_attendance_auto(employee_id)
+            
+            if result and result.get('success'):
+                # Update status pending record menjadi approved
+                self.pending_attendance.update_one(
+                    {'_id': ObjectId(pending_id)},
+                    {
+                        '$set': {
+                            'status': 'approved',
+                            'approved_at': datetime.now(),
+                            'attendance_id': result.get('data', {}).get('_id'),
+                            'updated_at': datetime.now()
+                        }
+                    }
+                )
+                
+                print(f"✅ Pending attendance approved: {employee_name}")
+                return {
+                    'success': True,
+                    'message': 'Attendance approved successfully',
+                    'employee_name': employee_name,
+                    'action': result.get('action'),
+                    'attendance_id': result.get('data', {}).get('_id')
+                }
+            else:
+                return {'success': False, 'error': 'Failed to record attendance'}
+            
+        except Exception as e:
+            print(f"❌ Error approving pending attendance: {e}")
+            traceback.print_exc()
+            return {'success': False, 'error': str(e)}
+    
+    def reject_pending_attendance(self, pending_id, reason=None):
+        """Reject pending attendance"""
+        try:
+            # Update status menjadi rejected
+            result = self.pending_attendance.update_one(
+                {'_id': ObjectId(pending_id)},
+                {
+                    '$set': {
+                        'status': 'rejected',
+                        'rejected_at': datetime.now(),
+                        'rejection_reason': reason or 'No reason provided',
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                # Dapatkan info employee untuk logging
+                pending_record = self.pending_attendance.find_one({'_id': ObjectId(pending_id)})
+                employee_name = pending_record.get('employee_name', 'Unknown')
+                
+                print(f"✅ Pending attendance rejected: {employee_name}")
+                return {
+                    'success': True, 
+                    'message': 'Attendance rejected successfully',
+                    'employee_name': employee_name
+                }
+            else:
+                return {'success': False, 'error': 'Pending attendance not found'}
+                
+        except Exception as e:
+            print(f"❌ Error rejecting pending attendance: {e}")
+            traceback.print_exc()
+            return {'success': False, 'error': str(e)}
+    
+    def get_pending_stats(self):
+        """Get statistics untuk pending attendance"""
+        try:
+            total_pending = self.pending_attendance.count_documents({'status': 'pending'})
+            total_approved = self.pending_attendance.count_documents({'status': 'approved'})
+            total_rejected = self.pending_attendance.count_documents({'status': 'rejected'})
+            
+            # Pending today
+            start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            pending_today = self.pending_attendance.count_documents({
+                'status': 'pending',
+                'created_at': {'$gte': start_of_day}
+            })
+            
+            return {
+                'total_pending': total_pending,
+                'total_approved': total_approved,
+                'total_rejected': total_rejected,
+                'pending_today': pending_today
+            }
+            
+        except Exception as e:
+            print(f"❌ Error getting pending stats: {e}")
+            return {
+                'total_pending': 0,
+                'total_approved': 0,
+                'total_rejected': 0,
+                'pending_today': 0
+            }
 
 # Global instance
 db = MongoDBManager()

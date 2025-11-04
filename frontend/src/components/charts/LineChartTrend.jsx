@@ -10,12 +10,12 @@ import {
 
 export default function LineChartTrend({ data }) {
   return (
-    <div className="bg-slate-900 p-4 rounded-2xl shadow-md">
-      <h2 className="text-lg font-semibold mb-3 text-gray-200">
+    <div className="bg-slate-900 p-6 rounded-2xl shadow-md">
+      <h2 className="text-lg font-semibold mb-4 text-gray-200">
         Attendance Trend (7 Days)
       </h2>
-      <ResponsiveContainer width="100%" height={250}>
-        <LineChart data={data}>
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={data} margin={{ top: 5, right: 20, left: 1, bottom: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis dataKey="day" stroke="#9ca3af" />
           <YAxis stroke="#9ca3af" />
