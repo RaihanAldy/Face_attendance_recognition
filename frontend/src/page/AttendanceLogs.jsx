@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useAttendanceData } from "../utils/attendanceData";
 import AttendanceFilter from "../components/attendance/AttendanceFilter";
-import AttendanceHeader from "../components/attendance/AttendanceHeader";
 import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
-import { exportCSV } from "../utils/cvsExport";
+import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
 
-const AttendanceLog = () => {
+const AttendanceLogs = () => {
   const [filter, setFilter] = useState("today");
   const [checkFilters, setCheckFilters] = useState({
     checkin: false,
     checkout: false,
   });
+
+  // ✅ Pagination states (tidak duplikat)
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -20,112 +21,94 @@ const AttendanceLog = () => {
 
   useEffect(() => {
     fetchAttendanceData(filter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
-  const filteredData = attendanceData
-    .filter((record) => {
-      // Filter berdasarkan tanggal (all atau today)
-      if (filter === "all") return true;
+  // ✅ Filter logic
+  const filteredData = attendanceData.reduce((acc, record) => {
+    const {
+      employeeId,
+      name,
+      checkIn,
+      checkInStatus,
+      checkOut,
+      checkOutStatus,
+      workingHours,
+    } = record;
 
-      const today = new Date();
-      const recordDate = new Date(record.timestamp);
-      return (
-        recordDate.getDate() === today.getDate() &&
-        recordDate.getMonth() === today.getMonth() &&
-        recordDate.getFullYear() === today.getFullYear()
-      );
-    })
-    .reduce((acc, record) => {
-      const employeeId = record.employeeId;
-      const employeeName = record.name;
+    if (!checkIn && !checkOut) return acc;
 
-      // ✅ Ambil action dari field 'action' di database
-      const recordAction = record.action; // "check_in" atau "check_out"
-      const recordStatus = record.status; // "ontime", "late", "early"
-      const recordTimestamp = record.timestamp;
-
-      // Normalisasi action format
-      const isCheckIn =
-        recordAction === "check-in" || recordAction === "check_in";
-      const isCheckOut =
-        recordAction === "check-out" || recordAction === "check_out";
-
-      console.log("🔍 Processing record:", {
-        employeeId,
-        action: recordAction,
-        status: recordStatus,
-        isCheckIn,
-        isCheckOut,
-      });
-
-      // ✅ Kasus 1: Kedua filter aktif (checkin + checkout)
-      if (checkFilters.checkin && checkFilters.checkout) {
-        let existing = acc.find((r) => r.employeeId === employeeId);
-
-        if (!existing) {
-          existing = {
-            employeeId,
-            name: employeeName,
-            checkIn: null,
-            checkInStatus: null,
-            checkOut: null,
-            checkOutStatus: null,
-          };
-          acc.push(existing);
-        }
-
-        if (isCheckIn) {
-          existing.checkIn = recordTimestamp;
-          existing.checkInStatus = recordStatus;
-        }
-
-        if (isCheckOut) {
-          existing.checkOut = recordTimestamp;
-          existing.checkOutStatus = recordStatus;
-        }
-
-        return acc;
-      }
-
-      // ✅ Kasus 2: Hanya filter check-in aktif
-      if (checkFilters.checkin && !checkFilters.checkout) {
-        if (isCheckIn) {
-          acc.push({
-            employeeId,
-            name: employeeName,
-            checkIn: recordTimestamp,
-            status: recordStatus,
-          });
-        }
-        return acc;
-      }
-
-      // ✅ Kasus 3: Hanya filter check-out aktif
-      if (checkFilters.checkout && !checkFilters.checkin) {
-        if (isCheckOut) {
-          acc.push({
-            employeeId,
-            name: employeeName,
-            checkOut: recordTimestamp,
-            status: recordStatus,
-          });
-        }
-        return acc;
-      }
-
-      // ✅ Kasus 4: Tidak ada filter checkin/checkout (tampilkan semua raw records)
+    if (checkFilters.checkin && checkFilters.checkout) {
       acc.push({
         employeeId,
-        name: employeeName,
-        status: recordStatus,
-        action: recordAction, // Tampilkan action asli (check-in/check-out)
-        timestamp: recordTimestamp,
+        name: name || "Unknown Employee",
+        checkIn,
+        checkInStatus,
+        checkOut,
+        checkOutStatus,
+        workingHours,
       });
-
       return acc;
-    }, []);
+    }
 
-  // ✅ Handler export yang menggunakan filteredData dan semua parameter
+    if (checkFilters.checkin && !checkFilters.checkout && checkIn) {
+      acc.push({
+        employeeId,
+        name: name || "Unknown Employee",
+        checkIn,
+        status: checkInStatus || "ontime",
+        action: "Check In",
+        timestamp: checkIn,
+      });
+      return acc;
+    }
+
+    if (!checkFilters.checkin && checkFilters.checkout && checkOut) {
+      acc.push({
+        employeeId,
+        name: name || "Unknown Employee",
+        checkOut,
+        status: checkOutStatus || "ontime",
+        action: "Check Out",
+        timestamp: checkOut,
+      });
+      return acc;
+    }
+
+    // Default (tanpa filter)
+    if (checkIn) {
+      acc.push({
+        employeeId,
+        name: name || "Unknown Employee",
+        status: checkInStatus || "ontime",
+        action: "Check In",
+        timestamp: checkIn,
+      });
+    }
+
+    if (checkOut) {
+      acc.push({
+        employeeId,
+        name: name || "Unknown Employee",
+        status: checkOutStatus || "ontime",
+        action: "Check Out",
+        timestamp: checkOut,
+      });
+    }
+
+    return acc;
+  }, []);
+
+  // ✅ Reset pagination saat filter berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, checkFilters]);
+
+  // ✅ Pagination logic
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
   const handleExportCSV = () => {
     exportCSV(
       filteredData,
@@ -137,20 +120,42 @@ const AttendanceLog = () => {
   };
 
   console.group("🧩 Attendance Data Debug");
-  console.log("Raw data from backend:", attendanceData);
-  console.log("Filtered & reduced data:", filteredData);
-  console.log("Active filters:", { filter, checkFilters });
+  console.log("Raw data:", attendanceData);
+  console.log("Filtered:", filteredData);
   console.groupEnd();
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
-        <AttendanceHeader
-          onRefresh={() => fetchAttendanceData(filter)}
-          onExport={handleExportCSV}
-          loading={loading}
-          dataLength={filteredData.length}
-        />
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Attendance Log
+            </h1>
+            <p className="text-slate-400">
+              Monitor and manage employee attendance
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => fetchAttendanceData(filter)}
+              disabled={loading}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
+            >
+              🔄 {loading ? "Loading..." : "Refresh"}
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={filteredData.length === 0}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:bg-emerald-400"
+            >
+              📁 Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Filter */}
         <AttendanceFilter
           filter={filter}
           setFilter={setFilter}
@@ -158,68 +163,78 @@ const AttendanceLog = () => {
           setCheckFilters={setCheckFilters}
         />
 
+        {/* Error & Loading */}
         {error && (
-          <div className="text-red-400 p-4 bg-red-500/10 rounded-xl">
-            {error}
+          <div className="text-red-400 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+            ⚠️ {error}
           </div>
         )}
         {loading && (
-          <div className="text-blue-400 text-center py-6">
-            Memuat data absensi...
+          <div className="text-blue-400 text-center py-12">
+            <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-3"></div>
+            <p>Memuat data absensi...</p>
           </div>
         )}
         {!loading && !error && filteredData.length === 0 && (
-          <p className="text-slate-300 text-center py-6">
-            Tidak ada data untuk filter yang dipilih
-          </p>
+          <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
+            <p className="text-slate-400 text-lg mb-4">
+              📭 Tidak ada data untuk filter yang dipilih
+            </p>
+          </div>
         )}
 
+        {/* Table */}
         {!loading && filteredData.length > 0 && (
           <>
-            <div className="bg-slate-800/50 backdrop-blur rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-700/50">
-                  <tr>
-                    {getTableHeaders(filter, checkFilters).map((header, i) => (
-                      <th
-                        key={i}
-                        className="px-6 py-4 text-left font-semibold text-slate-300 uppercase tracking-wider"
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700/50">
-                  {filteredData
-                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                    .map((record, rowIndex) => (
+            <div className="bg-slate-800/50 backdrop-blur rounded-xl overflow-hidden border border-slate-700/50 shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-700/50">
+                    <tr>
+                      {getTableHeaders(filter, checkFilters).map(
+                        (header, i) => (
+                          <th
+                            key={i}
+                            className="px-6 py-4 text-center font-semibold text-slate-300 uppercase tracking-wider text-sm"
+                          >
+                            {header}
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/50">
+                    {currentData.map((record, rowIndex) => (
                       <tr
-                        key={record._id || rowIndex}
-                        className="hover:bg-slate-700/30 transition-colors"
+                        key={`${record.employeeId}-${rowIndex}`}
+                        className="hover:bg-slate-700/30 transition-colors duration-150"
                       >
                         {getTableHeaders(filter, checkFilters).map(
                           (header, cellIndex) =>
-                            renderTableCell(record, header, cellIndex)
+                            renderTableCell(
+                              record,
+                              header,
+                              cellIndex,
+                              formatDateTime
+                            )
                         )}
                       </tr>
                     ))}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            {/* Pagination Controls */}
-            <div className="mt-6 flex items-center justify-between px-4 py-3 bg-slate-800/50 backdrop-blur rounded-xl">
-              <div className="flex items-center text-sm text-slate-400">
-                <span>
-                  Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredData.length)} to{" "}
-                  {Math.min(currentPage * itemsPerPage, filteredData.length)} of{" "}
-                  {filteredData.length} entries
-                </span>
+            {/* ✅ Pagination */}
+            <div className="mt-6 flex items-center justify-between px-4 py-3 bg-slate-800/50 rounded-xl">
+              <div className="text-sm text-slate-400">
+                Showing {Math.min(startIndex + 1, filteredData.length)}–
+                {Math.min(startIndex + itemsPerPage, filteredData.length)} of{" "}
+                {filteredData.length}
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
                   className={`px-4 py-2 text-sm rounded-lg transition-colors ${
                     currentPage === 1
@@ -229,30 +244,26 @@ const AttendanceLog = () => {
                 >
                   Previous
                 </button>
-                <div className="flex items-center space-x-2">
-                  {[...Array(Math.ceil(filteredData.length / itemsPerPage))].map((_, index) => (
-                    <button
-                      key={index + 1}
-                      onClick={() => setCurrentPage(index + 1)}
-                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm transition-colors ${
-                        currentPage === index + 1
-                          ? "bg-blue-600 text-white"
-                          : "bg-slate-700 text-slate-200 hover:bg-slate-600"
-                      }`}
-                    >
-                      {index + 1}
-                    </button>
-                  ))}
-                </div>
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm ${
+                      currentPage === i + 1
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-700 text-slate-200 hover:bg-slate-600"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
                 <button
                   onClick={() =>
-                    setCurrentPage((prev) =>
-                      Math.min(prev + 1, Math.ceil(filteredData.length / itemsPerPage))
-                    )
+                    setCurrentPage((p) => Math.min(p + 1, totalPages))
                   }
-                  disabled={currentPage >= Math.ceil(filteredData.length / itemsPerPage)}
+                  disabled={currentPage === totalPages}
                   className={`px-4 py-2 text-sm rounded-lg transition-colors ${
-                    currentPage >= Math.ceil(filteredData.length / itemsPerPage)
+                    currentPage === totalPages
                       ? "bg-slate-700/30 text-slate-500 cursor-not-allowed"
                       : "bg-slate-700 text-slate-200 hover:bg-slate-600"
                   }`}
@@ -268,4 +279,4 @@ const AttendanceLog = () => {
   );
 };
 
-export default AttendanceLog;
+export default AttendanceLogs;

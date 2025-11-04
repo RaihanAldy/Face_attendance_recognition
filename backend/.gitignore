@@ -1,2 +1,10 @@
+# Environment variables
 .env
-backend/__pycache__/mongo_db.cpython-310.pyc
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

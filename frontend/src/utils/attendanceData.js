@@ -10,7 +10,6 @@ export const useAttendanceData = (dateFilter = "today") => {
       setLoading(true);
       setError("");
 
-      // Kirim parameter date berdasarkan filter
       const dateParam =
         filter === "all" ? "all" : new Date().toISOString().split("T")[0];
       const url = `http://localhost:5000/api/attendance?date=${dateParam}`;
@@ -33,39 +32,45 @@ export const useAttendanceData = (dateFilter = "today") => {
         throw new Error("Response data is not an array");
       }
 
-      // 🔄 Normalisasi data berdasarkan struktur database sebenarnya
+      // Di dalam fetchAttendanceData function, perbaiki field mapping:
       const normalizedData = data.map((item) => {
-        // Field 'action' dari database adalah check_in/check_out
-        // Field 'status' adalah ontime/late/early
-        const normalized = {
+        // ✅ PASTIKAN EMPLOYEE_NAME SELALU ADA
+        const employeeName = item.employee_name || "Unknown Employee";
+
+        return {
           _id: item._id,
-          employeeId: item.employeeId || item.employee_id || "-",
-          name: item.name || item.employees || "-",
-
-          // ✅ PENTING: Gunakan field yang benar dari backend
-          // Dari JSON sample: "action": "check_in" atau "check_out"
-          action: item.action || "-", // Ini adalah "check_in"/"check_out"
-
-          // Status adalah "ontime", "late", "early"
-          status: item.status || "-",
-
-          timestamp: item.timestamp || null,
-          confidence: item.confidence ?? 0,
+          employeeId: item.employee_id, // ✅ employee_id bukan employeeId
+          name: employeeName,
+          date: item.date,
+          checkIn: item.checkin?.timestamp || null,
+          checkInStatus: item.checkin?.status || null, // ✅ langsung ambil status
+          checkOut: item.checkout?.timestamp || null,
+          checkOutStatus: item.checkout?.status || null, // ✅ langsung ambil status
+          workDuration: item.work_duration_minutes || 0,
+          workingHours: item.work_duration_minutes
+            ? `${Math.floor(item.work_duration_minutes / 60)}h ${
+                item.work_duration_minutes % 60
+              }m`
+            : null,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt,
         };
-
-        return normalized;
       });
 
-      if (normalizedData.length > 0) {
-        console.log("🔍 First normalized record:", normalizedData[0]);
-        console.log(
-          "🔍 Sample actions:",
-          normalizedData.map((r) => r.action)
-        );
-      }
+      console.log("✅ Normalized data sample:", normalizedData[0]);
+      console.log(`✅ Total records: ${normalizedData.length}`);
+      console.log(
+        "📊 Status distribution:",
+        normalizedData.reduce((acc, r) => {
+          const hasCheckIn = r.checkIn ? "has-checkin" : "no-checkin";
+          const hasCheckOut = r.checkOut ? "has-checkout" : "no-checkout";
+          const key = `${hasCheckIn}, ${hasCheckOut}`;
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {})
+      );
 
       setAttendanceData(normalizedData);
-      console.log(`✅ Fetched ${normalizedData.length} attendance records`);
     } catch (err) {
       console.error("🔥 Error fetching attendance data:", err);
       setError(err.message || "Terjadi kesalahan saat mengambil data absensi.");

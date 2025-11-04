@@ -4,7 +4,10 @@ import {
   ScanFace,
   Users,
   Clock,
+  FileText,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -15,7 +18,6 @@ export default function Sidebar() {
   const location = useLocation();
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: "/" },
-    { id: "face-scan", label: "Face Scan", icon: ScanFace, path: "/face-scan" },
     {
       id: "attendance",
       label: "Attendance Log",
@@ -46,7 +48,7 @@ export default function Sidebar() {
         </button>
 
         {!isCollapsed && (
-          <h2 className="text-gray-200 text-xl uppercase tracking-wider font-semibold">
+          <h2 className="text-slate-400 text-xl uppercase tracking-wider font-semibold">
             Recca
           </h2>
         )}

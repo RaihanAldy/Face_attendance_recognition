@@ -3,9 +3,8 @@ import { useState, useEffect } from "react";
 
 const Settings = () => {
   const [settings, setSettings] = useState({
-    startTime: "08:37",
+    startTime: "08:00",
     endTime: "17:00",
-    syncFrequency: 15,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +25,6 @@ const Settings = () => {
         setSettings({
           startTime: data.startTime || "08:00",
           endTime: data.endTime || "17:00",
-          syncFrequency: data.syncFrequency || 15,
         });
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -49,17 +47,8 @@ const Settings = () => {
     }));
   };
 
-  const handleFrequencyChange = (e) => {
-    let value = parseInt(e.target.value, 10) || 1;
-
-    // Validasi nilai minimal
-    if (value < 1) value = 1;
-
-    handleInputChange("syncFrequency", value);
-  };
-
   const validateSettings = () => {
-    const { startTime, endTime, syncFrequency } = settings;
+    const { startTime, endTime } = settings;
 
     if (!startTime || !endTime) {
       return "Waktu mulai dan akhir harus diisi";
@@ -67,10 +56,6 @@ const Settings = () => {
 
     if (startTime >= endTime) {
       return "Waktu akhir harus setelah waktu mulai";
-    }
-
-    if (syncFrequency < 1) {
-      return "Frekuensi sinkronisasi minimal 1 menit";
     }
 
     return null;
@@ -186,23 +171,8 @@ const Settings = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-gray-200 mb-2 text-sm font-medium">
-              Frekuensi Sinkronisasi (menit):
-            </label>
-            <input
-              type="number"
-              value={settings.syncFrequency}
-              min={1}
-              onChange={handleFrequencyChange}
-              className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
-            />
-            <p className="text-gray-400 text-xs mt-2">
-              Masukkan frekuensi sinkronisasi dalam menit (minimal 1 menit)
-            </p>
-          </div>
-
           <div className="flex gap-3 pt-4">
+            {/* Tombol Simpan */}
             <button
               onClick={handleSave}
               disabled={isSaving}
@@ -218,6 +188,46 @@ const Settings = () => {
               )}
             </button>
 
+            {/* Tombol Sync Manual */}
+            <button
+              onClick={async () => {
+                try {
+                  setMessage({ type: "", text: "" });
+                  setIsSaving(true);
+
+                  const res = await fetch("http://localhost:5000/api/sync", {
+                    method: "POST",
+                  });
+
+                  if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(
+                      errorData.error || `HTTP error! status: ${res.status}`
+                    );
+                  }
+
+                  const data = await res.json();
+                  setMessage({
+                    type: "success",
+                    text: data.message || "Sync berhasil dijalankan!",
+                  });
+                  setTimeout(() => setMessage({ type: "", text: "" }), 3000);
+                } catch (error) {
+                  console.error("Sync gagal:", error);
+                  setMessage({
+                    type: "error",
+                    text: error.message || "Sync gagal",
+                  });
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+            >
+              Sync Manual
+            </button>
+
+            {/* Tombol Kembali */}
             <button
               onClick={() => window.history.back()}
               className="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
