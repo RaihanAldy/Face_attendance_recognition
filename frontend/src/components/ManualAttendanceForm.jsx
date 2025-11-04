@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Camera, Upload, X, CheckCircle, AlertCircle, Loader2, User } from "lucide-react";
+import {
+  Camera,
+  Upload,
+  X,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  User,
+} from "lucide-react";
 
 const API_BASE_URL = "http://localhost:5000";
 
@@ -11,7 +19,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   const [error, setError] = useState(null);
   const [useCamera, setUseCamera] = useState(false);
   const [cameraError, setCameraError] = useState(null);
-  
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -22,7 +30,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
 
     // dijalankan saat komponen UNMOUNT
     return () => {
-        stopCamera();
+      stopCamera();
     };
   }, []);
 
@@ -30,50 +38,52 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
     try {
       setCameraError(null);
       setError(null);
-      
+
       // Stop any existing stream first
       if (streamRef.current) {
         stopCamera();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
-      console.log("🔄 Starting camera...");
-      
+      console.log("Starting camera...");
+
       // Try different camera constraints
       const constraints = {
         video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: "user", // Front camera
-            frameRate: { ideal: 30 }
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user", // Front camera
+          frameRate: { ideal: 30 },
         },
-        audio: false
+        audio: false,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log("✅ Camera access granted");
-      
+      console.log("Camera access granted");
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
-        
+
         // Wait for video to be ready
         await new Promise((resolve, reject) => {
           const video = videoRef.current;
-          
+
           const onLoadedMetadata = () => {
-            console.log("📹 Video metadata loaded");
+            console.log("Video metadata loaded");
             video.onloadedmetadata = () => {
-                video.play().catch((err) => console.error('Play failed:', err));
+              video.play().catch((err) => console.error("Play failed:", err));
             };
           };
 
           const onError = () => {
-            reject(new Error("Video playback failed"));
+            reject(new Error("Video playback failed", cameraError));
           };
 
-          video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
-          video.addEventListener('error', onError, { once: true });
+          video.addEventListener("loadedmetadata", onLoadedMetadata, {
+            once: true,
+          });
+          video.addEventListener("error", onError, { once: true });
 
           // Timeout fallback
           setTimeout(() => {
@@ -87,24 +97,24 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       }
 
       setUseCamera(true);
-      console.log("🎥 Camera started successfully");
-
+      console.log("Camera started successfully");
     } catch (err) {
-      console.error("❌ Camera error:", err);
+      console.error("Camera error:", err);
       let errorMessage = "Gagal mengakses kamera. ";
-      
-      if (err.name === 'NotAllowedError') {
-        errorMessage += "Izin kamera ditolak. Silakan izinkan akses kamera di browser Anda.";
-      } else if (err.name === 'NotFoundError') {
+
+      if (err.name === "NotAllowedError") {
+        errorMessage +=
+          "Izin kamera ditolak. Silakan izinkan akses kamera di browser Anda.";
+      } else if (err.name === "NotFoundError") {
         errorMessage += "Tidak ada kamera yang ditemukan.";
-      } else if (err.name === 'NotReadableError') {
+      } else if (err.name === "NotReadableError") {
         errorMessage += "Kamera sedang digunakan oleh aplikasi lain.";
-      } else if (err.name === 'OverconstrainedError') {
+      } else if (err.name === "OverconstrainedError") {
         errorMessage += "Kamera tidak mendukung resolusi yang diminta.";
       } else {
         errorMessage += err.message || "Error tidak diketahui.";
       }
-      
+
       setCameraError(errorMessage);
       setError(errorMessage);
       stopCamera();
@@ -112,10 +122,10 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   };
 
   const stopCamera = () => {
-    console.log("🛑 Stopping camera...");
+    console.log("Stopping camera...");
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
-        console.log(`⏹️ Stopping track: ${track.kind}`);
+      streamRef.current.getTracks().forEach((track) => {
+        console.log(`Stopping track: ${track.kind}`);
         track.stop();
       });
       streamRef.current = null;
@@ -135,25 +145,28 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
     try {
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          setError("Gagal mengambil foto");
-          return;
-        }
-        
-        const file = new File([blob], `attendance_${Date.now()}.jpg`, { 
-          type: "image/jpeg" 
-        });
-        handlePhotoCapture(file);
-      }, "image/jpeg", 0.9);
 
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            setError("Gagal mengambil foto");
+            return;
+          }
+
+          const file = new File([blob], `attendance_${Date.now()}.jpg`, {
+            type: "image/jpeg",
+          });
+          handlePhotoCapture(file);
+        },
+        "image/jpeg",
+        0.9
+      );
     } catch (err) {
       console.error("Capture error:", err);
       setError("Gagal mengambil foto: " + err.message);
@@ -162,7 +175,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
 
   const handlePhotoCapture = (file) => {
     setPhoto(file);
-    
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setPhotoPreview(reader.result);
@@ -171,7 +184,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       setError("Gagal memuat preview foto");
     };
     reader.readAsDataURL(file);
-    
+
     stopCamera();
   };
 
@@ -179,7 +192,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
     const file = event.target.files[0];
     if (file) {
       // Validate file type
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith("image/")) {
         setError("File harus berupa gambar");
         return;
       }
@@ -193,60 +206,62 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
     setError(null);
   };
 
-const handleSubmit = async () => {
-  if (!employeeName.trim()) {
-    setError("Nama harus diisi");
-    return;
-  }
-
-  if (!photo) {
-    setError("Foto harus diambil atau diupload");
-    return;
-  }
-
-  setLoading(true);
-  setError(null);
-
-  try {
-    const photoBase64 = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(photo);
-    });
-
-    const response = await fetch(`${API_BASE_URL}/api/attendance/manual`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        employees: employeeName.trim(),  // ✅ Change employeeName to employees
-        photo: photoBase64,
-        timestamp: new Date().toISOString(),
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+  const handleSubmit = async () => {
+    if (!employeeName.trim()) {
+      setError("Nama harus diisi");
+      return;
     }
 
-    const result = await response.json();
-
-    if (result.success) {
-      alert(`✅ Absensi Manual Berhasil!\n\nNama: ${employeeName}\nWaktu: ${new Date().toLocaleString()}`);
-      if (onSuccess) onSuccess(result);
-      if (onClose) onClose();
-    } else {
-      setError(result.error || "Gagal mengirim absensi");
+    if (!photo) {
+      setError("Foto harus diambil atau diupload");
+      return;
     }
-  } catch (err) {
-    console.error("Submit error:", err);
-    setError(`Error: ${err.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const photoBase64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(photo);
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/attendance/manual`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          employees: employeeName.trim(),
+          photo: photoBase64,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(
+          `Absensi Manual Berhasil!\n\nNama: ${employeeName}\nWaktu: ${new Date().toLocaleString()}`
+        );
+        if (onSuccess) onSuccess(result);
+        if (onClose) onClose();
+      } else {
+        setError(result.error || "Gagal mengirim absensi");
+      }
+    } catch (err) {
+      console.error("Submit error:", err);
+      setError(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Test camera permissions first
   const testCameraAccess = async () => {
@@ -259,18 +274,19 @@ const handleSubmit = async () => {
 
       // Quick permission test
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      
+      const videoDevices = devices.filter(
+        (device) => device.kind === "videoinput"
+      );
+
       if (videoDevices.length === 0) {
         setError("Tidak ada kamera yang terdeteksi");
         return;
       }
 
-      console.log(`📷 Found ${videoDevices.length} camera(s):`, videoDevices);
-      
+      console.log(`Found ${videoDevices.length} camera(s):`, videoDevices);
+
       // Now start the camera
       await startCamera();
-      
     } catch (err) {
       console.error("Camera test failed:", err);
       setError("Tidak dapat mengakses kamera: " + err.message);
@@ -300,8 +316,8 @@ const handleSubmit = async () => {
               <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm text-red-300">{error}</p>
-                {error.includes('izin') && (
-                  <button 
+                {error.includes("izin") && (
+                  <button
                     onClick={testCameraAccess}
                     className="text-xs text-blue-400 underline mt-1"
                   >
@@ -332,7 +348,7 @@ const handleSubmit = async () => {
             <label className="block text-sm font-medium text-slate-300 mb-3">
               Foto Selfie *
             </label>
-            
+
             {useCamera ? (
               <div className="space-y-4">
                 <div className="relative bg-black rounded-lg overflow-hidden">
@@ -346,9 +362,11 @@ const handleSubmit = async () => {
                   />
                   <div className="absolute top-4 left-4 bg-black/70 px-4 py-2 rounded-lg">
                     <p className="text-white font-medium">Ambil Foto</p>
-                    <p className="text-sm text-slate-300">Posisikan wajah di tengah</p>
+                    <p className="text-sm text-slate-300">
+                      Posisikan wajah di tengah
+                    </p>
                   </div>
-                  
+
                   {/* Camera status indicator */}
                   <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-green-600 px-3 py-1 rounded-lg">
                     <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
@@ -391,7 +409,9 @@ const handleSubmit = async () => {
                   </button>
                   <div className="absolute top-2 left-2 px-3 py-1 bg-green-600 rounded-lg flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-white" />
-                    <span className="text-sm text-white font-medium">Foto Tersedia</span>
+                    <span className="text-sm text-white font-medium">
+                      Foto Tersedia
+                    </span>
                   </div>
                 </div>
                 <p className="text-sm text-green-400 text-center">
@@ -402,7 +422,9 @@ const handleSubmit = async () => {
               <div className="space-y-3">
                 <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center">
                   <Camera className="h-12 w-12 text-slate-500 mx-auto mb-3" />
-                  <p className="text-slate-400 mb-4">Ambil foto selfie untuk absensi</p>
+                  <p className="text-slate-400 mb-4">
+                    Ambil foto selfie untuk absensi
+                  </p>
                   <div className="flex gap-3">
                     <button
                       onClick={testCameraAccess}
@@ -425,16 +447,16 @@ const handleSubmit = async () => {
                     </label>
                   </div>
                 </div>
-                
+
                 {/* Camera troubleshooting tips */}
                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
                   <p className="text-xs text-yellow-300">
-                    💡 Tips: Jika kamera tidak mau nyala, pastikan:
+                    Tips: Jika kamera tidak mau nyala, pastikan:
                   </p>
                   <ul className="text-xs text-yellow-300 mt-1 space-y-1">
-                    <li>• Izin kamera sudah diberikan</li>
-                    <li>• Kamera tidak sedang digunakan aplikasi lain</li>
-                    <li>• Coba refresh halaman jika masih bermasalah</li>
+                    <li>Izin kamera sudah diberikan</li>
+                    <li>Kamera tidak sedang digunakan aplikasi lain</li>
+                    <li>Coba refresh halaman jika masih bermasalah</li>
                   </ul>
                 </div>
               </div>

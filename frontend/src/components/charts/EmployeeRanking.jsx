@@ -1,11 +1,29 @@
 import { employeesData } from "../../data/mockData";
+import { Medal } from "lucide-react";
 
 export default function EmployeeRanking({ employees = [] }) {
-  // Data dummy jika tidak ada data dari props - menggunakan nama dari employeesData
   const defaultEmployees = [
-    { id: 1, name: employeesData[0].name, punctualityRate: 98, onTimeCount: 147, lateCount: 3 },
-    { id: 2, name: employeesData[5].name, punctualityRate: 96, onTimeCount: 144, lateCount: 6 },
-    { id: 3, name: employeesData[10].name, punctualityRate: 94, onTimeCount: 141, lateCount: 9 },
+    {
+      id: 1,
+      name: employeesData[0].name,
+      punctualityRate: 98,
+      onTimeCount: 147,
+      lateCount: 3,
+    },
+    {
+      id: 2,
+      name: employeesData[5].name,
+      punctualityRate: 96,
+      onTimeCount: 144,
+      lateCount: 6,
+    },
+    {
+      id: 3,
+      name: employeesData[10].name,
+      punctualityRate: 94,
+      onTimeCount: 141,
+      lateCount: 9,
+    },
   ];
 
   const displayData = employees.length > 0 ? employees : defaultEmployees;
@@ -13,11 +31,13 @@ export default function EmployeeRanking({ employees = [] }) {
   const getMedalIcon = (rank) => {
     switch (rank) {
       case 1:
-        return "🥇";
+        return <Medal className="text-amber-400" />;
       case 2:
-        return "🥈";
+        return <Medal className="text-slate-400" />;
+
       case 3:
-        return "🥉";
+        return <Medal className="text-amber-700" />;
+
       default:
         return <span className="text-white">{rank}</span>;
     }
@@ -48,10 +68,12 @@ export default function EmployeeRanking({ employees = [] }) {
                 </span>
                 <div className="flex gap-3 mt-1">
                   <span className="text-green-400 text-xs flex items-center gap-1">
-                    <span className="text-green-500">✓</span> {employee.onTimeCount} on time
+                    <span className="text-green-500">✓</span>{" "}
+                    {employee.onTimeCount} on time
                   </span>
                   <span className="text-red-400 text-xs flex items-center gap-1">
-                    <span className="text-red-500">✗</span> {employee.lateCount} late
+                    <span className="text-red-500">✗</span> {employee.lateCount}{" "}
+                    late
                   </span>
                 </div>
               </div>

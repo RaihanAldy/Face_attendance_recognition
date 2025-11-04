@@ -13,7 +13,7 @@ export const exportCSV = (
   let headers = [];
   let csvData = [];
 
-  // ✅ Case 1: Default view (no check filters)
+  //  Case 1: Default view (no check filters)
   if (!checkFilters.checkin && !checkFilters.checkout) {
     headers = [
       "Employee ID",
@@ -36,7 +36,7 @@ export const exportCSV = (
     ]);
   }
 
-  // ✅ Case 2: Check In only
+  //  Case 2: Check In only
   else if (checkFilters.checkin && !checkFilters.checkout) {
     headers = ["Employee ID", "Nama", "Check In", "Status", "Tanggal"];
 
@@ -51,7 +51,7 @@ export const exportCSV = (
     ]);
   }
 
-  // ✅ Case 3: Check Out only
+  //  Case 3: Check Out only
   else if (!checkFilters.checkin && checkFilters.checkout) {
     headers = ["Employee ID", "Nama", "Check Out", "Status", "Tanggal"];
 
@@ -66,7 +66,7 @@ export const exportCSV = (
     ]);
   }
 
-  // ✅ Case 4: Check In + Check Out (paired view)
+  //  Case 4: Check In + Check Out (paired view)
   else if (checkFilters.checkin && checkFilters.checkout) {
     headers = [
       "Employee ID",
@@ -140,6 +140,6 @@ export const exportCSV = (
   link.click();
   URL.revokeObjectURL(url);
 
-  console.log(`✅ CSV exported: ${filteredData.length} records`);
-  console.log(`📄 Filename: ${link.download}`);
+  console.log(` CSV exported: ${filteredData.length} records`);
+  console.log(` Filename: ${link.download}`);
 };

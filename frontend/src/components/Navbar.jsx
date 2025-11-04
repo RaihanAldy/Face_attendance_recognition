@@ -220,7 +220,7 @@ const Navbar = ({ onLogout, userRole }) => {
             <WifiOff className="h-4 w-4" />
             <span className="font-medium">Mode Offline Aktif</span>
             <span className="opacity-90">
-              - Data absensi tersimpan lokal dan akan disinkronkan otomatis saat
+              Data absensi tersimpan lokal dan akan disinkronkan otomatis saat
               online
             </span>
           </div>

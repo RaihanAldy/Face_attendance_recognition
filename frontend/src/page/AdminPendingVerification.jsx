@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, Eye, RefreshCw, Loader2, Filter } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  RefreshCw,
+  Loader2,
+  Filter,
+} from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -18,11 +26,13 @@ const AdminPendingVerification = () => {
   const fetchPendingRequests = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/attendance/pending?status=${filter}`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/attendance/pending?status=${filter}`
+      );
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
-        console.log(`✅ Loaded ${data.length} ${filter} requests`);
+        console.log(` Loaded ${data.length} ${filter} requests`);
       }
     } catch (error) {
       console.error("Error fetching requests:", error);
@@ -38,15 +48,18 @@ const AdminPendingVerification = () => {
 
     setReviewing(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/attendance/pending/${requestId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          adminNotes,
-          adminName: "Administrator",
-        }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/attendance/pending/${requestId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            adminNotes,
+            adminName: "Administrator",
+          }),
+        }
+      );
 
       const result = await response.json();
 
@@ -82,7 +95,9 @@ const AdminPendingVerification = () => {
     const Icon = icons[status] || Clock;
 
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium border inline-flex items-center gap-1 ${styles[status]}`}>
+      <span
+        className={`px-3 py-1 rounded-full text-xs font-medium border inline-flex items-center gap-1 ${styles[status]}`}
+      >
         <Icon className="h-3 w-3" />
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
@@ -110,8 +125,12 @@ const AdminPendingVerification = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Pending Verification</h1>
-            <p className="text-slate-400">Review and approve manual attendance requests</p>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Pending Verification
+            </h1>
+            <p className="text-slate-400">
+              Review and approve manual attendance requests
+            </p>
           </div>
           <button
             onClick={fetchPendingRequests}
@@ -127,7 +146,9 @@ const AdminPendingVerification = () => {
         <div className="bg-slate-800/50 backdrop-blur rounded-xl p-6 mb-6 border border-slate-700/50">
           <div className="flex items-center gap-2 mb-4">
             <Filter className="h-5 w-5 text-slate-400" />
-            <h3 className="text-lg font-semibold text-white">Filter by Status</h3>
+            <h3 className="text-lg font-semibold text-white">
+              Filter by Status
+            </h3>
           </div>
           <div className="flex gap-2">
             {["pending", "approved", "rejected", "all"].map((status) => (
@@ -158,8 +179,12 @@ const AdminPendingVerification = () => {
         {!loading && requests.length === 0 && (
           <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
             <Clock className="h-16 w-16 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 text-lg mb-2">No {filter} requests found</p>
-            <p className="text-slate-500 text-sm">Manual attendance requests will appear here</p>
+            <p className="text-slate-400 text-lg mb-2">
+              No {filter} requests found
+            </p>
+            <p className="text-slate-500 text-sm">
+              Manual attendance requests will appear here
+            </p>
           </div>
         )}
 
@@ -182,11 +207,15 @@ const AdminPendingVerification = () => {
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-slate-400">Employee ID</p>
-                        <p className="text-blue-400 font-medium">{request.employee_id}</p>
+                        <p className="text-blue-400 font-medium">
+                          {request.employee_id}
+                        </p>
                       </div>
                       <div>
                         <p className="text-slate-400">Request Time</p>
-                        <p className="text-white">{formatDateTime(request.request_timestamp)}</p>
+                        <p className="text-white">
+                          {formatDateTime(request.request_timestamp)}
+                        </p>
                       </div>
                       <div className="col-span-2">
                         <p className="text-slate-400">Reason</p>
@@ -194,17 +223,23 @@ const AdminPendingVerification = () => {
                       </div>
                       <div>
                         <p className="text-slate-400">Submitted</p>
-                        <p className="text-slate-300">{formatDateTime(request.submitted_at)}</p>
+                        <p className="text-slate-300">
+                          {formatDateTime(request.submitted_at)}
+                        </p>
                       </div>
                       {request.reviewed_at && (
                         <>
                           <div>
                             <p className="text-slate-400">Reviewed By</p>
-                            <p className="text-slate-300">{request.reviewed_by}</p>
+                            <p className="text-slate-300">
+                              {request.reviewed_by}
+                            </p>
                           </div>
                           <div className="col-span-2">
                             <p className="text-slate-400">Admin Notes</p>
-                            <p className="text-slate-300">{request.admin_notes || "-"}</p>
+                            <p className="text-slate-300">
+                              {request.admin_notes || "-"}
+                            </p>
                           </div>
                         </>
                       )}
@@ -214,7 +249,9 @@ const AdminPendingVerification = () => {
 
                 {/* Photos */}
                 <div className="mb-4">
-                  <p className="text-sm text-slate-400 mb-3">Verification Photos:</p>
+                  <p className="text-sm text-slate-400 mb-3">
+                    Verification Photos:
+                  </p>
                   <div className="grid grid-cols-3 gap-4">
                     {["front", "left", "right"].map((angle) => (
                       <div key={angle} className="space-y-2">
@@ -222,7 +259,9 @@ const AdminPendingVerification = () => {
                           src={request.photos[angle]}
                           alt={`${angle} face`}
                           className="w-full h-40 object-cover rounded-lg border border-slate-600 cursor-pointer hover:border-blue-500 transition-colors"
-                          onClick={() => window.open(request.photos[angle], "_blank")}
+                          onClick={() =>
+                            window.open(request.photos[angle], "_blank")
+                          }
                         />
                         <p className="text-xs text-slate-400 text-center capitalize">
                           {angle} Profile
@@ -252,7 +291,8 @@ const AdminPendingVerification = () => {
         {/* Stats */}
         {!loading && requests.length > 0 && (
           <div className="mt-6 text-center text-slate-400 text-sm">
-            Showing {requests.length} {filter} request{requests.length !== 1 ? "s" : ""}
+            Showing {requests.length} {filter} request
+            {requests.length !== 1 ? "s" : ""}
           </div>
         )}
       </div>
@@ -271,19 +311,27 @@ const AdminPendingVerification = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-slate-400">Employee</p>
-                    <p className="text-white font-medium text-lg">{selectedRequest.employees}</p>
+                    <p className="text-white font-medium text-lg">
+                      {selectedRequest.employees}
+                    </p>
                   </div>
                   <div>
                     <p className="text-slate-400">Employee ID</p>
-                    <p className="text-blue-400 font-medium">{selectedRequest.employee_id}</p>
+                    <p className="text-blue-400 font-medium">
+                      {selectedRequest.employee_id}
+                    </p>
                   </div>
                   <div>
                     <p className="text-slate-400">Request Time</p>
-                    <p className="text-white">{formatDateTime(selectedRequest.request_timestamp)}</p>
+                    <p className="text-white">
+                      {formatDateTime(selectedRequest.request_timestamp)}
+                    </p>
                   </div>
                   <div>
                     <p className="text-slate-400">Submitted</p>
-                    <p className="text-white">{formatDateTime(selectedRequest.submitted_at)}</p>
+                    <p className="text-white">
+                      {formatDateTime(selectedRequest.submitted_at)}
+                    </p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-slate-400 mb-1">Reason</p>
@@ -294,7 +342,9 @@ const AdminPendingVerification = () => {
 
               {/* Photos */}
               <div>
-                <p className="text-white font-semibold mb-3">Verification Photos</p>
+                <p className="text-white font-semibold mb-3">
+                  Verification Photos
+                </p>
                 <div className="grid grid-cols-3 gap-4">
                   {["front", "left", "right"].map((angle) => (
                     <div key={angle}>
@@ -302,7 +352,9 @@ const AdminPendingVerification = () => {
                         src={selectedRequest.photos[angle]}
                         alt={angle}
                         className="w-full h-48 object-cover rounded-lg border border-slate-600 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() => window.open(selectedRequest.photos[angle], "_blank")}
+                        onClick={() =>
+                          window.open(selectedRequest.photos[angle], "_blank")
+                        }
                       />
                       <p className="text-xs text-slate-400 text-center mt-2 capitalize">
                         {angle} Profile
