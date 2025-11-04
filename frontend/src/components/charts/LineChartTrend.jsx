@@ -17,8 +17,15 @@ export default function LineChartTrend({ data }) {
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={data} margin={{ top: 5, right: 20, left: 1, bottom: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-          <XAxis dataKey="day" stroke="#9ca3af" />
-          <YAxis stroke="#9ca3af" />
+          <XAxis 
+            dataKey="day" 
+            stroke="#9ca3af"
+          />
+          <YAxis 
+            stroke="#9ca3af"
+            domain={[0, 75]}
+            ticks={[0, 15, 30, 45, 60, 75]}
+          />
           <Tooltip
             contentStyle={{
               backgroundColor: "#1e293b",

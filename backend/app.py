@@ -3,7 +3,7 @@ from flask_cors import CORS
 from mongo_db import db
 from face_engine import face_engine
 from sync_manager import sync_manager
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback
 import json
 
@@ -336,17 +336,18 @@ def attendance_trend():
         # Generate data untuk 7 hari (Senin - Minggu)
         for i in range(7):
             date = monday_this_week + timedelta(days=i)
-            start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_of_day = date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            date_str = date.strftime('%Y-%m-%d')
             
-            count = len(db.attendance.distinct('employee_id', {
-                'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
-            }))
+            # Count attendance menggunakan date field
+            count = db.attendance.count_documents({
+                'date': date_str,
+                'checkin': {'$exists': True}
+            })
             
             result.append({
                 'day': date.strftime('%a'),  # Mon, Tue, Wed, Thu, Fri, Sat, Sun
                 'count': count,
-                'date': date.strftime('%Y-%m-%d')
+                'date': date_str
             })
         
         return jsonify(result)
@@ -357,28 +358,22 @@ def attendance_trend():
 
 @app.route('/api/analytics/working-duration', methods=['GET'])
 def working_duration():
-    """Calculate average working duration hari ini"""
+    """Calculate average working duration hari ini - NEW structure"""
     try:
         today = datetime.now()
-        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        today_str = today.strftime('%Y-%m-%d')
         
-        # Get all check-in and check-out today
-        attendance_records = db.get_attendance_with_checkout()
+        # Get all records today with work_duration_minutes
+        attendance_records = list(db.attendance.find({
+            'date': today_str,
+            'work_duration_minutes': {'$exists': True, '$gt': 0}
+        }))
         
-        durations = []
-        for record in attendance_records:
-            if record.get('checkIn') and record.get('checkOut'):
-                check_in = datetime.fromisoformat(record['checkIn'].replace('Z', '+00:00'))
-                check_out = datetime.fromisoformat(record['checkOut'].replace('Z', '+00:00'))
-                
-                duration_hours = (check_out - check_in).total_seconds() / 3600
-                durations.append(duration_hours)
-        
-        if durations:
-            avg_duration = sum(durations) / len(durations)
-            longest = max(durations)
-            shortest = min(durations)
+        if attendance_records:
+            durations_hours = [r['work_duration_minutes'] / 60 for r in attendance_records]
+            avg_duration = sum(durations_hours) / len(durations_hours)
+            longest = max(durations_hours)
+            shortest = min(durations_hours)
         else:
             avg_duration = 0
             longest = 0
@@ -396,27 +391,22 @@ def working_duration():
 
 @app.route('/api/analytics/departments', methods=['GET'])
 def department_stats():
-    """Get attendance count by department"""
+    """Get attendance count by department - NEW structure"""
     try:
         today = datetime.now()
-        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        today_str = today.strftime('%Y-%m-%d')
         
         pipeline = [
             {
                 '$match': {
-                    'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
-                }
-            },
-            {
-                '$group': {
-                    '_id': '$employee_id'
+                    'date': today_str,
+                    'checkin': {'$exists': True}
                 }
             },
             {
                 '$lookup': {
                     'from': 'employees',
-                    'localField': '_id',
+                    'localField': 'employee_id',
                     'foreignField': 'employee_id',
                     'as': 'employee'
                 }
@@ -456,31 +446,28 @@ def department_stats():
 
 @app.route('/api/analytics/hourly-checkins', methods=['GET'])
 def hourly_checkins():
-    """Get check-in distribution by hour (ONLY check-in, NOT check-out)"""
+    """Get check-in distribution by hour using NEW structure (checkin.timestamp)"""
     try:
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
-        date_obj = datetime.strptime(date, '%Y-%m-%d')
-        start_of_day = date_obj.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = date_obj.replace(hour=23, minute=59, second=59, microsecond=999999)
         
-        # Hitung total check-in untuk logging
-        total_checkins = db.attendance.count_documents({
-            'timestamp': {'$gte': start_of_day, '$lte': end_of_day},
-            'type': 'check_in'
-        })
-        
-        print(f"📊 Hourly check-ins for {date}: {total_checkins} total check-ins")
-        
+        # Query dengan struktur baru: date field dan checkin.timestamp exists
         pipeline = [
             {
                 '$match': {
-                    'timestamp': {'$gte': start_of_day, '$lte': end_of_day},
-                    'action': 'check-in'  # ✅ HANYA check-in (dengan dash)
+                    'date': date,
+                    'checkin': {'$exists': True},
+                    'checkin.timestamp': {'$exists': True}
                 }
             },
             {
                 '$project': {
-                    'hour': {'$hour': '$timestamp'}
+                    'hour': {
+                        '$hour': {
+                            '$dateFromString': {
+                                'dateString': '$checkin.timestamp'
+                            }
+                        }
+                    }
                 }
             },
             {
@@ -495,6 +482,9 @@ def hourly_checkins():
         ]
         
         results = list(db.attendance.aggregate(pipeline))
+        
+        total_checkins = sum(item['count'] for item in results)
+        print(f"📊 Hourly check-ins for {date}: {total_checkins} total check-ins")
         
         # Create 24-hour array
         hourly_data = [{'hour': f'{i:02d}', 'checkIns': 0} for i in range(24)]
@@ -512,22 +502,22 @@ def hourly_checkins():
 
 @app.route('/api/analytics/summary', methods=['GET'])
 def analytics_summary():
-    """Get summary statistics untuk dashboard cards"""
+    """Get summary statistics untuk dashboard cards - NEW structure"""
     try:
         today = datetime.now()
-        start_of_day = today.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = today.replace(hour=23, minute=59, second=59, microsecond=999999)
+        today_str = today.strftime('%Y-%m-%d')
         
-        # Total attendance today
-        total_today = len(db.attendance.distinct('employee_id', {
-            'timestamp': {'$gte': start_of_day, '$lte': end_of_day}
-        }))
+        # Total attendance today - menggunakan date field
+        total_today = db.attendance.count_documents({
+            'date': today_str,
+            'checkin': {'$exists': True}
+        })
         
-        # Late arrivals (setelah jam 9 pagi)
-        late_threshold = start_of_day.replace(hour=9, minute=0)
+        # Late arrivals - menggunakan checkin.status
+        # Status bisa "ontime" atau "late"
         late_count = db.attendance.count_documents({
-            'timestamp': {'$gte': late_threshold, '$lte': end_of_day},
-            'type': 'check_in'
+            'date': today_str,
+            'checkin.status': 'late'
         })
         
         # Total employees
@@ -545,6 +535,89 @@ def analytics_summary():
     except Exception as e:
         print(f"❌ Summary error: {e}")
         return jsonify({'error': str(e), 'total': 0, 'critical': 0, 'compliance': 0}), 500
+
+@app.route('/api/analytics/ai-insights', methods=['GET'])
+def ai_insights():
+    """Generate AI-powered insights from attendance and employee data"""
+    try:
+        from ai_insights import AIInsightsGenerator
+        
+        # Get time range (default: last 7 days)
+        days = int(request.args.get('days', 7))
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Fetch attendance data - NEW structure menggunakan date field
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+        
+        attendance_records = list(db.attendance.find({
+            'date': {'$gte': start_date_str, '$lte': end_date_str}
+        }).sort('date', -1))
+        
+        # Convert ObjectId to strings for JSON
+        for record in attendance_records:
+            record['_id'] = str(record['_id'])
+            # Keep checkin and checkout as is (already have timestamp strings)
+        
+        # Fetch employee data
+        employees = list(db.employees.find({}))
+        for emp in employees:
+            emp['_id'] = str(emp['_id'])
+            if 'created_at' in emp and emp['created_at']:
+                emp['created_at'] = str(emp['created_at'])
+        
+        print(f"🤖 Generating AI insights from {len(attendance_records)} records and {len(employees)} employees")
+        
+        # Initialize AI generator (you can change provider and add API key)
+        ai_provider = request.args.get('provider', 'openai')  # openai, anthropic, google, groq
+        ai_generator = AIInsightsGenerator(ai_provider=ai_provider)
+        
+        # Generate insights
+        insights = ai_generator.generate_insights(attendance_records, employees)
+        
+        return jsonify({
+            'success': True,
+            'provider': ai_provider,
+            'data_range': f'{days} days',
+            'insights': insights,
+            'stats': {
+                'total_records': len(attendance_records),
+                'total_employees': len(employees),
+                'generated_at': datetime.now().isoformat()
+            }
+        })
+        
+    except ImportError as e:
+        print(f"❌ AI module import error: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'AI insights module not configured',
+            'insights': {
+                'summary': 'AI insights temporarily unavailable. Using statistical analysis.',
+                'key_findings': [
+                    'System is operating normally',
+                    'Please configure AI provider for detailed insights',
+                    'Check system logs for more information'
+                ]
+            }
+        }), 200
+    except Exception as e:
+        print(f"❌ AI insights error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'insights': {
+                'summary': 'Error generating insights. Please try again.',
+                'key_findings': [
+                    'System encountered an error',
+                    'Fallback analytics available',
+                    'Contact support if issue persists'
+                ]
+            }
+        }), 500
 
 @app.route('/api/system/cleanup', methods=['POST'])
 def cleanup_system():

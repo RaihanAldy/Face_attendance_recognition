@@ -63,7 +63,7 @@ class MongoDBManager:
         return employees
 
     def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
-        """Record attendance dengan type (check_in/check_out)"""
+        """Record attendance dengan struktur baru (date, checkin, checkout, work_duration_minutes)"""
         try:
             # Cek employee exists atau auto-create
             existing_employee = self.employees.find_one({'employee_id': employee_id})
@@ -78,18 +78,98 @@ class MongoDBManager:
                 }
                 self.employees.insert_one(employee_data)
                 print(f"✅ Auto-created employee: {employee_id}")
+                existing_employee = employee_data
             
-            attendance_data = {
+            now = datetime.now()
+            today_str = now.strftime('%Y-%m-%d')
+            
+            # Cek apakah sudah ada record untuk hari ini
+            existing_record = self.attendance.find_one({
                 'employee_id': employee_id,
-                'timestamp': datetime.now(),
-                'confidence': float(confidence),
-                'type': attendance_type,  # ✅ 'check_in' atau 'check_out'
-                'synced': False
-            }
+                'date': today_str
+            })
             
-            result = self.attendance.insert_one(attendance_data)
-            print(f"✅ {attendance_type.upper()} recorded for {employee_id}")
-            return str(result.inserted_id)
+            if attendance_type == 'check_in':
+                # Hitung status: late jika lebih dari jam 9:00 pagi
+                work_start_time = now.replace(hour=9, minute=0, second=0, microsecond=0)
+                status = 'late' if now > work_start_time else 'ontime'
+                
+                if existing_record:
+                    # Update checkin jika sudah ada record (re-checkin)
+                    self.attendance.update_one(
+                        {'employee_id': employee_id, 'date': today_str},
+                        {
+                            '$set': {
+                                'checkin': {
+                                    'status': status,
+                                    'timestamp': now.isoformat()
+                                },
+                                'updatedAt': now
+                            }
+                        }
+                    )
+                    print(f"✅ CHECK-IN updated for {employee_id} ({status})")
+                else:
+                    # Create record baru untuk hari ini
+                    attendance_data = {
+                        'date': today_str,
+                        'employee_id': employee_id,
+                        'employee_name': existing_employee.get('name', f"Employee {employee_id}"),
+                        'checkin': {
+                            'status': status,
+                            'timestamp': now.isoformat()
+                        },
+                        'checkout': None,
+                        'work_duration_minutes': 0,
+                        'createdAt': now,
+                        'updatedAt': now
+                    }
+                    result = self.attendance.insert_one(attendance_data)
+                    print(f"✅ CHECK-IN recorded for {employee_id} ({status})")
+                    return str(result.inserted_id)
+                    
+            elif attendance_type == 'check_out':
+                if not existing_record:
+                    print(f"⚠️ No check-in record found for {employee_id} today. Cannot check-out.")
+                    return None
+                
+                if not existing_record.get('checkin'):
+                    print(f"⚠️ No check-in data found for {employee_id}. Cannot check-out.")
+                    return None
+                
+                # Parse checkin timestamp
+                checkin_time_str = existing_record['checkin'].get('timestamp')
+                if not checkin_time_str:
+                    print(f"⚠️ Invalid check-in timestamp for {employee_id}")
+                    return None
+                
+                # Parse ISO format timestamp
+                if 'T' in checkin_time_str:
+                    checkin_time = datetime.fromisoformat(checkin_time_str)
+                else:
+                    checkin_time = datetime.strptime(checkin_time_str, '%Y-%m-%d %H:%M:%S')
+                
+                # Hitung work duration dalam menit
+                work_duration = int((now - checkin_time).total_seconds() / 60)
+                
+                # Update dengan checkout dan duration
+                self.attendance.update_one(
+                    {'employee_id': employee_id, 'date': today_str},
+                    {
+                        '$set': {
+                            'checkout': {
+                                'status': 'ontime',  # Bisa dikustomisasi sesuai kebutuhan
+                                'timestamp': now.isoformat()
+                            },
+                            'work_duration_minutes': work_duration,
+                            'updatedAt': now
+                        }
+                    }
+                )
+                print(f"✅ CHECK-OUT recorded for {employee_id} (worked {work_duration} minutes)")
+                return existing_record.get('_id')
+            
+            return True
             
         except Exception as e:
             print(f"❌ Error recording {attendance_type}: {e}")

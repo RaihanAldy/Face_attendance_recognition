@@ -19,10 +19,10 @@ export default function Analytics() {
   useEffect(() => {
     fetchAllAnalytics();
     
-    // Auto refresh setiap 30 detik
+    // Auto refresh setiap 5 MENIT (bukan 30 detik) - lebih reasonable
     const interval = setInterval(() => {
       fetchAllAnalytics();
-    }, 30000);
+    }, 300000); // 5 menit
 
     return () => clearInterval(interval);
   }, []);
@@ -91,7 +91,7 @@ export default function Analytics() {
       <h1 className="text-3xl font-bold text-gray-100 mb-2">
         Attendance Analytics
       </h1>
-      <p className="text-gray-400 mb-6">Face Recognition System Dashboard • Auto-refresh every 30s</p>
+      <p className="text-gray-400 mb-6">Face Recognition System Dashboard • Auto-refresh every 5 min</p>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
