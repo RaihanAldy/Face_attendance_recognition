@@ -21,6 +21,7 @@ const AdminPendingVerification = () => {
 
   useEffect(() => {
     fetchPendingRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const fetchPendingRequests = async () => {

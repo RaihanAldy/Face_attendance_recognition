@@ -81,6 +81,7 @@ export const useAttendanceData = (dateFilter = "today") => {
 
   useEffect(() => {
     fetchAttendanceData(dateFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter]);
 
   return { attendanceData, loading, error, fetchAttendanceData };
