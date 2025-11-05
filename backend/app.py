@@ -132,10 +132,6 @@ def get_employees():
 
 @app.route('/api/attendance', methods=['GET', 'POST'])
 def attendance():
-    """
-    GET: Get attendance records by date
-    POST: Record new attendance (auto-detected checkin/checkout)
-    """
     if request.method == 'GET':
         try:
             date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
