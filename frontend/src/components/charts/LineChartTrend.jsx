@@ -6,28 +6,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
-
-// Custom Tooltip untuk tampilan yang lebih baik
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-slate-800 border border-slate-600 p-3 rounded-lg shadow-lg">
-        <p className="text-gray-300 font-medium">{`${label}`}</p>
-        <p className="text-blue-400">
-          {`Attendance: ${payload[0].value} employees`}
-        </p>
-        {payload[0].payload.date && (
-          <p className="text-gray-400 text-sm">
-            Date: {payload[0].payload.date}
-          </p>
-        )}
-      </div>
-    );
-  }
-  return null;
-};
 
 export default function LineChartTrend({ data, isLoading }) {
   return (

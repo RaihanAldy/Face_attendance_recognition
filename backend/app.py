@@ -25,13 +25,12 @@ insights_table = dynamodb.Table(INSIGHTS_TABLE)
 def get_latest_insights():
     """Get the most recent AI insights"""
     try:
-        # Query DynamoDB untuk insights terbaru
+        # Query DynamoDB untuk insights terbaru - INCLUDE key_findings
         response = insights_table.scan(
-        ProjectionExpression="record_id, summary, generated_at, processed_records, unique_employees",
-        Limit=50  # ambil 50 terakhir misalnya
+            ProjectionExpression="record_id, summary, generated_at, processed_records, unique_employees, key_findings, data_range",
+            Limit=50
         )
 
-        
         items = response.get('Items', [])
         
         if not items:
@@ -40,7 +39,15 @@ def get_latest_insights():
                 'message': 'No insights available yet'
             }), 404
         
+        # Sort by generated_at descending untuk dapat yang terbaru
+        items.sort(key=lambda x: x.get('generated_at', ''), reverse=True)
         insight = items[0]
+        
+        # Debug: print struktur data
+        print(f"🔍 DEBUG Insight data structure:")
+        print(f"   key_findings: {insight.get('key_findings')}")
+        print(f"   key_findings type: {type(insight.get('key_findings'))}")
+        print(f"   key_findings length: {len(insight.get('key_findings', []))}")
         
         return jsonify({
             'success': True,
@@ -59,8 +66,9 @@ def get_latest_insights():
         print(f"❌ Error getting latest insights: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+    
 
-
+    
 @app.route('/api/insights/history', methods=['GET'])
 def get_insights_history():
     """Get historical AI insights"""

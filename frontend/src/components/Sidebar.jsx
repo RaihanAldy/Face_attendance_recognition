@@ -5,6 +5,7 @@ import {
   Users,
   Clock,
   Settings,
+  UserRoundSearch,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -22,13 +23,19 @@ export default function Sidebar() {
       path: "/attendance",
     },
     { id: "employees", label: "Employees", icon: Users, path: "/employees" },
+    {
+      id: "Pending Attendance",
+      label: "Pending Attendance",
+      icon: UserRoundSearch,
+      path: "/pending",
+    },
     { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
   ];
 
   return (
     <aside
       className={`bg-slate-900 border-r border-slate-800 min-h-screen transition-all duration-300 flex flex-col ${
-        isCollapsed ? "w-20" : "w-64"
+        isCollapsed ? "w-20" : "w-52"
       }`}
     >
       {/* Sidebar Header */}

@@ -149,7 +149,7 @@ const AttendanceLogs = () => {
               disabled={loading}
               className="flex flex-row px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
             >
-              <RefreshCcw className="mr-3" />{" "}
+              <RefreshCcw className={`${loading ? "animate-spin" : ""} mr-3`} />{" "}
               {loading ? "Loading..." : "Refresh"}
             </button>
             <button
