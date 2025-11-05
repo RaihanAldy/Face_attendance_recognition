@@ -500,6 +500,78 @@ def hourly_checkins():
         print(f"❌ Hourly check-ins error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/analytics/monthly-checkins', methods=['GET'])
+def monthly_checkins():
+    """Get check-in distribution by date for current month (real-time from MongoDB)"""
+    try:
+        # Get year and month from query params, default to current month
+        year = int(request.args.get('year', datetime.now().year))
+        month = int(request.args.get('month', datetime.now().month))
+        
+        # Get first and last day of the month (handles 28-31 days automatically)
+        import calendar
+        first_day = datetime(year, month, 1)
+        days_in_month = calendar.monthrange(year, month)[1]  # Returns (weekday, num_days)
+        last_day = datetime(year, month, days_in_month)
+        
+        # Format as strings for MongoDB query
+        start_date_str = first_day.strftime('%Y-%m-%d')
+        end_date_str = last_day.strftime('%Y-%m-%d')
+        
+        print(f"📅 Querying monthly check-ins: {start_date_str} to {end_date_str} ({days_in_month} days)")
+        
+        # Query attendance for the entire month, group by date
+        pipeline = [
+            {
+                '$match': {
+                    'date': {'$gte': start_date_str, '$lte': end_date_str},
+                    'checkin': {'$exists': True}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$date',
+                    'count': {'$sum': 1}
+                }
+            },
+            {
+                '$sort': {'_id': 1}
+            }
+        ]
+        
+        results = list(db.attendance.aggregate(pipeline))
+        
+        total_checkins = sum(item['count'] for item in results)
+        print(f"📊 Monthly check-ins for {year}-{month:02d}: {total_checkins} total check-ins across {len(results)} days with data")
+        
+        # Create array for all days in the month
+        monthly_data = []
+        for day in range(1, days_in_month + 1):
+            date = datetime(year, month, day)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            # Find count for this date
+            count = 0
+            for item in results:
+                if item['_id'] == date_str:
+                    count = item['count']
+                    break
+            
+            monthly_data.append({
+                'date': date_str,
+                'day': str(day),
+                'dayName': date.strftime('%a'),  # Mon, Tue, Wed, etc.
+                'checkIns': count
+            })
+        
+        return jsonify(monthly_data)
+        
+    except Exception as e:
+        print(f"❌ Monthly check-ins error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/analytics/summary', methods=['GET'])
 def analytics_summary():
     """Get summary statistics untuk dashboard cards - NEW structure"""

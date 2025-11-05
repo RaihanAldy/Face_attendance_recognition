@@ -1,6 +1,7 @@
 # 🔑 Database Keys/Fields Used by Each Dashboard Feature
 
-**Last Updated:** 4 November 2025
+**Last Updated:** November 5, 2025  
+**Version:** 4.0 (Monthly Check-ins + Dynamic Ranges Update)
 
 ---
 
@@ -12,10 +13,10 @@
 | **Late Arrivals** | `attendance` | `date`, `checkin.status` |
 | **Compliance Rate** | `attendance` + `employees` | `date`, `checkin`, `is_active` |
 | **Working Duration** | `attendance` | `date`, `work_duration_minutes` |
-| **Attendance Trend** | `attendance` | `date`, `checkin` |
-| **Top Departments** | `attendance` + `employees` | `date`, `checkin`, `employee_id`, `department` |
-| **Hourly Check-In** | `attendance` | `date`, `checkin.timestamp` |
-| **AI Insights** | `attendance` + `employees` | `date`, `checkin.status`, `work_duration_minutes`, `department`, `is_active` |
+| **Attendance Trend** | `attendance` | `date`, `checkin` + Dynamic Y-axis (`totalEmployees * 1.2`) |
+| **Top Departments** | `attendance` + `employees` | `date`, `checkin`, `employee_id`, `department` + Dynamic Y-axis (`totalEmployees * 1.2`) |
+| **Monthly Check-In** | `attendance` | `date`, `checkin` + Dynamic color thresholds (80%, 55%, 35%, 15% of `totalEmployees`) |
+| **AI Insights (Hybrid)** | `attendance` + `employees` + Dashboard Stats | All 14 attendance keys + 4 employee keys + 5 dashboard stat sources |
 
 ---
 
@@ -245,40 +246,40 @@ pipeline = [
 
 ---
 
-### 7️⃣ **Hourly Check-In Activity (Heatmap)**
-**Endpoint:** `/api/analytics/hourly-checkins`
+### 7️⃣ **Monthly Check-In Activity (Calendar Heatmap)** 🆕
+**Endpoint:** `/api/analytics/monthly-checkins`
 
 #### Keys Used:
 | Collection | Field | Type | Purpose |
 |------------|-------|------|---------|
-| `attendance` | `date` | String | Filter tanggal tertentu |
+| `attendance` | `date` | String | Filter bulan tertentu & group by date |
 | `attendance` | `checkin` | Object | Verifikasi ada check-in |
-| `attendance` | `checkin.timestamp` | String | Extract jam dari ISO string |
 
 #### Query (Aggregation):
 ```python
+# Get year and month (default: current month)
+year = int(request.args.get('year', datetime.now().year))
+month = int(request.args.get('month', datetime.now().month))
+
+# Dynamic days calculation (28-31)
+import calendar
+days_in_month = calendar.monthrange(year, month)[1]
+first_day = datetime(year, month, 1)
+last_day = datetime(year, month, days_in_month)
+
 pipeline = [
-    # 1. Filter by date
+    # 1. Filter by month range
     {'$match': {
-        'date': '2025-11-04',              # ← date key
-        'checkin': {'$exists': True},      # ← checkin key
-        'checkin.timestamp': {'$exists': True}  # ← checkin.timestamp key
+        'date': {
+            '$gte': first_day.strftime('%Y-%m-%d'),  # ← date key (range)
+            '$lte': last_day.strftime('%Y-%m-%d')
+        },
+        'checkin': {'$exists': True}  # ← checkin key
     }},
     
-    # 2. Extract hour dari ISO timestamp
-    {'$project': {
-        'hour': {
-            '$hour': {
-                '$dateFromString': {
-                    'dateString': '$checkin.timestamp'  # ← Parse ISO string
-                }
-            }
-        }
-    }},
-    
-    # 3. Group by hour
+    # 2. Group by date
     {'$group': {
-        '_id': '$hour',
+        '_id': '$date',
         'count': {'$sum': 1}
     }},
     
@@ -289,30 +290,60 @@ pipeline = [
 #### Output:
 ```javascript
 [
-  {hour: '00', checkIns: 0},
-  {hour: '01', checkIns: 0},
+  {date: '2025-11-01', day: '1', dayName: 'Fri', checkIns: 45},
+  {date: '2025-11-02', day: '2', dayName: 'Sat', checkIns: 0},
+  {date: '2025-11-03', day: '3', dayName: 'Sun', checkIns: 0},
   ...
-  {hour: '08', checkIns: 25},  // Peak morning
-  {hour: '09', checkIns: 12},
-  ...
-  {hour: '23', checkIns: 0}
+  {date: '2025-11-30', day: '30', dayName: 'Sat', checkIns: 38}
 ]
 ```
 
+#### Dynamic Features:
+- **Days Handling:** 28-31 days using `calendar.monthrange()` (handles leap years)
+- **Grid Layout:** 7-column grid starting from Sunday
+- **Color Thresholds (based on `totalEmployees`):**
+  - 🔴 Red: ≥80% attendance (excellent)
+  - 🟠 Orange: ≥55% attendance (good)
+  - 🟡 Yellow: ≥35% attendance (moderate)
+  - 🔵 Blue: ≥15% attendance (low)
+  - ⚫ Slate: >0% (very low)
+- **Sunday Highlight:** Purple ring on Sunday cells
+
 ---
 
-### 8️⃣ **AI Insights Summary**
+### 8️⃣ **AI Insights Summary** 🆕 HYBRID
 **Endpoint:** `/api/analytics/ai-insights`
 
-#### Keys Used:
+#### Keys Used (Database + Dashboard Stats):
+
+**From Attendance Collection:**
 | Collection | Field | Type | Purpose |
 |------------|-------|------|---------|
 | `attendance` | `date` | String | Filter 7 hari terakhir |
+| `attendance` | `employee_id` | String | Identify records |
+| `attendance` | `employee_name` | String | Display names |
 | `attendance` | `checkin` | Object | Hitung total attendance |
 | `attendance` | `checkin.status` | String | Hitung late arrivals |
+| `attendance` | `checkin.timestamp` | String | Hourly patterns |
+| `attendance` | `checkout` | Object | Check-out verification |
 | `attendance` | `work_duration_minutes` | Integer | Average working hours |
+
+**From Employees Collection:**
+| Collection | Field | Type | Purpose |
+|------------|-------|------|---------|
+| `employees` | `employee_id` | String | Join key |
+| `employees` | `name` | String | Employee info |
 | `employees` | `department` | String | Department analysis |
 | `employees` | `is_active` | Boolean | Active employees count |
+
+**Dashboard Stats (Pre-calculated):**
+| Source | Data | Purpose |
+|--------|------|---------|
+| Summary endpoint | `total`, `critical`, `compliance`, `total_employees` | Today's metrics |
+| Trend endpoint | 7-day attendance counts | Weekly patterns |
+| Departments endpoint | Per-department counts | Department performance |
+| Hourly endpoint | Peak check-in hours | Timing patterns |
+| Duration endpoint | `average`, `longest`, `shortest` | Working hours analysis |
 
 #### Query:
 ```python
@@ -374,19 +405,26 @@ employees.department (untuk grouping)
 | Key | Usage Count | Features |
 |-----|-------------|----------|
 | `date` | 8 features | All analytics features |
-| `checkin` | 7 features | Total, Late, Compliance, Trend, Departments, Hourly, AI |
+| `checkin` | 7 features | Total, Late, Compliance, Trend, Departments, Monthly, AI |
 | `checkin.status` | 2 features | Late Arrivals, AI Insights |
-| `checkin.timestamp` | 1 feature | Hourly Check-In |
 | `work_duration_minutes` | 2 features | Working Duration, AI Insights |
 | `employee_id` | 2 features | Departments (join), AI Insights |
 | `department` | 2 features | Departments, AI Insights |
 | `is_active` | 2 features | Compliance, AI Insights |
+| `totalEmployees` (derived) | 3 features | Attendance Trend (Y-axis), Top Departments (Y-axis), Monthly Check-ins (color thresholds) |
 
 ### **Critical Keys:**
 ✅ **`date`** - String format YYYY-MM-DD (used in ALL queries)  
 ✅ **`checkin`** - Object, must exist untuk semua attendance records  
 ✅ **`checkin.status`** - Enum: "ontime" | "late" (calculated at check-in)  
 ✅ **`work_duration_minutes`** - Integer (calculated at check-out)  
+✅ **`totalEmployees`** - Derived from `employees.count_documents({'is_active': True})`, used for dynamic scaling
+
+### **Dynamic Range Features (New in v4.0):**
+All chart ranges now auto-scale based on `totalEmployees`:
+- **Attendance Trend (Line Chart):** Y-axis = `totalEmployees * 1.2`, rounded to 10
+- **Top Departments (Bar Chart):** Y-axis = `totalEmployees * 1.2`, rounded to 10
+- **Monthly Check-ins (Heatmap):** Color thresholds = 80%, 55%, 35%, 15% of `totalEmployees`  
 
 ---
 
@@ -456,6 +494,27 @@ date = datetime.now().strftime('%Y-%m-%d')
 
 ---
 
-**Generated:** 4 November 2025  
-**Version:** 2.0 (New Structure)  
-**Total Keys Documented:** 14 keys across 2 collections
+## 🆕 Changelog
+
+### **Version 4.0** (5 November 2025)
+- ✅ Replaced Hourly Check-ins with Monthly Check-ins (calendar view)
+- ✅ Added dynamic ranges for all charts based on `totalEmployees`
+- ✅ Monthly check-ins: 28-31 days dynamic handling with `calendar.monthrange()`
+- ✅ Color thresholds: 80%, 55%, 35%, 15% of total employees
+- ✅ Updated Quick Reference Table with dynamic features
+
+### **Version 3.0** (4 November 2025)
+- ✅ Hybrid AI Insights implementation
+- ✅ AI now analyzes database + 5 dashboard stat sources
+- ✅ Enhanced prompt for specific recommendations
+
+### **Version 2.0** (4 November 2025)
+- ✅ Initial comprehensive documentation
+- ✅ All 8 features documented with MongoDB keys
+- ✅ Query examples and field mappings
+
+---
+
+**Generated:** 5 November 2025  
+**Version:** 4.0 (Monthly Check-ins + Dynamic Ranges)  
+**Total Keys Documented:** 14 attendance keys + 5 employee keys + 1 derived key (`totalEmployees`)

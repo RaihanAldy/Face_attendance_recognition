@@ -4,7 +4,7 @@ import AIInsightSummary from "../components/charts/AIInsightSummary";
 import BarChart from "../components/charts/BarChartTrend";
 import SummaryCard from "../components/SummaryCard";
 import WorkingDurationCard from "../components/WorkingDurationCard";
-import Heatmap from "../components/charts/Heatmap";
+import DailyCheckinsHeatmap from "../components/charts/DailyCheckinsHeatmap";
 
 const API_BASE_URL = "http://localhost:5000/api";
 
@@ -13,7 +13,7 @@ export default function Analytics() {
   const [attendanceTrend, setAttendanceTrend] = useState([]);
   const [workingDurationData, setWorkingDurationData] = useState({ average: 0, longest: 0, shortest: 0 });
   const [topDepartments, setTopDepartments] = useState([]);
-  const [hourlyCheckIns, setHourlyCheckIns] = useState([]);
+  const [monthlyCheckIns, setMonthlyCheckIns] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,25 +32,25 @@ export default function Analytics() {
       setLoading(true);
 
       // Fetch semua data secara parallel
-      const [summaryRes, trendRes, durationRes, departmentsRes, hourlyRes] = await Promise.all([
+      const [summaryRes, trendRes, durationRes, departmentsRes, monthlyRes] = await Promise.all([
         fetch(`${API_BASE_URL}/analytics/summary`),
         fetch(`${API_BASE_URL}/analytics/attendance-trend`),
         fetch(`${API_BASE_URL}/analytics/working-duration`),
         fetch(`${API_BASE_URL}/analytics/departments`),
-        fetch(`${API_BASE_URL}/analytics/hourly-checkins`)
+        fetch(`${API_BASE_URL}/analytics/monthly-checkins`)
       ]);
 
       const summaryData = await summaryRes.json();
       const trendData = await trendRes.json();
       const durationData = await durationRes.json();
       const departmentsData = await departmentsRes.json();
-      const hourlyData = await hourlyRes.json();
+      const monthlyData = await monthlyRes.json();
 
       setSummary(summaryData);
       setAttendanceTrend(trendData);
       setWorkingDurationData(durationData);
       setTopDepartments(departmentsData);
-      setHourlyCheckIns(hourlyData);
+      setMonthlyCheckIns(monthlyData);
 
       setLoading(false);
     } catch (error) {
@@ -115,8 +115,8 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <LineChart data={attendanceTrend} totalEmployees={summary.total_employees} />
         <AIInsightSummary />
-        <BarChart data={topDepartments} />
-        <Heatmap data={hourlyCheckIns} />
+        <BarChart data={topDepartments} totalEmployees={summary.total_employees} />
+        <DailyCheckinsHeatmap data={monthlyCheckIns} totalEmployees={summary.total_employees} />
       </div>
     </div>
   );
