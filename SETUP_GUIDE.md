@@ -628,23 +628,30 @@ git push origin aurick
 
 ## 🎯 Quick Start (TL;DR)
 
+### **Yang Perlu Disetup (2 Hal Saja!):**
+
+1. ✅ **Backend:** `.env` + `pip install -r requirements.txt`
+2. ✅ **Frontend:** `npm install`
+
+### **Commands:**
+
 ```bash
 # 1. Clone & checkout
 git clone https://github.com/RaihanAldy/Face_attendance_recognition.git
 cd Face_attendance_recognition
 git checkout aurick
 
-# 2. Backend
+# 2. Backend Setup
 cd backend
 python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
+venv\Scripts\activate                  # Activate venv
+pip install -r requirements.txt        # Install SEMUA dependencies
+cp .env.example .env                   # Copy template
 # Edit .env - ADD ELICE API KEY!
 
-# 3. Frontend
+# 3. Frontend Setup
 cd ../frontend
-npm install
+npm install                            # Install SEMUA dependencies
 
 # 4. Run (2 terminals)
 # Terminal 1:
@@ -655,6 +662,27 @@ cd frontend && npm run dev
 
 # 5. Open: http://localhost:5173
 ```
+
+### **📦 Yang Diinstall Otomatis:**
+
+**Backend** (`pip install -r requirements.txt`):
+- Flask, Flask-CORS
+- pymongo
+- insightface, onnxruntime, opencv-python
+- numpy, scikit-learn, Pillow
+- python-dotenv, requests, apscheduler
+- bcrypt, python-dateutil
+- **openai** ← Library baru untuk AI Insights
+
+**Frontend** (`npm install`):
+- React, React DOM, React Router
+- Axios (HTTP client)
+- Recharts (charts)
+- Tailwind CSS (styling)
+- Lucide React (icons)
+- Vite (build tool)
+
+**Total:** ❌ **TIDAK ADA** library yang perlu diinstall manual lagi!
 
 **Setup Time:** 15-30 minutes
 

@@ -9,7 +9,7 @@ import Heatmap from "../components/charts/Heatmap";
 const API_BASE_URL = "http://localhost:5000/api";
 
 export default function Analytics() {
-  const [summary, setSummary] = useState({ total: 0, critical: 0, compliance: 0 });
+  const [summary, setSummary] = useState({ total: 0, critical: 0, compliance: 0, total_employees: 0 });
   const [attendanceTrend, setAttendanceTrend] = useState([]);
   const [workingDurationData, setWorkingDurationData] = useState({ average: 0, longest: 0, shortest: 0 });
   const [topDepartments, setTopDepartments] = useState([]);
@@ -113,7 +113,7 @@ export default function Analytics() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <LineChart data={attendanceTrend} />
+        <LineChart data={attendanceTrend} totalEmployees={summary.total_employees} />
         <AIInsightSummary />
         <BarChart data={topDepartments} />
         <Heatmap data={hourlyCheckIns} />

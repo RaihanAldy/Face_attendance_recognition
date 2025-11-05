@@ -529,7 +529,8 @@ def analytics_summary():
         return jsonify({
             'total': total_today,
             'critical': late_count,
-            'compliance': compliance
+            'compliance': compliance,
+            'total_employees': total_employees  # Tambahkan untuk chart range
         })
         
     except Exception as e:

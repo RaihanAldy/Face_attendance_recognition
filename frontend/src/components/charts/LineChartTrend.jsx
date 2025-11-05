@@ -8,7 +8,16 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-export default function LineChartTrend({ data }) {
+export default function LineChartTrend({ data, totalEmployees = 0 }) {
+  // Calculate dynamic range based on total employees
+  // Add 20% padding for better visualization
+  const maxRange = Math.max(totalEmployees * 1.2, 10); // Minimum 10 untuk visibility
+  const roundedMax = Math.ceil(maxRange / 10) * 10; // Round up to nearest 10
+  
+  // Generate ticks dynamically (5 ticks)
+  const tickInterval = Math.ceil(roundedMax / 4);
+  const ticks = [0, tickInterval, tickInterval * 2, tickInterval * 3, roundedMax];
+  
   return (
     <div className="bg-slate-900 p-6 rounded-2xl shadow-md">
       <h2 className="text-lg font-semibold mb-4 text-gray-200">
@@ -23,8 +32,8 @@ export default function LineChartTrend({ data }) {
           />
           <YAxis 
             stroke="#9ca3af"
-            domain={[0, 75]}
-            ticks={[0, 15, 30, 45, 60, 75]}
+            domain={[0, roundedMax]}
+            ticks={ticks}
           />
           <Tooltip
             contentStyle={{
