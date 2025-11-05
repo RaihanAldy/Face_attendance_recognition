@@ -94,23 +94,24 @@ class AIInsightsGenerator:
         }
         return packages.get(self.ai_provider, self.ai_provider)
     
-    def generate_insights(self, attendance_data: List[Dict], employee_data: List[Dict]) -> Dict[str, Any]:
+    def generate_insights(self, attendance_data: List[Dict], employee_data: List[Dict], dashboard_stats: Dict = None) -> Dict[str, Any]:
         """
-        Generate AI insights from attendance and employee data
+        Generate AI insights from attendance and employee data + dashboard statistics
         
         Args:
             attendance_data: List of attendance records
             employee_data: List of employee records
+            dashboard_stats: Optional dict with pre-calculated dashboard analytics
             
         Returns:
             Dict with summary and key_findings
         """
         if not self.client:
-            return self._fallback_insights(attendance_data, employee_data)
+            return self._fallback_insights(attendance_data, employee_data, dashboard_stats)
         
         try:
-            # Prepare data summary for AI
-            data_summary = self._prepare_data_summary(attendance_data, employee_data)
+            # Prepare data summary for AI (with dashboard context)
+            data_summary = self._prepare_data_summary(attendance_data, employee_data, dashboard_stats)
             
             # Generate insights using AI
             if self.ai_provider == "openai":
@@ -122,14 +123,14 @@ class AIInsightsGenerator:
             elif self.ai_provider == "groq":
                 return self._generate_groq_insights(data_summary)
             else:
-                return self._fallback_insights(attendance_data, employee_data)
+                return self._fallback_insights(attendance_data, employee_data, dashboard_stats)
                 
         except Exception as e:
             print(f"❌ AI insights generation failed: {e}")
-            return self._fallback_insights(attendance_data, employee_data)
+            return self._fallback_insights(attendance_data, employee_data, dashboard_stats)
     
-    def _prepare_data_summary(self, attendance_data: List[Dict], employee_data: List[Dict]) -> str:
-        """Prepare concise data summary for AI analysis - NEW structure"""
+    def _prepare_data_summary(self, attendance_data: List[Dict], employee_data: List[Dict], dashboard_stats: Dict = None) -> str:
+        """Prepare concise data summary for AI analysis - NEW structure with dashboard context"""
         # Calculate statistics
         total_employees = len(employee_data)
         active_employees = len([e for e in employee_data if e.get('is_active', True)])
@@ -191,10 +192,60 @@ DATA QUALITY NOTES:
 - Total attendance records (7 days): {len(records_with_checkin)}
 - Records with check-out (7 days): {len(records_with_checkout)}
 - Note: New structure ensures one record per employee per day (no duplicates).
-
-IMPORTANT: Base your analysis on ACTUAL numbers above. Do not extrapolate or assume percentages that aren't explicitly stated.
 """
+        
+        # Add dashboard analytics context if available
+        if dashboard_stats:
+            summary += "\n" + self._format_dashboard_context(dashboard_stats)
+        
+        summary += "\nIMPORTANT: Base your analysis on ACTUAL numbers above. Do not extrapolate or assume percentages that aren't explicitly stated.\n"
+        
         return summary
+    
+    def _format_dashboard_context(self, dashboard_stats: Dict) -> str:
+        """Format dashboard statistics for AI context"""
+        context = "\nDASHBOARD ANALYTICS CONTEXT:\n"
+        
+        # Summary stats
+        if 'summary' in dashboard_stats:
+            s = dashboard_stats['summary']
+            context += f"""
+CALCULATED METRICS (from Dashboard):
+- Today's Total Attendance: {s.get('total', 0)}
+- Late Arrivals Count: {s.get('critical', 0)}
+- Compliance Rate: {s.get('compliance', 0)}%
+- Total Active Employees: {s.get('total_employees', 0)}
+"""
+        
+        # Department performance
+        if 'departments' in dashboard_stats and dashboard_stats['departments']:
+            context += "\nDEPARTMENT PERFORMANCE:\n"
+            for dept in dashboard_stats['departments'][:5]:  # Top 5
+                context += f"- {dept.get('department', 'Unknown')}: {dept.get('count', 0)} employees present\n"
+        
+        # Hourly pattern
+        if 'hourly' in dashboard_stats and dashboard_stats['hourly']:
+            hourly = dashboard_stats['hourly']
+            peak_hour = max(hourly, key=lambda x: x.get('count', 0))
+            context += f"\nPEAK CHECK-IN HOUR:\n- {peak_hour.get('hour', 'N/A')}: {peak_hour.get('count', 0)} check-ins\n"
+        
+        # Working duration
+        if 'duration' in dashboard_stats:
+            d = dashboard_stats['duration']
+            context += f"""
+WORKING HOURS STATISTICS:
+- Average Working Duration: {d.get('average', 0):.1f} hours
+- Longest Session: {d.get('longest', 0):.1f} hours
+- Shortest Session: {d.get('shortest', 0):.1f} hours
+"""
+        
+        # Attendance trend
+        if 'trend' in dashboard_stats and dashboard_stats['trend']:
+            context += "\nATTENDANCE TREND (Dashboard View):\n"
+            for day_data in dashboard_stats['trend']:
+                context += f"- {day_data.get('day', 'N/A')}: {day_data.get('count', 0)} employees\n"
+        
+        return context
     
     def _generate_openai_insights(self, data_summary: str) -> Dict[str, Any]:
         """Generate insights using OpenAI"""
@@ -267,29 +318,35 @@ IMPORTANT: Base your analysis on ACTUAL numbers above. Do not extrapolate or ass
         return self._parse_ai_response(content)
     
     def _create_prompt(self, data_summary: str) -> str:
-        """Create prompt for AI"""
-        return f"""You are an HR analytics expert analyzing employee attendance data.
+        """Create enhanced prompt for AI with dashboard context"""
+        return f"""You are an HR analytics expert analyzing employee attendance data with comprehensive dashboard metrics.
 
 {data_summary}
 
-INSTRUCTIONS:
-1. Read the data CAREFULLY. Use ONLY the numbers explicitly stated above.
-2. Do NOT make assumptions or calculations beyond what's provided.
-3. If attendance rate is high (>90%), acknowledge it positively.
-4. If late arrivals percentage is 0% or low, mention good punctuality.
-5. Focus on ACTUAL patterns in the weekly trend data.
-6. Provide actionable, realistic recommendations.
+ANALYSIS GUIDELINES:
+1. Read ALL data CAREFULLY - both raw attendance records AND dashboard analytics.
+2. CROSS-REFERENCE: Compare raw data with dashboard calculations to validate consistency.
+3. DEPARTMENT INSIGHTS: If department performance data is available, identify top/bottom performers.
+4. HOURLY PATTERNS: If peak hour data is available, comment on check-in timing patterns.
+5. WORKING HOURS: If duration stats are available, assess work-life balance.
+6. TRENDS: Compare today's performance with weekly trend patterns.
+7. Use ONLY numbers explicitly stated - do NOT make assumptions.
+8. Provide SPECIFIC, ACTIONABLE recommendations (e.g., "Focus on Engineering dept" not "Improve attendance").
 
 Provide your analysis in this EXACT format:
 
-SUMMARY: [Write 2 clear sentences about the overall attendance situation. Be accurate with percentages and numbers.]
+SUMMARY: [Write 2-3 clear sentences covering: (1) Today's attendance status, (2) Key performance metric, (3) Notable trend or pattern from dashboard data]
 
 KEY FINDINGS:
-- [Finding 1: Focus on attendance patterns or rates]
-- [Finding 2: Address punctuality or working hours if relevant]
-- [Finding 3: Suggest one actionable improvement or highlight a positive trend]
+- [Finding 1: Attendance/compliance performance with department comparison if available]
+- [Finding 2: Punctuality/timing patterns using hourly data if available]
+- [Finding 3: One SPECIFIC actionable recommendation based on dashboard insights]
 
-CRITICAL: Base everything on the actual data above. Do not invent percentages or statistics."""
+IMPORTANT: 
+- If dashboard shows department data, mention specific department names
+- If peak hour data exists, reference actual time periods
+- Make recommendations targeted to specific groups/times, not generic advice
+- Acknowledge positive patterns when data shows good performance"""
     
     def _parse_ai_response(self, content: str) -> Dict[str, Any]:
         """Parse AI response into structured format"""
@@ -324,7 +381,7 @@ CRITICAL: Base everything on the actual data above. Do not invent percentages or
             "key_findings": key_findings[:3]  # Ensure only 3 findings
         }
     
-    def _fallback_insights(self, attendance_data: List[Dict], employee_data: List[Dict]) -> Dict[str, Any]:
+    def _fallback_insights(self, attendance_data: List[Dict], employee_data: List[Dict], dashboard_stats: Dict = None) -> Dict[str, Any]:
         """Generate rule-based insights when AI is unavailable - using TODAY's data (at 11 PM)"""
         total_employees = len([e for e in employee_data if e.get('is_active', True)])
         

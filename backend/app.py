@@ -537,9 +537,112 @@ def analytics_summary():
         print(f"❌ Summary error: {e}")
         return jsonify({'error': str(e), 'total': 0, 'critical': 0, 'compliance': 0}), 500
 
+def _get_dashboard_stats_for_ai():
+    """Fetch all dashboard statistics for AI context"""
+    try:
+        today = datetime.now()
+        today_str = today.strftime('%Y-%m-%d')
+        
+        # 1. Summary stats
+        total_today = db.attendance.count_documents({
+            'date': today_str,
+            'checkin': {'$exists': True}
+        })
+        late_count = db.attendance.count_documents({
+            'date': today_str,
+            'checkin.status': 'late'
+        })
+        total_employees = db.employees.count_documents({'is_active': True})
+        compliance = round((total_today / total_employees * 100) if total_employees > 0 else 0, 1)
+        
+        summary_stats = {
+            'total': total_today,
+            'critical': late_count,
+            'compliance': compliance,
+            'total_employees': total_employees
+        }
+        
+        # 2. Attendance trend (7 days)
+        trend_data = []
+        for i in range(6, -1, -1):
+            date = today - timedelta(days=i)
+            date_str = date.strftime('%Y-%m-%d')
+            count = db.attendance.count_documents({
+                'date': date_str,
+                'checkin': {'$exists': True}
+            })
+            trend_data.append({
+                'day': date.strftime('%a'),
+                'count': count
+            })
+        
+        # 3. Department stats
+        dept_pipeline = [
+            {'$match': {'date': today_str, 'checkin': {'$exists': True}}},
+            {'$lookup': {
+                'from': 'employees',
+                'localField': 'employee_id',
+                'foreignField': 'employee_id',
+                'as': 'employee_info'
+            }},
+            {'$unwind': '$employee_info'},
+            {'$group': {
+                '_id': '$employee_info.department',
+                'count': {'$sum': 1}
+            }},
+            {'$sort': {'count': -1}},
+            {'$limit': 10}
+        ]
+        dept_stats = list(db.attendance.aggregate(dept_pipeline))
+        dept_data = [{'department': d['_id'], 'count': d['count']} for d in dept_stats]
+        
+        # 4. Hourly check-ins
+        hourly_pipeline = [
+            {'$match': {'date': today_str, 'checkin': {'$exists': True}}},
+            {'$project': {
+                'hour': {
+                    '$hour': {
+                        '$dateFromString': {'dateString': '$checkin.timestamp'}
+                    }
+                }
+            }},
+            {'$group': {'_id': '$hour', 'count': {'$sum': 1}}},
+            {'$sort': {'_id': 1}}
+        ]
+        hourly_stats = list(db.attendance.aggregate(hourly_pipeline))
+        hourly_data = [{'hour': f"{h['_id']:02d}:00", 'count': h['count']} for h in hourly_stats]
+        
+        # 5. Working duration
+        today_records = list(db.attendance.find({
+            'date': today_str,
+            'work_duration_minutes': {'$exists': True, '$gt': 0}
+        }))
+        
+        if today_records:
+            durations = [r['work_duration_minutes'] / 60 for r in today_records]
+            duration_stats = {
+                'average': round(sum(durations) / len(durations), 1),
+                'longest': round(max(durations), 1),
+                'shortest': round(min(durations), 1)
+            }
+        else:
+            duration_stats = {'average': 0, 'longest': 0, 'shortest': 0}
+        
+        return {
+            'summary': summary_stats,
+            'trend': trend_data,
+            'departments': dept_data,
+            'hourly': hourly_data,
+            'duration': duration_stats
+        }
+        
+    except Exception as e:
+        print(f"⚠️  Error fetching dashboard stats: {e}")
+        return None
+
 @app.route('/api/analytics/ai-insights', methods=['GET'])
 def ai_insights():
-    """Generate AI-powered insights from attendance and employee data"""
+    """Generate AI-powered insights from attendance and employee data + dashboard statistics"""
     try:
         from ai_insights import AIInsightsGenerator
         
@@ -568,14 +671,20 @@ def ai_insights():
             if 'created_at' in emp and emp['created_at']:
                 emp['created_at'] = str(emp['created_at'])
         
-        print(f"🤖 Generating AI insights from {len(attendance_records)} records and {len(employees)} employees")
+        # Fetch dashboard statistics for richer context
+        dashboard_stats = _get_dashboard_stats_for_ai()
+        
+        if dashboard_stats:
+            print(f"🤖 Generating AI insights from {len(attendance_records)} records, {len(employees)} employees + dashboard analytics")
+        else:
+            print(f"🤖 Generating AI insights from {len(attendance_records)} records and {len(employees)} employees (no dashboard stats)")
         
         # Initialize AI generator (you can change provider and add API key)
         ai_provider = request.args.get('provider', 'openai')  # openai, anthropic, google, groq
         ai_generator = AIInsightsGenerator(ai_provider=ai_provider)
         
-        # Generate insights
-        insights = ai_generator.generate_insights(attendance_records, employees)
+        # Generate insights with dashboard context
+        insights = ai_generator.generate_insights(attendance_records, employees, dashboard_stats)
         
         return jsonify({
             'success': True,
@@ -585,6 +694,7 @@ def ai_insights():
             'stats': {
                 'total_records': len(attendance_records),
                 'total_employees': len(employees),
+                'dashboard_stats_included': dashboard_stats is not None,
                 'generated_at': datetime.now().isoformat()
             }
         })
