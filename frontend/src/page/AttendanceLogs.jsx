@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Calendar, Download, RefreshCw, Loader2, Filter } from "lucide-react";
 
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const AttendanceLogs = () => {
-  const [attendanceData, setAttendanceData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [filter, setFilter] = useState("today");
   const [checkFilters, setCheckFilters] = useState({
     checkin: false,
@@ -26,10 +24,15 @@ const AttendanceLogs = () => {
   }, [filter]);
 
   // ✅ Filter logic (dari code pertama)
+  // ... (setelah useEffect)
+
+  // ✅ Filter logic (SUDAH DIPERBAIKI)
   const filteredData = attendanceData.reduce((acc, record) => {
+    // Variabel ini berasal dari record (menggunakan underscore dan huruf kecil)
     const { employee_id, employee_name, checkin, checkout, date } = record;
 
-    if (!checkIn && !checkOut) return acc;
+    // Gunakan 'checkin' dan 'checkout' (huruf kecil)
+    if (!checkin && !checkout) return acc;
 
     if (checkFilters.checkin && checkFilters.checkout) {
       acc.push({
@@ -72,30 +75,35 @@ const AttendanceLogs = () => {
       return acc;
     }
 
+    // Bagian ini juga diperbaiki (sebelumnya menggunakan variabel yang salah)
     if (!checkFilters.checkin && !checkFilters.checkout) {
-      if (checkIn) {
+      if (checkin) {
         acc.push({
-          employeeId,
-          name: name || "Unknown Employee",
-          status: checkInStatus || "ontime",
+          employeeId: employee_id, // <-- Diperbaiki
+          name: employee_name || "Unknown Employee", // <-- Diperbaiki
+          status: checkin.status || "ontime", // <-- Diperbaiki
           action: "Check In",
-          timestamp: checkIn,
+          timestamp: checkin.timestamp, // <-- Diperbaiki
+          date: date, // <-- Ditambahkan
         });
       }
 
-      if (checkOut) {
+      if (checkout) {
         acc.push({
-          employeeId,
-          name: name || "Unknown Employee",
-          status: checkOutStatus || "ontime",
+          employeeId: employee_id, // <-- Diperbaiki
+          name: employee_name || "Unknown Employee", // <-- Diperbaiki
+          status: checkout.status || "ontime", // <-- Diperbaiki
           action: "Check Out",
-          timestamp: checkOut,
+          timestamp: checkout.timestamp, // <-- Diperbaiki
+          date: date, // <-- Ditambahkan
         });
       }
     }
 
     return acc;
   }, []);
+
+  // ... (sisa kode Anda)
 
   // ✅ Reset pagination saat filter berubah
   useEffect(() => {

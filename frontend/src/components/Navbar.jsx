@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ScanFace, Wifi, WifiOff, Bell, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
 const Navbar = ({ onLogout, userRole: propUserRole }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -8,7 +10,12 @@ const Navbar = ({ onLogout, userRole: propUserRole }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
+  if (!user) {
+    return null; // Atau return <LoadingSpinner />
+  }
+  
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -21,27 +28,6 @@ const Navbar = ({ onLogout, userRole: propUserRole }) => {
     }, 1000);
 
     // Get user data from localStorage
-    const storedUser = localStorage.getItem("userData");
-    const userName = localStorage.getItem("userName") || "User";
-    const userEmail = localStorage.getItem("userEmail") || "user@example.com";
-    setNotifications([
-      { message: "Sistem berhasil disinkronkan", time: "Baru saja" },
-      { message: "Koneksi jaringan stabil", time: "1 menit lalu" },
-    ]);
-
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
-      // Create default user data if not exists
-      const defaultUser = {
-        name: userName,
-        email: userEmail,
-        role: userRole || "employee",
-      };
-      setUser(defaultUser);
-      localStorage.setItem("userData", JSON.stringify(defaultUser));
-    }
-
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
