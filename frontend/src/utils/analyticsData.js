@@ -32,69 +32,6 @@ class AnalyticsData {
     }
   }
 
-  async getComprehensiveAnalytics(date = null) {
-    try {
-      const [attendanceData, stats, employees, recentAttendance] =
-        await Promise.all([
-          date ? this.getAttendanceByDate(date) : this.getRecentAttendance(50),
-          this.getAttendanceStats(date),
-          this.getEmployees(),
-          this.getRecentAttendance(100),
-        ]);
-
-      return this.transformAnalyticsData(
-        attendanceData,
-        stats,
-        employees,
-        recentAttendance
-      );
-    } catch (error) {
-      console.error("Error fetching analytics data:", error);
-      // Return fallback data instead of throwing
-      return this.getFallbackAnalyticsData();
-    }
-  }
-
-  // Fallback data jika API gagal
-  getFallbackAnalyticsData() {
-    const today = new Date().toISOString().split("T")[0];
-    return {
-      summary: {
-        total: 0,
-        critical: 0,
-        averageHours: 0,
-      },
-      attendanceTrend: this.getLast7Days().map((day) => ({
-        day: this.formatDay(day),
-        count: 0,
-        date: day,
-      })),
-      topDepartments: [],
-      hourlyCheckIns: Array(24)
-        .fill(0)
-        .map((_, hour) => ({
-          hour: hour.toString().padStart(2, "0"),
-          checkIns: 0,
-        })),
-      workingDurationData: {
-        average: 0,
-        distribution: [
-          { range: "<4h", count: 0 },
-          { range: "4-6h", count: 0 },
-          { range: "6-8h", count: 0 },
-          { range: "8h+", count: 0 },
-        ],
-      },
-      employeeRanking: [],
-      rawData: {
-        attendance: [],
-        stats: {},
-        employees: [],
-      },
-      _isFallback: true, // Flag untuk identifikasi fallback data
-    };
-  }
-
   // Get attendance statistics
   async getAttendanceStats(date = null) {
     const params = date ? `?date=${date}` : "";
@@ -120,13 +57,7 @@ class AnalyticsData {
   // Get comprehensive analytics data
 
   // Transform raw data ke format yang dibutuhkan komponen
-  transformAnalyticsData(
-    attendanceData,
-    stats,
-    employees,
-    recentAttendance,
-    date
-  ) {
+  transformAnalyticsData(attendanceData, stats, employees, recentAttendance) {
     // 1. Summary Data
     const summary = {
       total: stats.present_today || attendanceData.length,
@@ -233,7 +164,7 @@ class AnalyticsData {
     return Object.entries(departmentMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
-      .map(([department, count], index) => ({
+      .map(([department, count]) => ({
         type:
           department.length > 10
             ? department.substring(0, 10) + "..."

@@ -824,32 +824,66 @@ class MongoDBManager:
             return []
     # ==================== STATISTICS & ANALYTICS ====================
     
-    def get_attendance_stats(self):
-        """Get attendance statistics for today"""
+    def get_attendance_stats(self, date_str=None):
+        """Get attendance statistics - FIXED VERSION"""
         try:
-            start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            if not date_str:
+                date_str = datetime.now().strftime('%Y-%m-%d')
             
             total_employees = self.employees.count_documents({})
             
-            present_today = len(self.attendance.distinct('employee_id', {
-                'timestamp': {'$gte': start_of_day},
-                'action': 'check_in'
-            }))
+            # ✅ FIX: Query berdasarkan struktur baru (date field)
+            today_attendance = self.attendance.count_documents({
+                'date': date_str,
+                'checkin': {'$exists': True}  # Has check-in record
+            })
             
-            attendance_rate = (present_today / total_employees * 100) if total_employees > 0 else 0
+            # Calculate attendance rate
+            attendance_rate = (today_attendance / total_employees * 100) if total_employees > 0 else 0
             
-            return {
+            # Count late arrivals
+            late_count = self.attendance.count_documents({
+                'date': date_str,
+                'checkin.status': 'late'
+            })
+            
+            # Calculate average working duration for today
+            pipeline = [
+                {'$match': {
+                    'date': date_str,
+                    'work_duration_minutes': {'$exists': True, '$gt': 0}
+                }},
+                {'$group': {
+                    '_id': None,
+                    'avg_duration': {'$avg': '$work_duration_minutes'}
+                }}
+            ]
+            
+            avg_result = list(self.attendance.aggregate(pipeline))
+            avg_duration = avg_result[0]['avg_duration'] if avg_result else 0
+            
+            stats = {
                 'total_employees': total_employees,
-                'present_today': present_today,
-                'attendance_rate': round(attendance_rate, 2)
+                'present_today': today_attendance,
+                'attendance_rate': round(attendance_rate, 2),
+                'late_arrivals': late_count,
+                'avg_working_hours': round(avg_duration / 60, 1) if avg_duration > 0 else 0,
+                'date': date_str
             }
+            
+            print(f"✅ Stats for {date_str}: {stats}")
+            return stats
             
         except Exception as e:
             print(f"❌ Error getting attendance stats: {e}")
+            traceback.print_exc()
             return {
                 'total_employees': 0,
                 'present_today': 0,
-                'attendance_rate': 0
+                'attendance_rate': 0,
+                'late_arrivals': 0,
+                'avg_working_hours': 0,
+                'date': date_str or datetime.now().strftime('%Y-%m-%d')
             }
     
     def get_daily_analytics(self, date=None):

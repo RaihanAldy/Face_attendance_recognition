@@ -1,25 +1,37 @@
-export default function WorkingDurationCard({ data, color }) {
-  const { average, distribution } = data;
-
+export default function WorkingDurationCard({ data, color, isLoading }) {
   return (
     <div
-      className={`bg-slate-900 p-6 rounded-2xl border-l-4 ${color} shadow-md`}
+      className={`bg-slate-900 border-l-4 ${color} shadow-sm rounded-lg p-4 flex flex-col`}
     >
-      <h3 className="text-gray-400 text-sm font-medium mb-2">
-        Average Working Hours
+      <h3 className="text-sm font-medium text-gray-200">
+        Average Working Duration
       </h3>
-      <p className="text-3xl font-bold text-white mb-4">{average}h</p>
-
-      <div className="space-y-2">
-        {distribution.map((item, index) => (
-          <div key={index} className="flex justify-between items-center">
-            <span className="text-gray-400 text-sm">{item.range}</span>
-            <span className="text-white font-medium">
-              {item.count} employees
+      {isLoading ? (
+        <div className="text-2xl font-bold text-gray-300 mt-2 animate-pulse">
+          ...
+        </div>
+      ) : (
+        <>
+          <p className="text-2xl font-bold text-gray-300 mt-2">
+            {data.average} hours
+          </p>
+          <div className="flex gap-4 mt-3 text-xs text-gray-400">
+            <span>
+              Longest:{" "}
+              <span className="text-green-400 font-semibold">
+                {data.longest}h
+              </span>
+            </span>
+            <span className="text-gray-600">|</span>
+            <span>
+              Shortest:{" "}
+              <span className="text-orange-400 font-semibold">
+                {data.shortest}h
+              </span>
             </span>
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

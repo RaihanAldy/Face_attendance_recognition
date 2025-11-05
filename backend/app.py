@@ -475,7 +475,7 @@ def get_attendance_stats():
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         print(f"📈 Getting stats for: {date}")
         
-        stats = db.get_attendance_stats(date)
+        stats = db.get_attendance_stats(date)  # ✅ Pass date parameter
         
         print(f"✅ Stats: {stats}")
         return jsonify(stats)
@@ -484,6 +484,7 @@ def get_attendance_stats():
         print(f"❌ Error getting stats: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 # ==================== FACE RECOGNITION ENDPOINTS ====================
 
