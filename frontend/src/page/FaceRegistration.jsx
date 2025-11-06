@@ -44,7 +44,7 @@ export default function FaceRegistration({ onBack }) {
     };
   }, []);
 
-  // ✅ NEW: Extract face embedding from video (same as FaceScan)
+  // Extract face embedding from video (same as FaceScan)
   const captureAndExtractFace = async () => {
     try {
       if (!videoRef.current) {
@@ -64,10 +64,10 @@ export default function FaceRegistration({ onBack }) {
       // Convert to base64
       const imageData = canvas.toDataURL("image/jpeg", 0.95);
 
-      console.log("📸 Image captured from video");
-      console.log(`   Size: ${canvas.width}x${canvas.height}`);
-      console.log(`   Angle: ${angles[currentAngle].name}`);
-      console.log("🔍 Sending to backend for face extraction...");
+      console.log("Image captured from video");
+      console.log(`Size: ${canvas.width}x${canvas.height}`);
+      console.log(`Angle: ${angles[currentAngle].name}`);
+      console.log("Sending to backend for face extraction...");
 
       // Send ke backend untuk extract face
       const response = await fetch("http://localhost:5000/api/extract-face", {
@@ -91,9 +91,9 @@ export default function FaceRegistration({ onBack }) {
         throw new Error(result.error || "Failed to extract face");
       }
 
-      console.log("✅ Face extracted successfully");
-      console.log(`   Embedding length: ${result.embedding.length}`);
-      console.log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+      console.log("Face extracted successfully");
+      console.log(`Embedding length: ${result.embedding.length}`);
+      console.log(`Confidence: ${(result.confidence * 100).toFixed(1)}%`);
 
       return {
         embedding: result.embedding,
@@ -237,7 +237,7 @@ export default function FaceRegistration({ onBack }) {
     }
   };
 
-  // ✅ UPDATED: Capture face with real embedding extraction
+  // Capture face with real embedding extraction
   const captureFace = async () => {
     if (!videoRef.current || !isScanning) return;
 
@@ -385,7 +385,7 @@ export default function FaceRegistration({ onBack }) {
     }
   };
 
-  // ✅ UPDATED: Submit with real embeddings
+  // Submit with face embeddings
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -415,10 +415,10 @@ export default function FaceRegistration({ onBack }) {
       // Extract embeddings from captures (REAL embeddings from backend)
       const faceEmbeddings = faceCaptures.map((capture) => capture.embedding);
 
-      console.log("📤 Submitting registration with real embeddings:");
-      console.log(`   Name: ${formData.name}`);
-      console.log(`   Embeddings count: ${faceEmbeddings.length}`);
-      console.log(`   Embedding length: ${faceEmbeddings[0].length}`);
+      console.log("Submitting registration with real embeddings:");
+      console.log(`Name: ${formData.name}`);
+      console.log(`Embeddings count: ${faceEmbeddings.length}`);
+      console.log(`Embedding length: ${faceEmbeddings[0].length}`);
       faceCaptures.forEach((capture) => {
         console.log(
           `   ${capture.angleName}: ${(capture.confidence * 100).toFixed(

@@ -14,8 +14,8 @@ export const useAttendanceData = (dateFilter = "today") => {
         filter === "all" ? "all" : new Date().toISOString().split("T")[0];
       const url = `http://localhost:5000/api/attendance?date=${dateParam}`;
 
-      console.log(`📡 Fetching attendance data with filter: ${filter}`);
-      console.log(`🔗 Request URL: ${url}`);
+      console.log(` Fetching attendance data with filter: ${filter}`);
+      console.log(` Request URL: ${url}`);
 
       const response = await fetch(url);
 
@@ -25,27 +25,26 @@ export const useAttendanceData = (dateFilter = "today") => {
 
       const data = await response.json();
 
-      console.log("📦 Raw response from backend:", data);
+      console.log(" Raw response from backend:", data);
 
       if (!Array.isArray(data)) {
-        console.error("❌ Invalid response format:", data);
+        console.error(" Invalid response format:", data);
         throw new Error("Response data is not an array");
       }
 
       // Di dalam fetchAttendanceData function, perbaiki field mapping:
       const normalizedData = data.map((item) => {
-        // ✅ PASTIKAN EMPLOYEE_NAME SELALU ADA
         const employeeName = item.employee_name || "Unknown Employee";
 
         return {
           _id: item._id,
-          employeeId: item.employee_id, // ✅ employee_id bukan employeeId
+          employeeId: item.employee_id,
           name: employeeName,
           date: item.date,
           checkIn: item.checkin?.timestamp || null,
-          checkInStatus: item.checkin?.status || null, // ✅ langsung ambil status
+          checkInStatus: item.checkin?.status || null,
           checkOut: item.checkout?.timestamp || null,
-          checkOutStatus: item.checkout?.status || null, // ✅ langsung ambil status
+          checkOutStatus: item.checkout?.status || null,
           workDuration: item.work_duration_minutes || 0,
           workingHours: item.work_duration_minutes
             ? `${Math.floor(item.work_duration_minutes / 60)}h ${
@@ -57,10 +56,10 @@ export const useAttendanceData = (dateFilter = "today") => {
         };
       });
 
-      console.log("✅ Normalized data sample:", normalizedData[0]);
-      console.log(`✅ Total records: ${normalizedData.length}`);
+      console.log(" Normalized data sample:", normalizedData[0]);
+      console.log(` Total records: ${normalizedData.length}`);
       console.log(
-        "📊 Status distribution:",
+        " Status distribution:",
         normalizedData.reduce((acc, r) => {
           const hasCheckIn = r.checkIn ? "has-checkin" : "no-checkin";
           const hasCheckOut = r.checkOut ? "has-checkout" : "no-checkout";
@@ -72,7 +71,7 @@ export const useAttendanceData = (dateFilter = "today") => {
 
       setAttendanceData(normalizedData);
     } catch (err) {
-      console.error("🔥 Error fetching attendance data:", err);
+      console.error(" Error fetching attendance data:", err);
       setError(err.message || "Terjadi kesalahan saat mengambil data absensi.");
       setAttendanceData([]);
     } finally {
@@ -82,6 +81,7 @@ export const useAttendanceData = (dateFilter = "today") => {
 
   useEffect(() => {
     fetchAttendanceData(dateFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilter]);
 
   return { attendanceData, loading, error, fetchAttendanceData };

@@ -4,6 +4,7 @@ import AttendanceFilter from "../components/attendance/AttendanceFilter";
 import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
 import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
+import { RefreshCcw, FileDown, TriangleAlert } from "lucide-react";
 
 const AttendanceLogs = () => {
   const [filter, setFilter] = useState("today");
@@ -12,7 +13,7 @@ const AttendanceLogs = () => {
     checkout: false,
   });
 
-  // ✅ Pagination states
+  //  Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -24,7 +25,7 @@ const AttendanceLogs = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
-  // ✅ Filter logic (dari code pertama)
+  // Filter logic (dari code pertama)
   const filteredData = attendanceData.reduce((acc, record) => {
     const {
       employeeId,
@@ -104,12 +105,12 @@ const AttendanceLogs = () => {
     return acc;
   }, []);
 
-  // ✅ Reset pagination saat filter berubah
+  //  Reset pagination saat filter berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, checkFilters]);
 
-  // ✅ Pagination slice
+  //  Pagination slice
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -124,7 +125,7 @@ const AttendanceLogs = () => {
     );
   };
 
-  console.group("🧩 Attendance Data Debug");
+  console.group(" Attendance Data Debug");
   console.log("Raw data:", attendanceData);
   console.log("Filtered:", filteredData);
   console.groupEnd();
@@ -146,16 +147,17 @@ const AttendanceLogs = () => {
             <button
               onClick={() => fetchAttendanceData(filter)}
               disabled={loading}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
+              className="flex flex-row px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
             >
-              🔄 {loading ? "Loading..." : "Refresh"}
+              <RefreshCcw className={`${loading ? "animate-spin" : ""} mr-3`} />{" "}
+              {loading ? "Loading..." : "Refresh"}
             </button>
             <button
               onClick={handleExportCSV}
               disabled={filteredData.length === 0}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:bg-emerald-400"
+              className="flex flex-row px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:bg-emerald-400"
             >
-              📁 Export CSV
+              <FileDown className="mr-3" /> Export CSV
             </button>
           </div>
         </div>
@@ -170,8 +172,8 @@ const AttendanceLogs = () => {
 
         {/* Error & Loading */}
         {error && (
-          <div className="text-red-400 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
-            ⚠️ {error}
+          <div className="flex flex-row text-red-400 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
+            <TriangleAlert /> {error}
           </div>
         )}
         {loading && (
@@ -183,7 +185,7 @@ const AttendanceLogs = () => {
         {!loading && !error && filteredData.length === 0 && (
           <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
             <p className="text-slate-400 text-lg mb-4">
-              📭 Tidak ada data untuk filter yang dipilih
+              Tidak ada data untuk filter yang dipilih
             </p>
           </div>
         )}
@@ -230,7 +232,7 @@ const AttendanceLogs = () => {
               </div>
             </div>
 
-            {/* ✅ Pagination */}
+            {/*  Pagination */}
             <div className="mt-6 flex items-center justify-between px-4 py-3 bg-slate-800/50 rounded-xl">
               <div className="text-sm text-slate-400">
                 Showing {Math.min(startIndex + 1, filteredData.length)}–

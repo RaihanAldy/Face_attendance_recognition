@@ -4,31 +4,247 @@ from mongo_db import db
 from face_engine import face_engine
 from datetime import datetime
 import traceback
-from sync_mongo_to_dynamo import main as sync_mongo_to_dynamo 
+import sync_mongo_to_dynamo
 from apscheduler.schedulers.background import BackgroundScheduler
+import boto3
+from botocore.exceptions import ClientError
+from pytz import timezone
+from sync_mongo_to_dynamo import fetch_insights_from_dynamodb
+import json
+
 
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:5173"])
+INSIGHTS_TABLE = 'ai-insight'
+AWS_REGION = 'ap-southeast-2'
 
+dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+insights_table = dynamodb.Table(INSIGHTS_TABLE)
+
+@app.route('/api/insights/latest', methods=['GET'])
+def get_latest_insights():
+    """Get the most recent AI insights"""
+    try:
+        # Query DynamoDB untuk insights terbaru - INCLUDE key_findings
+        response = insights_table.scan(
+            ProjectionExpression="record_id, summary, generated_at, processed_records, unique_employees, key_findings, data_range",
+            Limit=50
+        )
+
+        items = response.get('Items', [])
+        
+        if not items:
+            return jsonify({
+                'success': False,
+                'message': 'No insights available yet'
+            }), 404
+        
+        # Sort by generated_at descending untuk dapat yang terbaru
+        items.sort(key=lambda x: x.get('generated_at', ''), reverse=True)
+        insight = items[0]
+        
+        # Debug: print struktur data
+        print(f"🔍 DEBUG Insight data structure:")
+        print(f"   key_findings: {insight.get('key_findings')}")
+        print(f"   key_findings type: {type(insight.get('key_findings'))}")
+        print(f"   key_findings length: {len(insight.get('key_findings', []))}")
+        
+        return jsonify({
+            'success': True,
+            'insight': {
+                'record_id': insight.get('record_id'),
+                'summary': insight.get('summary'),
+                'key_findings': insight.get('key_findings', []),
+                'generated_at': insight.get('generated_at'),
+                'processed_records': insight.get('processed_records', 0),
+                'unique_employees': insight.get('unique_employees', 0),
+                'data_range': insight.get('data_range', '7_days')
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting latest insights: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
+
+    
+@app.route('/api/insights/history', methods=['GET'])
+def get_insights_history():
+    """Get historical AI insights"""
+    try:
+        limit = int(request.args.get('limit', 10))
+        
+        response = insights_table.scan(
+            Limit=limit
+        )
+        
+        items = response.get('Items', [])
+        
+        # Sort by generated_at descending
+        insights = sorted(
+            items,
+            key=lambda x: x.get('generated_at', ''),
+            reverse=True
+        )
+        
+        formatted_insights = []
+        for insight in insights:
+            formatted_insights.append({
+                'record_id': insight.get('record_id'),
+                'summary': insight.get('summary'),
+                'key_findings': insight.get('key_findings', []),
+                'generated_at': insight.get('generated_at'),
+                'processed_records': insight.get('processed_records', 0),
+                'unique_employees': insight.get('unique_employees', 0),
+                'data_range': insight.get('data_range', '7_days')
+            })
+        
+        return jsonify({
+            'success': True,
+            'total': len(formatted_insights),
+            'insights': formatted_insights
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting insights history: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/insights/trigger', methods=['POST'])
+def trigger_insights_generation():
+    """Manually trigger AI insights generation (calls Lambda)"""
+    try:
+        lambda_client = boto3.client('lambda', region_name=AWS_REGION)
+        
+        # Invoke Lambda function
+        response = lambda_client.invoke(
+            FunctionName='insight',  # Sesuaikan dengan nama Lambda Anda
+            InvocationType='RequestResponse',
+            Payload=json.dumps({})
+        )
+        
+        # Parse response
+        response_payload = json.loads(response['Payload'].read())
+        
+        if response['StatusCode'] == 200:
+            return jsonify({
+                'success': True,
+                'message': 'AI insights generation triggered successfully',
+                'lambda_response': response_payload
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Lambda invocation failed',
+                'details': response_payload
+            }), 500
+        
+    except Exception as e:
+        print(f"❌ Error triggering insights: {e}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/insights/<record_id>', methods=['GET'])
+def get_insight_by_id(record_id):
+    """Get specific insight by record_id"""
+    try:
+        response = insights_table.get_item(
+            Key={'record_id': record_id}
+        )
+        
+        if 'Item' not in response:
+            return jsonify({
+                'success': False,
+                'message': 'Insight not found'
+            }), 404
+        
+        insight = response['Item']
+        
+        return jsonify({
+            'success': True,
+            'insight': {
+                'record_id': insight.get('record_id'),
+                'summary': insight.get('summary'),
+                'key_findings': insight.get('key_findings', []),
+                'generated_at': insight.get('generated_at'),
+                'processed_records': insight.get('processed_records', 0),
+                'unique_employees': insight.get('unique_employees', 0),
+                'data_range': insight.get('data_range', '7_days')
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting insight: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/insights/stats', methods=['GET'])
+def get_insights_stats():
+    """Get statistics about AI insights"""
+    try:
+        # Get all insights
+        response = insights_table.scan()
+        items = response.get('Items', [])
+        
+        if not items:
+            return jsonify({
+                'success': True,
+                'stats': {
+                    'total_insights': 0,
+                    'latest_generated': None,
+                    'total_records_analyzed': 0,
+                    'avg_employees_per_analysis': 0
+                }
+            })
+        
+        # Calculate stats
+        total_insights = len(items)
+        latest_insight = max(items, key=lambda x: x.get('generated_at', ''))
+        total_records = sum(item.get('processed_records', 0) for item in items)
+        avg_employees = sum(item.get('unique_employees', 0) for item in items) / total_insights
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_insights': total_insights,
+                'latest_generated': latest_insight.get('generated_at'),
+                'total_records_analyzed': total_records,
+                'avg_employees_per_analysis': round(avg_employees, 1)
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error getting insights stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ================= Scheduler Setup =================
-scheduler = BackgroundScheduler()
 
 def scheduled_sync():
-    print(f"⏰ Running scheduled sync at {datetime.now().isoformat()}")
     try:
+        print(f"⏰ Running scheduled sync at {datetime.now().isoformat()}")
         sync_mongo_to_dynamo.main()
+        print("✅ Daily sync completed successfully.")
     except Exception as e:
         print(f"❌ Error during scheduled sync: {e}")
 
-# jalankan setiap hari jam 02:00 pagi (ubah sesuai kebutuhan)
-scheduler.add_job(scheduled_sync, 'cron', hour=2, minute=0)
-scheduler.start()
+def scheduled_insight_sync():
+    """Sinkronisasi AI Insight dari DynamoDB ke MongoDB lokal"""
+    print(f"🕒 Running scheduled insight sync at {datetime.now().isoformat()}")
+    try:
+        new_count = fetch_insights_from_dynamodb()
+        print(f"✅ Insight sync completed — {new_count} item(s) synced.")
+    except Exception as e:
+        print(f"❌ Error during insight sync: {e}")
+
+
 
 @app.route('/api/sync', methods=['POST'])
 def manual_sync():
     try:
-        sync_mongo_to_dynamo()  # fungsi sync Anda
+        sync_mongo_to_dynamo.main()
         return jsonify({"message": "Sync berhasil dijalankan!"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -263,7 +479,7 @@ def get_attendance_stats():
         date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
         print(f"📈 Getting stats for: {date}")
         
-        stats = db.get_attendance_stats(date)
+        stats = db.get_attendance_stats(date)  # ✅ Pass date parameter
         
         print(f"✅ Stats: {stats}")
         return jsonify(stats)
@@ -397,6 +613,7 @@ def review_pending_request(request_id):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     
+
 # ==================== FACE RECOGNITION ENDPOINTS ====================
 
 @app.route('/api/extract-face', methods=['POST'])
@@ -638,7 +855,7 @@ def test_face_engine():
 
 @app.route('/api/attendance/manual', methods=['POST', 'OPTIONS'])
 def manual_attendance():
-    # ✅ Handle preflight (OPTIONS)
+    # Handle preflight (OPTIONS)
     if request.method == 'OPTIONS':
         response = make_response("", 200)
         response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
@@ -665,16 +882,16 @@ def manual_attendance():
 
         print(f"📝 Manual attendance for: {employees}")
 
-        # ✅ Handle timestamp parsing dengan benar
+        # Handle timestamp parsing dengan benar
         try:
             if timestamp_str.endswith('Z'):
                 timestamp_str = timestamp_str[:-1] + '+00:00'
             timestamp = datetime.fromisoformat(timestamp_str)
         except Exception as time_error:
-            print(f"⚠️ Error parsing timestamp, using current time: {time_error}")
+            print(f"Error parsing timestamp, using current time: {time_error}")
             timestamp = datetime.now()
 
-        # ✅ SIMPAN KE pending_attendance BUKAN attendance
+        # SIMPAN KE pending_attendance BUKAN attendance
         pending_record = {
             "employee_name": employees,  # Gunakan field yang konsisten
             "photo": photo_base64,
@@ -686,7 +903,7 @@ def manual_attendance():
             "submitted_at": datetime.now()
         }
 
-        # ✅ SIMPAN KE COLLECTION pending_attendance
+        # SIMPAN KE COLLECTION pending_attendance
         result = db.pending_attendance.insert_one(pending_record)
 
         response = jsonify({
@@ -698,12 +915,12 @@ def manual_attendance():
             "status": "pending"
         })
 
-        # ✅ Tambah header CORS pada response utama
+        # Tambah header CORS pada response utama
         response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
         return response, 200
 
     except Exception as e:
-        print(f"❌ Manual attendance error: {e}")
+        print(f"Manual attendance error: {e}")
         traceback.print_exc()
         response = jsonify({"success": False, "error": str(e)})
         response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
@@ -745,7 +962,7 @@ def test_db():
         })
         
     except Exception as e:
-        print(f"❌ Test DB error: {e}")
+        print(f"Test DB error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== ERROR HANDLERS ====================
@@ -764,21 +981,33 @@ if __name__ == '__main__':
     print("=" * 60)
     print("🚀 Starting Face Recognition Attendance System")
     print("=" * 60)
-    print("📍 API Server: http://localhost:5000")
-    print("📊 MongoDB: Connected")
-    print("📁 New Structure: Nested checkin/checkout per employee per day")
-    print("🎯 CORS enabled for: http://localhost:5173")
-    print("")
-    print("Attendance Structure:")
-    print("  - 1 document per employee per day")
-    print("  - Nested checkin/checkout objects")
-    print("  - Auto-calculated work duration")
-    print("=" * 60)
+    scheduler = BackgroundScheduler()
+
+    scheduler.add_job(
+    scheduled_insight_sync,
+    'interval',
+    hours=1,  # bisa kamu ubah jadi 2 atau 3 jam sesuai kebutuhan
+    timezone=timezone('Asia/Jakarta')
+    )
+    scheduler.add_job(
+    scheduled_sync,
+    'cron',
+    hour=23,
+    minute=0,
+    timezone=timezone('Asia/Jakarta')
+    )
+
     with app.app_context():
-        print("🚀 Flask starting, checking for unsynced data...")
+        print("Flask starting, checking for unsynced data...")
         try:
-            sync_mongo_to_dynamo()
+            sync_mongo_to_dynamo.main()
         except Exception as e:
             print(f"❌ Error during startup sync: {e}")
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+
+    # Start scheduler hanya sekali
+    if not scheduler.running:
+        scheduler.start()
+        print("✅ Scheduler aktif: sync otomatis setiap jam 23:00 WIB")
+
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+

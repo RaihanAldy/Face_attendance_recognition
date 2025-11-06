@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { UserPlus, Search, Trash2, Loader2 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Employees = () => {
-  const [employeesData, setEmployeesData] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [error, setError] = useState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -24,53 +24,7 @@ const Employees = () => {
       setEmployeesData(data);
     } catch (err) {
       setError(err.message);
-      console.error("Error fetching employees:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewEmployee((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/employees`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newEmployee),
-      });
-
-      if (!response.ok) throw new Error("Failed to add employee");
-
-      const result = await response.json();
-      await fetchEmployees();
-
-      setShowAddModal(false);
-      setNewEmployee({
-        name: "",
-        department: "",
-        position: "",
-        email: "",
-        phone: "",
-      });
-
-      alert(`✅ Employee added successfully! ID: ${result.employee_id}`);
-    } catch (err) {
-      setError(err.message);
-      console.error("Error adding employee:", err);
-      alert(`❌ Error: ${err.message}`);
+      console.error("Error fetching employees:", error);
     } finally {
       setLoading(false);
     }
@@ -78,18 +32,16 @@ const Employees = () => {
 
   useEffect(() => {
     fetchEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading)
     return <div className="text-sky-200 p-6">Loading employees...</div>;
 
   // Pagination logic
-  const totalPages = Math.ceil(employeesData.length / itemsPerPage);
+  const totalPages = Math.ceil(employees.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentData = employeesData.slice(
-    startIndex,
-    startIndex + itemsPerPage
-  );
+  const currentData = employees.slice(startIndex, startIndex + itemsPerPage);
 
   const goToPage = (pageNumber) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;

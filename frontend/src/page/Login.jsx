@@ -16,53 +16,53 @@ const Login = ({ onLogin }) => {
     setError("");
 
     try {
-      console.log("🔐 Attempting admin login...");
-      
+      console.log(" Attempting admin login...");
+
       // Extract username from email (before @)
-      const username = email.split('@')[0];
-      
-      // ✅ CONNECT TO BACKEND API
-      const response = await fetch('http://localhost:5000/api/admin/login', {
-        method: 'POST',
+      const username = email.split("@")[0];
+
+      //  CONNECT TO BACKEND API
+      const response = await fetch("http://localhost:5000/api/admin/login", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: username,  // or use email directly
-          password: password
-        })
+          username: username, // or use email directly
+          password: password,
+        }),
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
-        console.log("✅ Login successful:", data);
-        
+        console.log(" Login successful:", data);
+
         // Call parent onLogin callback
         const userData = {
           name: data.name || "Administrator",
           email: email,
-          role: data.role || "admin"
+          role: data.role || "admin",
         };
-        
+
         onLogin(data.token, "admin", userData);
-        
+
         // Navigate to analytics dashboard
         navigate("/analytics", { replace: true });
       } else {
         throw new Error(data.error || "Login gagal");
       }
-      
     } catch (error) {
-      console.error("❌ Login error:", error);
-      
+      console.error(" Login error:", error);
+
       // User-friendly error messages
       let errorMessage = error.message;
-      
+
       if (error.message === "Failed to fetch") {
-        errorMessage = "Tidak dapat terhubung ke server. Pastikan backend running di http://localhost:5000";
+        errorMessage =
+          "Tidak dapat terhubung ke server. Pastikan backend running di http://localhost:5000";
       }
-      
+
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -153,12 +153,20 @@ const Login = ({ onLogin }) => {
 
         {/* Demo Credentials */}
         <div className="mt-6 p-4 bg-slate-700/30 rounded-xl border border-slate-600/30">
-          <h4 className="text-slate-300 text-sm font-medium mb-2">Demo Credentials:</h4>
+          <h4 className="text-slate-300 text-sm font-medium mb-2">
+            Demo Credentials:
+          </h4>
           <div className="text-slate-400 text-sm space-y-1">
-            <p>Email: <span className="text-blue-400 font-mono">admin@company.com</span></p>
-            <p>Password: <span className="text-blue-400 font-mono">admin123</span></p>
+            <p>
+              Email:{" "}
+              <span className="text-blue-400 font-mono">admin@company.com</span>
+            </p>
+            <p>
+              Password:{" "}
+              <span className="text-blue-400 font-mono">admin123</span>
+            </p>
             <p className="text-xs text-slate-500 mt-2">
-              💡 Username akan diambil dari email (sebelum @)
+              Username akan diambil dari email (sebelum @)
             </p>
           </div>
         </div>

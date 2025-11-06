@@ -14,7 +14,6 @@ const Settings = () => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
-        // ✅ UPDATE: Tambahkan base URL backend
         const res = await fetch("http://localhost:5000/api/settings");
 
         if (!res.ok) {
@@ -75,7 +74,6 @@ const Settings = () => {
       setIsSaving(true);
       setMessage({ type: "", text: "" });
 
-      // ✅ UPDATE: Tambahkan base URL backend
       const response = await fetch("http://localhost:5000/api/settings", {
         method: "POST",
         headers: {
