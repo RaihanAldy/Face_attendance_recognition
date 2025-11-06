@@ -9,11 +9,11 @@ const AdminPendingVerification = () => {
   const [filter, setFilter] = useState("pending");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [reviewing, setReviewing] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
 
   useEffect(() => {
     fetchPendingRequests();
   }, [filter]);
-
   const fetchPendingRequests = async () => {
     setLoading(true);
     try {
@@ -196,26 +196,50 @@ const AdminPendingVerification = () => {
                     </div>
                   </div>
 
-                  {/* Review Button */}
-                  {request.status === "pending" && (
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Review 
-                    </button>
-                  )}
+                  {/* Photos */}
+                  <div className="mb-4">
+                    <p className="text-sm text-slate-400 mb-3">Verification Photos:</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      {["front", "left", "right"].map((angle) => {
+                        const src = request.photos?.[angle] || getPhotoUrl(request);
+                        if (!src) return null;
+                        return (
+                          <div key={angle} className="space-y-2">
+                            <img
+                              src={src}
+                              alt={`${angle} face`}
+                              className="w-full h-40 object-cover rounded-lg border border-slate-600 cursor-pointer hover:border-blue-500 transition-colors"
+                              onClick={() => src && window.open(src, "_blank")}
+                            />
+                            <p className="text-xs text-slate-400 text-center capitalize">
+                              {angle} Profile
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                  {request.status !== "pending" && (
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="w-full px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View Details
-                    </button>
-                  )}
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    {request.status === "pending" ? (
+                      <button
+                        onClick={() => setSelectedRequest(request)}
+                        className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Review
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedRequest(request)}
+                        className="w-full px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Details
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -271,40 +295,29 @@ const AdminPendingVerification = () => {
                 </div>
               </div>
 
-              {/* Photo */}
-              {getPhotoUrl(selectedRequest) && (
-                <div>
-                  <p className="text-white font-semibold mb-3">Verification Photo</p>
-                  <div className="flex justify-center bg-slate-900 rounded-lg p-4">
-                    <img
-                      src={getPhotoUrl(selectedRequest)}
-                      alt="Verification"
-                      className="max-w-full h-auto max-h-96 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => window.open(getPhotoUrl(selectedRequest), "_blank")}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-400 text-center mt-2">
-                    Click to view full size
-                  </p>
+              {/* Photos */}
+              <div>
+                <p className="text-white font-semibold mb-3">Verification Photos</p>
+                <div className="grid grid-cols-3 gap-4">
+                  {["front", "left", "right"].map((angle) => {
+                    const src = selectedRequest.photos?.[angle] || getPhotoUrl(selectedRequest);
+                    if (!src) return null;
+                    return (
+                      <div key={angle}>
+                        <img
+                          src={src}
+                          alt={angle}
+                          className="w-full h-48 object-cover rounded-lg border border-slate-600 cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => src && window.open(src, "_blank")}
+                        />
+                        <p className="text-xs text-slate-400 text-center mt-2 capitalize">
+                          {angle} Profile
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              {/* Show reviewed info if already reviewed */}
-              {selectedRequest.reviewed_at && (
-                <div className="bg-slate-700/50 rounded-lg p-4">
-                  <h3 className="text-white font-semibold mb-3">Review Information</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-slate-400">Reviewed By</p>
-                      <p className="text-slate-300">{selectedRequest.reviewed_by}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400">Reviewed At</p>
-                      <p className="text-slate-300">{formatDateTime(selectedRequest.reviewed_at)}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
 
               {/* Actions */}
               <div className="flex gap-3">
