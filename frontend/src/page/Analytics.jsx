@@ -4,7 +4,7 @@ import LineChartTrend from "../components/charts/LineChartTrend";
 import BarChartTrend from "../components/charts/BarChartTrend";
 import Heatmap from "../components/charts/Heatmap";
 import AIInsightSummary from "../components/charts/AIInsightSummary";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useAIInsights } from "../hooks/useAIInsights";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
 
@@ -69,12 +69,12 @@ export default function Analytics() {
           >
             {loading ? (
               <span className="flex items-center gap-2">
-                <RefreshCcw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin" />
                 loading...
               </span>
             ) : (
               <span className="flex items-center gap-2">
-                <RefreshCcw className="w-4 h-4" />
+                <RefreshCw className="w-4 h-4" />
                 Refresh All
               </span>
             )}

@@ -4,7 +4,7 @@ import AttendanceFilter from "../components/attendance/AttendanceFilter";
 import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
 import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
-import { RefreshCcw, FileDown, TriangleAlert } from "lucide-react";
+import { FileDown, TriangleAlert, RefreshCw } from "lucide-react";
 
 const AttendanceLogs = () => {
   const [filter, setFilter] = useState("today");
@@ -149,7 +149,7 @@ const AttendanceLogs = () => {
               disabled={loading}
               className="flex flex-row px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
             >
-              <RefreshCcw className={`${loading ? "animate-spin" : ""} mr-3`} />{" "}
+              <RefreshCw className={`${loading ? "animate-spin" : ""} mr-3`} />{" "}
               {loading ? "Loading..." : "Refresh"}
             </button>
             <button
@@ -178,7 +178,7 @@ const AttendanceLogs = () => {
         )}
         {loading && (
           <div className="text-blue-400 text-center py-12">
-            <div className="animate-spin inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mb-3"></div>
+            <RefreshCw className="animate-spin inline-block w-8 h-8 mb-3" />
             <p>Memuat data absensi...</p>
           </div>
         )}
