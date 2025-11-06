@@ -140,27 +140,27 @@ class AIInsightsGenerator:
         records_with_checkin = [a for a in attendance_data if a.get('checkin')]
         records_with_checkout = [a for a in attendance_data if a.get('checkout')]
         
-        # Get TODAY'S attendance (at 11 PM, ~95% data complete)
-        today = datetime.now().date()
-        today_str = today.strftime('%Y-%m-%d')
+        # Get YESTERDAY'S attendance (100% complete data)
+        yesterday = datetime.now().date() - timedelta(days=1)
+        yesterday_str = yesterday.strftime('%Y-%m-%d')
         
-        today_records = [r for r in records_with_checkin if r.get('date') == today_str]
-        unique_employees_today = len(today_records)
+        yesterday_records = [r for r in records_with_checkin if r.get('date') == yesterday_str]
+        unique_employees_yesterday = len(yesterday_records)
         
-        attendance_rate = (unique_employees_today / active_employees * 100) if active_employees > 0 else 0
+        attendance_rate = (unique_employees_yesterday / active_employees * 100) if active_employees > 0 else 0
         
         # Late arrivals - using checkin.status
-        late_arrivals = [r for r in today_records if r.get('checkin', {}).get('status') == 'late']
-        on_time_arrivals = [r for r in today_records if r.get('checkin', {}).get('status') == 'ontime']
+        late_arrivals = [r for r in yesterday_records if r.get('checkin', {}).get('status') == 'late']
+        on_time_arrivals = [r for r in yesterday_records if r.get('checkin', {}).get('status') == 'ontime']
         
-        late_percentage = (len(late_arrivals) / len(today_records) * 100) if today_records else 0
+        late_percentage = (len(late_arrivals) / len(yesterday_records) * 100) if yesterday_records else 0
         
-        print(f"🔍 Today's attendance (as of 11 PM): {len(today_records)} employees")
+        print(f"🔍 Yesterday's attendance: {len(yesterday_records)} employees (100% complete data)")
         print(f"📊 Late: {len(late_arrivals)}, On-time: {len(on_time_arrivals)} ({late_percentage:.1f}% late)")
         
-        # Calculate average working hours from work_duration_minutes (most have checked out by 11 PM)
-        total_work_minutes = sum(r.get('work_duration_minutes', 0) for r in today_records)
-        avg_working_hours = (total_work_minutes / len(today_records) / 60) if today_records else 0
+        # Calculate average working hours from work_duration_minutes (all checked out)
+        total_work_minutes = sum(r.get('work_duration_minutes', 0) for r in yesterday_records)
+        avg_working_hours = (total_work_minutes / len(yesterday_records) / 60) if yesterday_records else 0
         
         # Department distribution
         dept_distribution = {}
@@ -171,27 +171,27 @@ class AIInsightsGenerator:
         # Weekly trend - group by date
         weekly_data = self._get_weekly_trend_new(records_with_checkin)
         
-        summary = f"""Attendance System Data Summary (Last 7 Days):
+        summary = f"""Attendance System Data Summary (Last 8 Days):
 
 EMPLOYEE INFORMATION:
 - Total Employees in System: {total_employees}
 - Active Employees: {active_employees}
 - Departments: {json.dumps(dept_distribution)}
 
-TODAY'S ATTENDANCE ({today}) - As of 11 PM:
-- Employees Present: {unique_employees_today} out of {active_employees}
+YESTERDAY'S ATTENDANCE ({yesterday}) - Complete Data:
+- Employees Present: {unique_employees_yesterday} out of {active_employees}
 - Attendance Rate: {attendance_rate:.1f}%
 - On-Time Arrivals: {len(on_time_arrivals)} employees
 - Late Arrivals (after 9:00 AM): {len(late_arrivals)} employees ({late_percentage:.1f}%)
-- Average Working Hours: {avg_working_hours:.1f} hours (most employees checked out)
+- Average Working Hours: {avg_working_hours:.1f} hours (all employees checked out)
 
-WEEKLY CHECK-IN PATTERN (Past 7 Days):
+WEEKLY CHECK-IN PATTERN (Past 7 Days before yesterday):
 {json.dumps(weekly_data, indent=2)}
 
 DATA QUALITY NOTES:
-- Total attendance records (7 days): {len(records_with_checkin)}
-- Records with check-out (7 days): {len(records_with_checkout)}
-- Note: New structure ensures one record per employee per day (no duplicates).
+- Total attendance records (8 days): {len(records_with_checkin)}
+- Records with check-out (8 days): {len(records_with_checkout)}
+- Note: Analyzing yesterday's data ensures 100% completion (all check-ins and check-outs recorded).
 """
         
         # Add dashboard analytics context if available
@@ -329,23 +329,24 @@ ANALYSIS GUIDELINES:
 3. DEPARTMENT INSIGHTS: If department performance data is available, identify top/bottom performers.
 4. HOURLY PATTERNS: If peak hour data is available, comment on check-in timing patterns.
 5. WORKING HOURS: If duration stats are available, assess work-life balance.
-6. TRENDS: Compare today's performance with weekly trend patterns.
+6. TRENDS: Compare yesterday's performance with the 7-day historical pattern.
 7. Use ONLY numbers explicitly stated - do NOT make assumptions.
-8. Provide SPECIFIC, ACTIONABLE recommendations (e.g., "Focus on Engineering dept" not "Improve attendance").
+8. Provide SPECIFIC, ACTIONABLE recommendations for TODAY (e.g., "Focus on Engineering dept" not "Improve attendance").
 
 Provide your analysis in this EXACT format:
 
-SUMMARY: [Write 2-3 clear sentences covering: (1) Today's attendance status, (2) Key performance metric, (3) Notable trend or pattern from dashboard data]
+SUMMARY: [Write 2-3 clear sentences covering: (1) Yesterday's attendance status with complete data, (2) Key performance metric, (3) Notable trend or pattern compared to previous 7 days]
 
 KEY FINDINGS:
-- [Finding 1: Attendance/compliance performance with department comparison if available]
-- [Finding 2: Punctuality/timing patterns using hourly data if available]
-- [Finding 3: One SPECIFIC actionable recommendation based on dashboard insights]
+- [Finding 1: Yesterday's attendance/compliance performance with department comparison if available]
+- [Finding 2: Punctuality/timing patterns from yesterday using hourly data if available]
+- [Finding 3: One SPECIFIC actionable recommendation for TODAY based on yesterday's insights]
 
 IMPORTANT: 
+- Analyze YESTERDAY's complete data (all check-ins and check-outs recorded)
 - If dashboard shows department data, mention specific department names
 - If peak hour data exists, reference actual time periods
-- Make recommendations targeted to specific groups/times, not generic advice
+- Make recommendations targeted for TODAY based on yesterday's patterns
 - Acknowledge positive patterns when data shows good performance"""
     
     def _parse_ai_response(self, content: str) -> Dict[str, Any]:
@@ -382,47 +383,47 @@ IMPORTANT:
         }
     
     def _fallback_insights(self, attendance_data: List[Dict], employee_data: List[Dict], dashboard_stats: Dict = None) -> Dict[str, Any]:
-        """Generate rule-based insights when AI is unavailable - using TODAY's data (at 11 PM)"""
+        """Generate rule-based insights when AI is unavailable - using YESTERDAY's complete data"""
         total_employees = len([e for e in employee_data if e.get('is_active', True)])
         
-        # Get today's data (at 11 PM, ~95% complete)
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_checkins = [a for a in attendance_data if a.get('date') == today and a.get('checkin')]
+        # Get yesterday's data (100% complete)
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        yesterday_checkins = [a for a in attendance_data if a.get('date') == yesterday and a.get('checkin')]
         
-        attendance_rate = (len(today_checkins) / total_employees * 100) if total_employees > 0 else 0
+        attendance_rate = (len(yesterday_checkins) / total_employees * 100) if total_employees > 0 else 0
         
         # Generate findings based on rules
         findings = []
         
         if attendance_rate >= 90:
-            findings.append("Excellent attendance rate above 90% - team shows strong commitment")
+            findings.append("Excellent attendance yesterday above 90% - encourage team to maintain this today")
         elif attendance_rate >= 70:
-            findings.append("Good attendance rate, but room for improvement to reach 90%+")
+            findings.append("Good attendance yesterday, aim for 90%+ today with targeted reminders")
         else:
-            findings.append("⚠️ Low attendance rate detected - immediate review recommended")
+            findings.append("⚠️ Low attendance yesterday detected - immediate engagement review needed today")
         
         # Check late arrivals from checkin.status
-        late_count = sum(1 for a in today_checkins if a.get('checkin', {}).get('status') == 'late')
-        if late_count > len(today_checkins) * 0.3:
-            findings.append("⏰ High number of late arrivals today - consider reviewing work schedules")
+        late_count = sum(1 for a in yesterday_checkins if a.get('checkin', {}).get('status') == 'late')
+        if late_count > len(yesterday_checkins) * 0.3:
+            findings.append("⏰ High late arrivals yesterday - send morning reminders for today")
         else:
-            findings.append("Punctuality maintained with minimal late arrivals today")
+            findings.append("Good punctuality yesterday - maintain this with morning check-in focus today")
         
-        # Working hours (from work_duration_minutes, most checked out by 11 PM)
-        total_minutes = sum(a.get('work_duration_minutes', 0) for a in today_checkins)
-        avg_hours = (total_minutes / len(today_checkins) / 60) if today_checkins else 0
+        # Working hours (complete data from yesterday)
+        total_minutes = sum(a.get('work_duration_minutes', 0) for a in yesterday_checkins)
+        avg_hours = (total_minutes / len(yesterday_checkins) / 60) if yesterday_checkins else 0
         
         if avg_hours > 0:
             if avg_hours < 7:
-                findings.append("Average working hours below standard - review employee engagement")
+                findings.append("Working hours below standard yesterday - monitor engagement today")
             elif avg_hours > 10:
-                findings.append("⚠️ High average working hours detected - monitor for burnout")
+                findings.append("⚠️ High working hours yesterday - ensure balanced workload today")
             else:
-                findings.append("Working hours are within healthy range")
+                findings.append("Healthy working hours yesterday - maintain balance today")
         else:
-            findings.append("Limited working hours data - some employees may not have checked out yet")
+            findings.append("Complete working hours data available from yesterday")
         
-        summary = f"Today's attendance rate is {attendance_rate:.1f}% with {len(today_checkins)} out of {total_employees} employees checked in (as of 11 PM)."
+        summary = f"Yesterday's attendance was {attendance_rate:.1f}% with {len(yesterday_checkins)} out of {total_employees} employees present (complete data)."
         
         return {
             "summary": summary,
