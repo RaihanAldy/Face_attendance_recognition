@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import traceback
 import numpy as np
 from bson import ObjectId
-
+from notification_service import send_all_notifications
 
 load_dotenv()
 
@@ -139,9 +139,8 @@ class MongoDBManager:
     def calculate_attendance_status(self, timestamp, action):
         """
         Calculate attendance status based on time and settings
-        Untuk check_in: 'ontime' atau 'late' (hanya dalam jam kerja)
-        Untuk check_out: 'ontime' atau 'early' (hanya dalam jam kerja)
-        Untuk di luar jam kerja: selalu 'ontime'
+        
+        ✅ FIX: Hapus blok "di luar jam kerja" agar tetap bisa detect late
         """
         try:
             # Ambil settings dari database
@@ -162,26 +161,28 @@ class MongoDBManager:
             current_time = timestamp.time()
             start_time = time(start_hour, start_min)
             end_time = time(end_hour, end_min)
-            
-            # ✅ PERBAIKAN: Cek apakah di luar jam kerja
-            if current_time < start_time or current_time > end_time:
-                print(f"⚠️ Di luar jam kerja: {current_time} (Jam kerja: {start_time} - {end_time})")
-                return 'ontime'  # Di luar jam kerja selalu dianggap ontime
+ 
+            if action == 'check_in' and current_time < start_time:
+                print(f"✅ Check-in sebelum jam kerja dimulai: {current_time} < {start_time}")
+                return 'ontime'
             
             # Hitung threshold times
-            start_time_with_threshold = time(
-                start_hour, 
-                (start_min + late_threshold) % 60 + (start_min + late_threshold) // 60
-            )
-            end_time_with_threshold = time(
-                end_hour, 
-                (end_min - early_leave_threshold) % 60 + (end_min - early_leave_threshold) // 60
-            )
+            late_threshold_minutes = late_threshold
+            start_time_with_threshold = (
+                datetime.combine(datetime.today(), start_time) + 
+                timedelta(minutes=late_threshold_minutes)
+            ).time()
+            
+            early_leave_threshold_minutes = early_leave_threshold
+            end_time_with_threshold = (
+                datetime.combine(datetime.today(), end_time) - 
+                timedelta(minutes=early_leave_threshold_minutes)
+            ).time()
             
             print(f"🔍 Status calculation:")
             print(f"   Current time: {current_time}")
-            print(f"   Start time: {start_time} (threshold: {start_time_with_threshold})")
-            print(f"   End time: {end_time} (threshold: {end_time_with_threshold})")
+            print(f"   Start time: {start_time} (late after: {start_time_with_threshold})")
+            print(f"   End time: {end_time} (early before: {end_time_with_threshold})")
             print(f"   Action: {action}")
             
             if action == 'check_in':
@@ -213,6 +214,31 @@ class MongoDBManager:
             print(f"❌ Error calculating attendance status: {e}")
             traceback.print_exc()
             return 'ontime'
+
+    def calculate_lateness_minutes(self, timestamp):
+        """
+        Hitung berapa menit terlambat dari jadwal
+        Return 0 jika tidak terlambat
+        """
+        try:
+            settings = self.settings.find_one({'_id': 'default'})
+            if not settings:
+                return 0
+            
+            start_time_str = settings.get('startTime', '08:00')
+            start_hour, start_min = map(int, start_time_str.split(':'))
+            
+            scheduled_start = timestamp.replace(hour=start_hour, minute=start_min, second=0, microsecond=0)
+            
+            if timestamp <= scheduled_start:
+                return 0  # Tidak terlambat
+            
+            diff_minutes = int((timestamp - scheduled_start).total_seconds() / 60)
+            return max(0, diff_minutes)
+            
+        except Exception as e:
+            print(f"❌ Error calculating lateness: {e}")
+            return 0
 
     # ==================== EMPLOYEE MANAGEMENT ====================
     def _add_sample_employee(self):
@@ -474,6 +500,9 @@ class MongoDBManager:
     # ==================== ATTENDANCE LOGGING ====================
     
     def record_attendance_auto(self, employee_id, confidence=0.0):
+        """
+        ✅ UPDATE: Kirim notifikasi tanpa telegram_chat_id parameter
+        """
         try:
             # Ambil employee data
             employee = self.employees.find_one({'employee_id': employee_id})
@@ -519,7 +548,7 @@ class MongoDBManager:
                     'employee_name': employee_name,
                     'date': today_str,
                     'checkin': {
-                        'status': status,  # ✅ GUNAKAN STATUS YANG DIHITUNG
+                        'status': status,
                         'timestamp': timestamp.isoformat()
                     },
                     'createdAt': timestamp,
@@ -534,11 +563,51 @@ class MongoDBManager:
                 )
 
                 print(f"✅ Check-in recorded - Status: {status}")
+                
+                # ✅ KIRIM NOTIFIKASI JIKA LATE
+                if status == 'late':
+                    lateness_minutes = self.calculate_lateness_minutes(timestamp)
+                    
+                    if lateness_minutes > 0:
+                        print(f"\n{'='*60}")
+                        print(f"⚠️ LATE DETECTION - Triggering Notification")
+                        print(f"{'='*60}")
+                        print(f"Employee: {employee_name}")
+                        print(f"Lateness: {lateness_minutes} minutes")
+                        print(f"Email: {employee.get('email', 'Not provided')}")
+                        print(f"{'='*60}\n")
+                        
+                        # ✅ AMBIL HANYA EMAIL (telegram_chat_id di Lambda)
+                        employee_email = employee.get('email')
+                        
+                        # ✅ KIRIM NOTIFIKASI (non-blocking)
+                        try:
+                            notification_result = send_all_notifications(
+                                employee_name=employee_name,
+                                employee_email=employee_email,
+                                lateness_minutes=lateness_minutes
+                                # ❌ TIDAK KIRIM telegram_chat_id!
+                            )
+                            
+                            print(f"\n📧 Notification Result:")
+                            print(f"   Success: {notification_result.get('success', False)}")
+                            print(f"   Email sent: {notification_result.get('email_sent', False)}")
+                            print(f"   Telegram sent: {notification_result.get('telegram_sent', False)}")
+                            
+                            if notification_result.get('errors'):
+                                print(f"   Errors: {notification_result.get('errors')}")
+                            
+                        except Exception as notif_error:
+                            # ⚠️ JANGAN BLOKIR ATTENDANCE JIKA NOTIFIKASI GAGAL
+                            print(f"⚠️ Failed to send notification: {notif_error}")
+                            import traceback
+                            traceback.print_exc()
+                
                 return {
                     'success': True, 
                     'message': 'Check-in recorded', 
                     'action': 'check_in',
-                    'status': status,  # ✅ KIRIM STATUS KE FRONTEND
+                    'status': status,
                     'employee_name': employee_name,
                     'data': record_data
                 }
@@ -547,7 +616,7 @@ class MongoDBManager:
                 # Update dokumen dengan data checkout
                 update_fields = {
                     'checkout': {
-                        'status': status,  # ✅ GUNAKAN STATUS YANG DIHITUNG
+                        'status': status,
                         'timestamp': timestamp.isoformat()
                     },
                     'updatedAt': timestamp
@@ -572,7 +641,7 @@ class MongoDBManager:
                     'success': True, 
                     'message': 'Check-out recorded', 
                     'action': 'check_out',
-                    'status': status,  # ✅ KIRIM STATUS KE FRONTEND
+                    'status': status,
                     'employee_name': employee_name,
                     'data': update_fields
                 }
@@ -581,9 +650,6 @@ class MongoDBManager:
             print(f"❌ Error recording attendance: {e}")
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
-
-
-
 
     def get_all_attendance(self):
         """Ambil semua data attendance (format baru)."""
@@ -708,8 +774,7 @@ class MongoDBManager:
             print(f"❌ Error getting attendance with checkout: {e}")
             traceback.print_exc()
             return []
-
-    
+ 
     def get_attendance_by_date(self, date_str=None):
         """Ambil data absensi dengan EMPLOYEE NAME YANG KONSISTEN"""
         try:
@@ -771,7 +836,6 @@ class MongoDBManager:
             print(f"❌ Error getting attendance by date: {e}")
             traceback.print_exc()
             return []
-
 
     def calculate_working_hours(self, check_in, check_out):
         """Calculate working hours between check-in and check-out"""

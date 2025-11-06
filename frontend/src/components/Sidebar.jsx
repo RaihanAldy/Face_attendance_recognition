@@ -23,12 +23,7 @@ export default function Sidebar() {
       path: "/attendance",
     },
     { id: "employees", label: "Employees", icon: Users, path: "/employees" },
-    {
-      id: "Pending Attendance",
-      label: "Pending Attendance",
-      icon: UserRoundSearch,
-      path: "/pending",
-    },
+    { id: "pending", label: "pending", icon: FileText, path: "/pending" },
     { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
   ];
 

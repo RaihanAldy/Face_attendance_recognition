@@ -348,10 +348,6 @@ def get_employees():
 
 @app.route('/api/attendance', methods=['GET', 'POST'])
 def attendance():
-    """
-    GET: Get attendance records by date
-    POST: Record new attendance (auto-detected checkin/checkout)
-    """
     if request.method == 'GET':
         try:
             date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
@@ -413,7 +409,6 @@ def checkin():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
 @app.route('/api/attendance/checkout', methods=['POST'])
 def checkout():
     """Manual check-out endpoint (new structure)"""
@@ -435,6 +430,7 @@ def checkout():
         print(f"❌ Check-out error: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+    
 @app.route('/api/attendance/auto', methods=['POST'])
 def record_attendance_auto():
     """Record attendance with auto-detect (recommended)"""
@@ -493,7 +489,130 @@ def get_attendance_stats():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-
+@app.route('/api/attendance/pending', methods=['GET'])
+def get_pending_requests():
+    """Get pending manual attendance requests"""
+    try:
+        status = request.args.get('status', 'pending')
+        
+        print(f"📋 Getting {status} requests...")
+        
+        # Query berdasarkan status
+        if status == 'all':
+            query = {}
+        else:
+            query = {'status': status}
+        
+        # Ambil data dari collection pending_attendance
+        pending_requests = list(db.pending_attendance.find(query).sort('submitted_at', -1))
+        
+        # Format response
+        result = []
+        for req in pending_requests:
+            result.append({
+                '_id': str(req['_id']),
+                'employee_id': req.get('employee_id', 'N/A'),
+                'employees': req.get('employee_name', req.get('employees', 'Unknown')),
+                'photo': req.get('photo'),
+                'request_timestamp': req.get('timestamp', req.get('request_timestamp')),
+                'submitted_at': req.get('submitted_at', req.get('created_at')),
+                'status': req.get('status', 'pending'),
+                'reason': req.get('reason', 'Manual attendance request'),
+                'reviewed_by': req.get('reviewed_by'),
+                'reviewed_at': req.get('reviewed_at'),
+                'date': req.get('date')
+            })
+        
+        print(f"✅ Found {len(result)} {status} requests")
+        return jsonify(result), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting pending requests: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/attendance/pending/<request_id>', methods=['PUT'])
+def review_pending_request(request_id):
+    """Approve or reject pending manual attendance"""
+    try:
+        from bson import ObjectId
+        
+        data = request.json or {}
+        action = data.get('action')  # 'approve' or 'reject'
+        admin_name = data.get('adminName', 'Administrator')
+        
+        if action not in ['approve', 'reject']:
+            return jsonify({'error': 'Invalid action. Use "approve" or "reject"'}), 400
+        
+        print(f"📝 {action.upper()} request {request_id} by {admin_name}")
+        
+        # Find pending request
+        pending_req = db.pending_attendance.find_one({'_id': ObjectId(request_id)})
+        
+        if not pending_req:
+            return jsonify({'error': 'Request not found'}), 404
+        
+        if pending_req.get('status') != 'pending':
+            return jsonify({'error': 'Request already processed'}), 400
+        
+        # Update status
+        update_data = {
+            'status': 'approved' if action == 'approve' else 'rejected',
+            'reviewed_by': admin_name,
+            'reviewed_at': datetime.now()
+        }
+        
+        db.pending_attendance.update_one(
+            {'_id': ObjectId(request_id)},
+            {'$set': update_data}
+        )
+        
+        # If approved, record to attendance collection
+        if action == 'approve':
+            employee_name = pending_req.get('employee_name', pending_req.get('employees'))
+            timestamp = pending_req.get('timestamp')
+            date_str = pending_req.get('date', timestamp.strftime('%Y-%m-%d') if timestamp else datetime.now().strftime('%Y-%m-%d'))
+            
+            # Find employee by name to get employee_id
+            employee = db.employees.find_one({'name': employee_name})
+            employee_id = employee['employee_id'] if employee else 'MANUAL'
+            
+            # Record attendance
+            attendance_record = {
+                'employee_id': employee_id,
+                'employee_name': employee_name,
+                'date': date_str,
+                'checkin': {
+                    'time': timestamp,
+                    'confidence': 1.0,
+                    'method': 'manual_approved',
+                    'status': 'on_time'
+                },
+                'work_duration_minutes': 0,
+                'status': 'incomplete'
+            }
+            
+            # Insert or update attendance
+            db.attendance.update_one(
+                {'employee_id': employee_id, 'date': date_str},
+                {'$set': attendance_record},
+                upsert=True
+            )
+            
+            print(f"✅ Attendance recorded for {employee_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Request {action}d successfully',
+            'request_id': request_id,
+            'action': action
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error reviewing request: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
 # ==================== FACE RECOGNITION ENDPOINTS ====================
 
 @app.route('/api/extract-face', methods=['POST'])
