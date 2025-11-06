@@ -4,9 +4,8 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
-  const [error, setError] = useState();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // ❌ Hapus baris 7, hanya pakai ini
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -21,10 +20,10 @@ const Employees = () => {
       if (!response.ok) throw new Error("Failed to fetch employees");
 
       const data = await response.json();
-      setEmployeesData(data);
+      setEmployees(data); // ❌ Ubah dari setEmployeesData menjadi setEmployees
     } catch (err) {
       setError(err.message);
-      console.error("Error fetching employees:", error);
+      console.error("Error fetching employees:", err); // ❌ Ubah dari error menjadi err
     } finally {
       setLoading(false);
     }
@@ -37,6 +36,9 @@ const Employees = () => {
 
   if (loading)
     return <div className="text-sky-200 p-6">Loading employees...</div>;
+
+  if (error) // ❌ Tambahkan error handling UI
+    return <div className="text-red-400 p-6">Error: {error}</div>;
 
   // Pagination logic
   const totalPages = Math.ceil(employees.length / itemsPerPage);

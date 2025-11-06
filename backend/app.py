@@ -66,9 +66,7 @@ def get_latest_insights():
         print(f"❌ Error getting latest insights: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-    
-
-    
+      
 @app.route('/api/insights/history', methods=['GET'])
 def get_insights_history():
     """Get historical AI insights"""
@@ -111,7 +109,6 @@ def get_insights_history():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
 @app.route('/api/insights/trigger', methods=['POST'])
 def trigger_insights_generation():
     """Manually trigger AI insights generation (calls Lambda)"""
@@ -146,7 +143,6 @@ def trigger_insights_generation():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
 @app.route('/api/insights/<record_id>', methods=['GET'])
 def get_insight_by_id(record_id):
     """Get specific insight by record_id"""
@@ -179,7 +175,6 @@ def get_insight_by_id(record_id):
     except Exception as e:
         print(f"❌ Error getting insight: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @app.route('/api/insights/stats', methods=['GET'])
 def get_insights_stats():
@@ -238,8 +233,6 @@ def scheduled_insight_sync():
         print(f"✅ Insight sync completed — {new_count} item(s) synced.")
     except Exception as e:
         print(f"❌ Error during insight sync: {e}")
-
-
 
 @app.route('/api/sync', methods=['POST'])
 def manual_sync():
@@ -572,34 +565,129 @@ def review_pending_request(request_id):
             employee_name = pending_req.get('employee_name', pending_req.get('employees'))
             timestamp = pending_req.get('timestamp')
             date_str = pending_req.get('date', timestamp.strftime('%Y-%m-%d') if timestamp else datetime.now().strftime('%Y-%m-%d'))
+            request_type = pending_req.get('type', 'checkin')  # 'checkin' or 'checkout'
             
             # Find employee by name to get employee_id
             employee = db.employees.find_one({'name': employee_name})
             employee_id = employee['employee_id'] if employee else 'MANUAL'
             
-            # Record attendance
-            attendance_record = {
-                'employee_id': employee_id,
-                'employee_name': employee_name,
-                'date': date_str,
-                'checkin': {
-                    'time': timestamp,
-                    'confidence': 1.0,
-                    'method': 'manual_approved',
-                    'status': 'on_time'
-                },
-                'work_duration_minutes': 0,
-                'status': 'incomplete'
-            }
+            # Check if attendance record already exists
+            existing_attendance = db.attendance.find_one({
+                'employee_id': employee_id, 
+                'date': date_str
+            })
             
-            # Insert or update attendance
-            db.attendance.update_one(
-                {'employee_id': employee_id, 'date': date_str},
-                {'$set': attendance_record},
-                upsert=True
-            )
+            current_time = datetime.now()
             
-            print(f"✅ Attendance recorded for {employee_name}")
+            # Convert timestamp to ISO string format
+            if isinstance(timestamp, datetime):
+                timestamp_str = timestamp.isoformat()
+            else:
+                timestamp_str = timestamp
+            
+            if request_type == 'checkin':
+                # Determine checkin status (late/on_time)
+                checkin_status = pending_req.get('status', 'on_time')
+                
+                if existing_attendance:
+                    # Update existing record with checkin
+                    db.attendance.update_one(
+                        {'employee_id': employee_id, 'date': date_str},
+                        {
+                            '$set': {
+                                'checkin': {
+                                    'status': checkin_status,
+                                    'timestamp': timestamp_str
+                                },
+                                'updatedAt': current_time
+                            },
+                            '$unset': {
+                                'checkin.time': '',
+                                'checkin.confidence': '',
+                                'checkin.method': ''
+                            }
+                        }
+                    )
+                else:
+                    # Create new attendance record
+                    attendance_record = {
+                        'employee_id': employee_id,
+                        'employee_name': employee_name,
+                        'date': date_str,
+                        'checkin': {
+                            'status': checkin_status,
+                            'timestamp': timestamp_str
+                        },
+                        'createdAt': current_time,
+                        'updatedAt': current_time
+                    }
+                    db.attendance.insert_one(attendance_record)
+                    
+            elif request_type == 'checkout':
+                # Determine checkout status (early/on_time)
+                checkout_status = pending_req.get('status', 'on_time')
+                
+                if existing_attendance:
+                    # Calculate work duration
+                    checkin_data = existing_attendance.get('checkin', {})
+                    checkin_time = checkin_data.get('timestamp') or checkin_data.get('time')
+                    work_duration = 0
+                    
+                    if checkin_time:
+                        try:
+                            # Parse checkin timestamp
+                            if isinstance(checkin_time, str):
+                                checkin_dt = datetime.fromisoformat(checkin_time.replace('Z', '+00:00'))
+                            elif isinstance(checkin_time, dict) and '$date' in checkin_time:
+                                checkin_dt = datetime.fromisoformat(checkin_time['$date'].replace('Z', '+00:00'))
+                            else:
+                                checkin_dt = checkin_time
+                            
+                            # Parse checkout timestamp
+                            if isinstance(timestamp, str):
+                                checkout_dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                            else:
+                                checkout_dt = timestamp
+                            
+                            # Calculate duration in minutes
+                            work_duration = int((checkout_dt - checkin_dt).total_seconds() / 60)
+                        except Exception as e:
+                            print(f"⚠️ Error calculating work duration: {e}")
+                    
+                    # Update with checkout
+                    db.attendance.update_one(
+                        {'employee_id': employee_id, 'date': date_str},
+                        {
+                            '$set': {
+                                'checkout': {
+                                    'status': checkout_status,
+                                    'timestamp': timestamp_str
+                                },
+                                'work_duration_minutes': work_duration,
+                                'updatedAt': current_time
+                            },
+                            '$unset': {
+                                'status': ''  # Remove old 'status' field if exists
+                            }
+                        }
+                    )
+                else:
+                    # If no checkin exists, create record with only checkout
+                    attendance_record = {
+                        'employee_id': employee_id,
+                        'employee_name': employee_name,
+                        'date': date_str,
+                        'checkout': {
+                            'status': checkout_status,
+                            'timestamp': timestamp_str
+                        },
+                        'work_duration_minutes': 0,
+                        'createdAt': current_time,
+                        'updatedAt': current_time
+                    }
+                    db.attendance.insert_one(attendance_record)
+            
+            print(f"✅ Attendance recorded for {employee_name} ({request_type})")
         
         return jsonify({
             'success': True,
@@ -613,7 +701,6 @@ def review_pending_request(request_id):
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     
-
 # ==================== FACE RECOGNITION ENDPOINTS ====================
 
 @app.route('/api/extract-face', methods=['POST'])
