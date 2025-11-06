@@ -4,9 +4,10 @@ import LineChartTrend from "../components/charts/LineChartTrend";
 import BarChartTrend from "../components/charts/BarChartTrend";
 import Heatmap from "../components/charts/Heatmap";
 import AIInsightSummary from "../components/charts/AIInsightSummary";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useAIInsights } from "../hooks/useAIInsights";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
+import RefreshButton from "../components/RefreshButton";
 
 export default function Analytics() {
   const {
@@ -62,23 +63,12 @@ export default function Analytics() {
           <p className="text-gray-400">Face Recognition System Dashboard</p>
         </div>
         <div className="flex gap-2">
-          <button
+          <RefreshButton
             onClick={handleRefreshAll}
-            disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white rounded-lg text-sm flex items-center gap-2"
-          >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <RefreshCcw className="w-4 h-4 animate-spin" />
-                loading...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <RefreshCcw className="w-4 h-4" />
-                Refresh All
-              </span>
-            )}
-          </button>
+            loading={loading}
+            loadingText="Loading..."
+            normalText="Refresh All"
+          />
         </div>
       </div>
 

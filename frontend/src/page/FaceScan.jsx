@@ -651,20 +651,16 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
   /* ========== RENDER ========== */
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-5xl">
         {/* Header */}
-        <div className="text-center mb-8 relative">
+        <div className="text-center mb-2 relative">
           <div
             onClick={handleLogoClick}
-            className="inline-block cursor-pointer hover:scale-105 transition-transform"
+            className="inline-block cursor-pointer hover:scale-105 transition-transform active:scale-90"
             title="Click 5x untuk menu admin"
           >
-            <ScanFace className="h-16 w-16 text-blue-500 mx-auto mb-2" />
+            <ScanFace className="h-16 w-16 text-blue-500 mx-auto" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Face Recognition
-          </h1>
-          <p className="text-slate-300">Scan wajah Anda untuk absensi</p>
 
           {clickCount > 0 && clickCount < 5 && (
             <div className="absolute top-0 right-0 bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
@@ -745,55 +741,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                   <p className="text-slate-600 text-sm mt-2">
                     Klik "Mulai Scan" untuk memulai
                   </p>
-                </div>
-              </div>
-            )}
-
-            {isScanning && (
-              <>
-                <div className="absolute inset-0 border-4 border-blue-500 rounded-lg opacity-50 pointer-events-none"></div>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-80 border-2 border-green-500 rounded-lg pointer-events-none"></div>
-              </>
-            )}
-          </div>
-
-          {/* Controls */}
-          <div className="p-4 bg-slate-900 border-t border-slate-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                {!isScanning && (
-                  <>
-                    <div className="w-3 h-3 bg-slate-500 rounded-full"></div>
-                    <span className="text-sm text-slate-400">
-                      Recognition Mode
-                    </span>
-                  </>
-                )}
-                {isScanning && scanStatus === "scanning" && (
-                  <>
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-slate-400">
-                      Scanning Wajah...
-                    </span>
-                  </>
-                )}
-                {isScanning && scanStatus === "success" && (
-                  <>
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-sm text-green-400">Dikenali!</span>
-                  </>
-                )}
-                {isScanning && scanStatus === "failed" && (
-                  <>
-                    <XCircle className="w-5 h-5 text-red-500" />
-                    <span className="text-sm text-red-400">Gagal!</span>
-                  </>
-                )}
-              </div>
-
-              <div className="flex space-x-2">
-                {!isScanning ? (
-                  <>
+                  <div className="flex space-x-2 m-4">
                     <button
                       onClick={handleStartScan}
                       disabled={isStartingRef.current}
@@ -809,17 +757,18 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                       <Upload className="h-4 w-4" />
                       <span>Manual</span>
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={handleStopScan}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Hentikan
-                  </button>
-                )}
+                    )
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {isScanning && (
+              <>
+                <div className="absolute inset-0 border-4 border-blue-500 rounded-lg opacity-50 pointer-events-none"></div>
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-80 border-2 border-green-500 rounded-lg pointer-events-none"></div>
+              </>
+            )}
           </div>
 
           {/* Error Message */}

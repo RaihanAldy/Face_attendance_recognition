@@ -13,7 +13,7 @@ const Employees = () => {
 
   // Fetch employees dari API
   const fetchEmployees = async () => {
-    setLoading(true);  
+    setLoading(true);
     setError(null);
     try {
       const response = await fetch(`${API_BASE_URL}/api/employees`);

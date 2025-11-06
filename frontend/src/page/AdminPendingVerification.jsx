@@ -8,6 +8,7 @@ import {
   Loader2,
   Filter,
 } from "lucide-react";
+import RefreshButton from "../components/RefreshButton";
 
 const API_BASE_URL = "http://localhost:5000";
 
@@ -162,14 +163,12 @@ const AdminPendingVerification = () => {
               Review and approve manual attendance requests
             </p>
           </div>
-          <button
-            onClick={fetchPendingRequests}
-            disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400 transition-colors"
-          >
-            <RefreshCw className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <RefreshButton
+            onClick={() => fetchPendingRequests()}
+            loading={loading}
+            loadingText="Loading..."
+            normalText="Refresh"
+          />
         </div>
 
         {/* Filters */}
@@ -389,8 +388,7 @@ const AdminPendingVerification = () => {
                   </div>
                 </div>
               )}
-
-              {/* Actions */}
+              \{/* Actions */}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
