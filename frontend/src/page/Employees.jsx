@@ -4,9 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
-  const [error, setError] = useState();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -14,17 +12,15 @@ const Employees = () => {
 
   // Fetch employees dari API
   const fetchEmployees = async () => {
-    setLoading(true);  
-    setError(null);
+    setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/employees`);
       if (!response.ok) throw new Error("Failed to fetch employees");
 
       const data = await response.json();
-      setEmployeesData(data);
+      setEmployees(data);
     } catch (err) {
-      setError(err.message);
-      console.error("Error fetching employees:", error);
+      console.error("Error fetching employees:", err);
     } finally {
       setLoading(false);
     }
@@ -32,7 +28,6 @@ const Employees = () => {
 
   useEffect(() => {
     fetchEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading)

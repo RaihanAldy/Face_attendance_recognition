@@ -531,6 +531,8 @@ def get_pending_requests():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     
+# ==================== FIXED: PENDING APPROVAL ENDPOINT ====================
+
 @app.route('/api/attendance/pending/<request_id>', methods=['PUT'])
 def review_pending_request(request_id):
     """Approve or reject pending manual attendance"""
@@ -538,13 +540,19 @@ def review_pending_request(request_id):
         from bson import ObjectId
         
         data = request.json or {}
-        action = data.get('action')  # 'approve' or 'reject'
+        action = data.get('action') 
         admin_name = data.get('adminName', 'Administrator')
+        selected_employee_id = data.get('employee_id')  
         
         if action not in ['approve', 'reject']:
             return jsonify({'error': 'Invalid action. Use "approve" or "reject"'}), 400
         
-        print(f"📝 {action.upper()} request {request_id} by {admin_name}")
+        print(f"\n{'='*60}")
+        print(f"📋 {action.upper()} REQUEST")
+        print(f"{'='*60}")
+        print(f"Request ID: {request_id}")
+        print(f"Admin: {admin_name}")
+        print(f"Selected Employee ID: {selected_employee_id}")
         
         # Find pending request
         pending_req = db.pending_attendance.find_one({'_id': ObjectId(request_id)})
@@ -555,7 +563,7 @@ def review_pending_request(request_id):
         if pending_req.get('status') != 'pending':
             return jsonify({'error': 'Request already processed'}), 400
         
-        # Update status
+        # Update status di pending_attendance
         update_data = {
             'status': 'approved' if action == 'approve' else 'rejected',
             'reviewed_by': admin_name,
@@ -567,52 +575,86 @@ def review_pending_request(request_id):
             {'$set': update_data}
         )
         
-        # If approved, record to attendance collection
+        print(f"✅ Pending status updated to: {update_data['status']}")
+        
+        # ✅ If approved, record attendance using selected employee
         if action == 'approve':
-            employee_name = pending_req.get('employee_name', pending_req.get('employees'))
-            timestamp = pending_req.get('timestamp')
-            date_str = pending_req.get('date', timestamp.strftime('%Y-%m-%d') if timestamp else datetime.now().strftime('%Y-%m-%d'))
+            # VALIDATION: Employee ID must be provided
+            if not selected_employee_id:
+                return jsonify({
+                    'error': 'Employee ID is required for approval. Please select an employee.'
+                }), 400
             
-            # Find employee by name to get employee_id
-            employee = db.employees.find_one({'name': employee_name})
-            employee_id = employee['employee_id'] if employee else 'MANUAL'
+            # Get employee data from selected employee_id
+            employee = db.employees.find_one({'employee_id': selected_employee_id})
             
-            # Record attendance
-            attendance_record = {
-                'employee_id': employee_id,
-                'employee_name': employee_name,
-                'date': date_str,
-                'checkin': {
-                    'time': timestamp,
-                    'confidence': 1.0,
-                    'method': 'manual_approved',
-                    'status': 'on_time'
-                },
-                'work_duration_minutes': 0,
-                'status': 'incomplete'
-            }
+            if not employee:
+                return jsonify({
+                    'error': f'Employee {selected_employee_id} not found in database'
+                }), 404
             
-            # Insert or update attendance
-            db.attendance.update_one(
-                {'employee_id': employee_id, 'date': date_str},
-                {'$set': attendance_record},
-                upsert=True
+            employee_name = employee.get('name')
+            
+            print(f"\n{'='*60}")
+            print(f"📝 RECORDING ATTENDANCE")
+            print(f"{'='*60}")
+            print(f"Employee ID: {selected_employee_id}")
+            print(f"Employee Name: {employee_name}")
+            
+            # ✅ USE record_attendance_auto for consistency
+            result = db.record_attendance_auto(
+                employee_id=selected_employee_id,
+                confidence=1.0  # Manual approval = 100% confidence
             )
             
-            print(f"✅ Attendance recorded for {employee_name}")
+            if result and result.get('success'):
+                print(f"✅ Attendance recorded successfully")
+                print(f"   Action: {result.get('action')}")
+                print(f"   Status: {result.get('status')}")
+                print(f"{'='*60}\n")
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Request approved and attendance recorded for {employee_name}',
+                    'request_id': request_id,
+                    'action': action,
+                    'attendance_action': result.get('action'),
+                    'attendance_status': result.get('status'),
+                    'employee_id': selected_employee_id,
+                    'employee_name': employee_name
+                }), 200
+            else:
+                error_msg = result.get('error') if result else 'Failed to record attendance'
+                print(f"❌ Failed to record attendance: {error_msg}")
+                
+                # Rollback pending status
+                db.pending_attendance.update_one(
+                    {'_id': ObjectId(request_id)},
+                    {'$set': {'status': 'pending'}}
+                )
+                
+                return jsonify({
+                    'error': f'Failed to record attendance: {error_msg}'
+                }), 500
         
-        return jsonify({
-            'success': True,
-            'message': f'Request {action}d successfully',
-            'request_id': request_id,
-            'action': action
-        }), 200
+        # Rejection flow
+        else:
+            print(f"✅ Request rejected successfully")
+            return jsonify({
+                'success': True,
+                'message': 'Request rejected successfully',
+                'request_id': request_id,
+                'action': action
+            }), 200
         
     except Exception as e:
         print(f"❌ Error reviewing request: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-    
+
+
+
+
 # ==================== FACE RECOGNITION ENDPOINTS ====================
 
 @app.route('/api/extract-face', methods=['POST'])
