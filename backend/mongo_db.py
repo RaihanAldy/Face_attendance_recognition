@@ -62,8 +62,16 @@ class MongoDBManager:
                 emp['is_active'] = True
         return employees
 
-    def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in'):
-        """Record attendance dengan struktur baru (date, checkin, checkout, work_duration_minutes)"""
+    def record_attendance(self, employee_id, confidence=0.0, attendance_type='check_in', allow_duplicate=True):
+        """
+        Record attendance dengan struktur baru (date, checkin, checkout, work_duration_minutes)
+        
+        Args:
+            employee_id: ID karyawan
+            confidence: Confidence score dari face recognition
+            attendance_type: 'check_in' atau 'check_out'
+            allow_duplicate: True = allow re-checkin (testing), False = prevent duplicate (production)
+        """
         try:
             # Cek employee exists atau auto-create
             existing_employee = self.employees.find_one({'employee_id': employee_id})
@@ -90,12 +98,24 @@ class MongoDBManager:
             })
             
             if attendance_type == 'check_in':
-                # Hitung status: late jika lebih dari jam 9:00 pagi
+                # Hitung status check-in: early (< 7:00), ontime (7:00 - 9:00), late (> 9:00)
+                early_time = now.replace(hour=7, minute=0, second=0, microsecond=0)
                 work_start_time = now.replace(hour=9, minute=0, second=0, microsecond=0)
-                status = 'late' if now > work_start_time else 'ontime'
+                
+                if now < early_time:
+                    status = 'early'  # Sebelum jam 7 pagi
+                elif now <= work_start_time:
+                    status = 'ontime'  # Antara 7:00 - 9:00
+                else:
+                    status = 'late'  # Setelah jam 9 pagi
                 
                 if existing_record:
-                    # Update checkin jika sudah ada record (re-checkin)
+                    # Cek apakah allow duplicate
+                    if not allow_duplicate:
+                        print(f"⚠️ Duplicate check-in prevented for {employee_id}. Already checked in today.")
+                        return None
+                    
+                    # Update checkin jika sudah ada record (re-checkin for testing)
                     self.attendance.update_one(
                         {'employee_id': employee_id, 'date': today_str},
                         {
@@ -108,7 +128,7 @@ class MongoDBManager:
                             }
                         }
                     )
-                    print(f"✅ CHECK-IN updated for {employee_id} ({status})")
+                    print(f"✅ CHECK-IN updated for {employee_id} ({status}) - Testing mode")
                 else:
                     # Create record baru untuk hari ini
                     attendance_data = {
@@ -152,13 +172,23 @@ class MongoDBManager:
                 # Hitung work duration dalam menit
                 work_duration = int((now - checkin_time).total_seconds() / 60)
                 
+                # Hitung status check-out: early (< 8 jam), ontime (8-10 jam), late (> 10 jam)
+                work_hours = work_duration / 60
+                
+                if work_hours < 8:
+                    checkout_status = 'early'  # Kurang dari 8 jam kerja
+                elif work_hours <= 10:
+                    checkout_status = 'ontime'  # 8-10 jam (normal)
+                else:
+                    checkout_status = 'late'  # Lebih dari 10 jam (overtime)
+                
                 # Update dengan checkout dan duration
                 self.attendance.update_one(
                     {'employee_id': employee_id, 'date': today_str},
                     {
                         '$set': {
                             'checkout': {
-                                'status': 'ontime',  # Bisa dikustomisasi sesuai kebutuhan
+                                'status': checkout_status,
                                 'timestamp': now.isoformat()
                             },
                             'work_duration_minutes': work_duration,
@@ -166,7 +196,7 @@ class MongoDBManager:
                         }
                     }
                 )
-                print(f"✅ CHECK-OUT recorded for {employee_id} (worked {work_duration} minutes)")
+                print(f"✅ CHECK-OUT recorded for {employee_id} (worked {work_duration} minutes, status: {checkout_status})")
                 return existing_record.get('_id')
             
             return True
