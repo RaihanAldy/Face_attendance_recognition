@@ -297,7 +297,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-slate-800 rounded-2xl w-full max-w-md">
-        <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-slate-800 border-b rounded-t-2xl border-slate-700 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <User className="h-6 w-6 text-blue-400" />
             <h2 className="text-xl font-bold text-white">Absensi Manual</h2>

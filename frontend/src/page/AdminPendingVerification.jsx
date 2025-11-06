@@ -8,6 +8,7 @@ import {
   Loader2,
   Filter,
 } from "lucide-react";
+import RefreshButton from "../components/RefreshButton";
 
 const API_BASE_URL = "http://localhost:5000";
 
@@ -55,7 +56,6 @@ const AdminPendingVerification = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action,
-            adminNotes,
             adminName: "Administrator",
           }),
         }
@@ -66,7 +66,6 @@ const AdminPendingVerification = () => {
       if (response.ok && result.success) {
         alert(`Request ${action}d successfully!`);
         setSelectedRequest(null);
-        setAdminNotes("");
         fetchPendingRequests();
       } else {
         alert(result.error || `Failed to ${action} request`);
@@ -120,13 +119,14 @@ const AdminPendingVerification = () => {
   };
 
   // Helper function to get the photo URL
-  const getPhotoUrl = (request) => {
-    console.log("Request data:", request);
-    // Try different possible photo properties
+  const getPhotoUrl = (request, angle = "front") => {
+    if (!request.photos) return null;
+
+    // Handle different photo data structures
+    if (request.photos[angle]) return request.photos[angle];
+    if (typeof request.photos === "string") return request.photos;
     if (request.photo) return request.photo;
-    if (request.photos?.front) return request.photos.front;
-    if (request.photos?.photo) return request.photos.photo;
-    if (typeof request.photos === 'string') return request.photos;
+
     return null;
   };
 
@@ -143,14 +143,12 @@ const AdminPendingVerification = () => {
               Review and approve manual attendance requests
             </p>
           </div>
-          <button
-            onClick={fetchPendingRequests}
-            disabled={loading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400 transition-colors"
-          >
-            <RefreshCw className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          <RefreshButton
+            onClick={() => fetchPendingRequests()}
+            loading={loading}
+            loadingText="Loading..."
+            normalText="Refresh"
+          />
         </div>
 
         {/* Filters */}
@@ -199,7 +197,7 @@ const AdminPendingVerification = () => {
           </div>
         )}
 
-        {/* Requests Grid - Simple Card View */}
+        {/* Requests Grid */}
         {!loading && requests.length > 0 && (
           <div className="grid gap-6">
             {requests.map((request) => (
@@ -246,12 +244,6 @@ const AdminPendingVerification = () => {
                               {request.reviewed_by}
                             </p>
                           </div>
-                          <div className="col-span-2">
-                            <p className="text-slate-400">Admin Notes</p>
-                            <p className="text-slate-300">
-                              {request.admin_notes || "-"}
-                            </p>
-                          </div>
                         </>
                       )}
                     </div>
@@ -259,28 +251,31 @@ const AdminPendingVerification = () => {
                 </div>
 
                 {/* Photos */}
-                <div className="mb-4">
-                  <p className="text-sm text-slate-400 mb-3">
-                    Verification Photos:
-                  </p>
-                  <div className="grid grid-cols-3 gap-4">
-                    {["front", "left", "right"].map((angle) => (
-                      <div key={angle} className="space-y-2">
-                        <img
-                          src={request.photos[angle]}
-                          alt={`${angle} face`}
-                          className="w-full h-40 object-cover rounded-lg border border-slate-600 cursor-pointer hover:border-blue-500 transition-colors"
-                          onClick={() =>
-                            window.open(request.photos[angle], "_blank")
-                          }
-                        />
-                        <p className="text-xs text-slate-400 text-center capitalize">
-                          {angle} Profile
-                        </p>
-                      </div>
-                    ))}
+                {request.photos && (
+                  <div className="mb-4">
+                    <p className="text-sm text-slate-400 mb-3">
+                      Verification Photos:
+                    </p>
+                    <div className="grid grid-cols-3 gap-4">
+                      {["front", "left", "right"].map((angle) => {
+                        const photoUrl = getPhotoUrl(request, angle);
+                        return photoUrl ? (
+                          <div key={angle} className="space-y-2">
+                            <img
+                              src={photoUrl}
+                              alt={`${angle} face`}
+                              className="w-full h-40 object-cover rounded-lg border border-slate-600 cursor-pointer hover:border-blue-500 transition-colors"
+                              onClick={() => window.open(photoUrl, "_blank")}
+                            />
+                            <p className="text-xs text-slate-400 text-center capitalize">
+                              {angle} Profile
+                            </p>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Actions */}
                 {request.status === "pending" && (
@@ -290,22 +285,22 @@ const AdminPendingVerification = () => {
                       className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                     >
                       <Eye className="h-4 w-4" />
-                      Review 
+                      Review
                     </button>
-                  )}
+                  </div>
+                )}
 
-                  {request.status !== "pending" && (
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="w-full px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      View Details
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                {request.status !== "pending" && (
+                  <button
+                    onClick={() => setSelectedRequest(request)}
+                    className="w-full px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View Details
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
@@ -356,7 +351,9 @@ const AdminPendingVerification = () => {
                   </div>
                   <div className="col-span-2">
                     <p className="text-slate-400 mb-1">Reason</p>
-                    <p className="text-white">{selectedRequest.reason || "-"}</p>
+                    <p className="text-white">
+                      {selectedRequest.reason || "-"}
+                    </p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-slate-400 mb-1">Status</p>
@@ -364,48 +361,51 @@ const AdminPendingVerification = () => {
                   </div>
                 </div>
               </div>
-
               {/* Photos */}
-              <div>
-                <p className="text-white font-semibold mb-3">
-                  Verification Photos
-                </p>
-                <div className="grid grid-cols-3 gap-4">
-                  {["front", "left", "right"].map((angle) => (
-                    <div key={angle}>
-                      <img
-                        src={selectedRequest.photos[angle]}
-                        alt={angle}
-                        className="w-full h-48 object-cover rounded-lg border border-slate-600 cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={() =>
-                          window.open(selectedRequest.photos[angle], "_blank")
-                        }
-                      />
-                      <p className="text-xs text-slate-400 text-center mt-2 capitalize">
-                        {angle} Profile
-                      </p>
-                    </div>
+              {selectedRequest.photos && (
+                <div>
+                  <p className="text-white font-semibold mb-3">
+                    Verification Photos
+                  </p>
+                  <div className="grid grid-cols-3 gap-4">
+                    {["front", "left", "right"].map((angle) => {
+                      const photoUrl = getPhotoUrl(selectedRequest, angle);
+                      return photoUrl ? (
+                        <div key={angle}>
+                          <img
+                            src={photoUrl}
+                            alt={angle}
+                            className="w-full h-48 object-cover rounded-lg border border-slate-600 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => window.open(photoUrl, "_blank")}
+                          />
+                          <p className="text-xs text-slate-400 text-center mt-2 capitalize">
+                            {angle} Profile
+                          </p>
+                        </div>
+                      ) : null;
+                    })}
                   </div>
                 </div>
               )}
-
-              {/* Actions */}
+              \{/* Actions */}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setSelectedRequest(null);
-                    setAdminNotes("");
+                    ("");
                   }}
                   disabled={reviewing}
                   className="flex-1 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
                 >
                   {selectedRequest.status === "pending" ? "Cancel" : "Close"}
                 </button>
-                
+
                 {selectedRequest.status === "pending" && (
                   <>
                     <button
-                      onClick={() => handleReview(selectedRequest._id, "reject")}
+                      onClick={() =>
+                        handleReview(selectedRequest._id, "reject")
+                      }
                       disabled={reviewing}
                       className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:bg-red-400 flex items-center justify-center gap-2"
                     >
@@ -419,7 +419,9 @@ const AdminPendingVerification = () => {
                       )}
                     </button>
                     <button
-                      onClick={() => handleReview(selectedRequest._id, "approve")}
+                      onClick={() =>
+                        handleReview(selectedRequest._id, "approve")
+                      }
                       disabled={reviewing}
                       className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:bg-green-400 flex items-center justify-center gap-2"
                     >

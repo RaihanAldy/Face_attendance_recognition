@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useAttendanceData } from "../utils/attendanceData";
 import AttendanceFilter from "../components/attendance/AttendanceFilter";
+import RefreshButton from "../components/RefreshButton";
 import { calculateWorkingHours, formatDateTime } from "../utils/timeUtils";
 import { exportCSV } from "../utils/csvExport";
 import { getTableHeaders, renderTableCell } from "../utils/tableUtils";
-import { FileDown, TriangleAlert, RefreshCw } from "lucide-react";
+import { FileDown, RefreshCw, TriangleAlert } from "lucide-react";
 
 const AttendanceLogs = () => {
   const [filter, setFilter] = useState("today");
@@ -13,7 +14,7 @@ const AttendanceLogs = () => {
     checkout: false,
   });
 
-  //  Pagination states
+  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -105,12 +106,12 @@ const AttendanceLogs = () => {
     return acc;
   }, []);
 
-  //  Reset pagination saat filter berubah
+  // Reset pagination saat filter berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, checkFilters]);
 
-  //  Pagination slice
+  // Pagination slice
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentData = filteredData.slice(startIndex, startIndex + itemsPerPage);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -144,14 +145,12 @@ const AttendanceLogs = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
+            <RefreshButton
               onClick={() => fetchAttendanceData(filter)}
-              disabled={loading}
-              className="flex flex-row px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
-            >
-              <RefreshCw className={`${loading ? "animate-spin" : ""} mr-3`} />{" "}
-              {loading ? "Loading..." : "Refresh"}
-            </button>
+              loading={loading}
+              loadingText="Loading..."
+              normalText="Refresh"
+            />
             <button
               onClick={handleExportCSV}
               disabled={filteredData.length === 0}
@@ -232,7 +231,7 @@ const AttendanceLogs = () => {
               </div>
             </div>
 
-            {/*  Pagination */}
+            {/* Pagination */}
             <div className="mt-6 flex items-center justify-between px-4 py-3 bg-slate-800/50 rounded-xl">
               <div className="text-sm text-slate-400">
                 Showing {Math.min(startIndex + 1, filteredData.length)}–
