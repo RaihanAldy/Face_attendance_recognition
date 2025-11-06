@@ -5,8 +5,8 @@ import BarChartTrend from "../components/charts/BarChartTrend";
 import Heatmap from "../components/charts/Heatmap";
 import AIInsightSummary from "../components/charts/AIInsightSummary";
 import { RefreshCcw } from "lucide-react";
-import { useAIInsights } from "../utils/useAIInsights";
-import { useAnalyticsData } from "../utils/useAnalyticsData";
+import { useAIInsights } from "../hooks/useAIInsights";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
 
 export default function Analytics() {
   const {
