@@ -56,11 +56,9 @@ def decimal_to_native(obj):
         # Convert Decimal to int if it's a whole number, otherwise float
         if obj % 1 == 0:
             result = int(obj)
-            print(f"✅ Converted Decimal {obj} -> int {result}")
             return result
         else:
             result = float(obj)
-            print(f"✅ Converted Decimal {obj} -> float {result}")
             return result
     return obj
 
@@ -174,14 +172,11 @@ def fetch_insights_from_dynamodb():
                 if isinstance(key_findings, str):
                     key_findings = [key_findings]
                 
-                print(f"📝 Key findings extracted: {len(key_findings)} items")
                 
                 # Extract numeric fields (now already converted from Decimal)
                 processed_records = item.get('processed_records', 0)
                 unique_employees = item.get('unique_employees', 0)
                 
-                print(f"🔢 Processed records: {processed_records} (type: {type(processed_records)})")
-                print(f"👥 Unique employees: {unique_employees} (type: {type(unique_employees)})")
                 
                 # Prepare MongoDB document
                 mongo_doc = {
@@ -198,8 +193,6 @@ def fetch_insights_from_dynamodb():
                     'synced_to_mongo_at': datetime.utcnow()
                 }
                 
-                print(f"💾 Saving to MongoDB: {record_id}")
-                print(f"📊 Final data - records: {mongo_doc['processed_records']}, employees: {mongo_doc['unique_employees']}")
                 
                 # Upsert to MongoDB
                 result = mongo_insights.update_one(
@@ -208,11 +201,7 @@ def fetch_insights_from_dynamodb():
                     upsert=True
                 )
                 
-                if result.upserted_id:
-                    print(f"✅ Created new insight: {record_id}")
-                else:
-                    print(f"🔄 Updated existing insight: {record_id}")
-                
+               
                 synced_count += 1
                 
             except Exception as e:

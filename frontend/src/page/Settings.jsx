@@ -8,6 +8,7 @@ const Settings = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false); // ✅ State baru untuk sync
   const [message, setMessage] = useState({ type: "", text: "" });
 
   useEffect(() => {
@@ -111,6 +112,40 @@ const Settings = () => {
     }
   };
 
+  // ✅ Fungsi khusus untuk handle sync manual
+  const handleManualSync = async () => {
+    try {
+      setIsSyncing(true);
+      setMessage({ type: "", text: "" });
+
+      const res = await fetch("http://localhost:5000/api/sync", {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setMessage({
+        type: "success",
+        text: data.message || "Sync berhasil dijalankan!",
+      });
+
+      // Auto clear success message after 5 seconds (lebih lama untuk sync)
+      setTimeout(() => setMessage({ type: "", text: "" }), 5000);
+    } catch (error) {
+      console.error("Sync gagal:", error);
+      setMessage({
+        type: "error",
+        text: error.message || "Sync gagal",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleTimeChange = (field, value) => {
     handleInputChange(field, value);
   };
@@ -186,43 +221,20 @@ const Settings = () => {
               )}
             </button>
 
-            {/* Tombol Sync Manual */}
+            {/* ✅ Tombol Sync Manual - DIPERBAIKI */}
             <button
-              onClick={async () => {
-                try {
-                  setMessage({ type: "", text: "" });
-                  setIsSaving(true);
-
-                  const res = await fetch("http://localhost:5000/api/sync", {
-                    method: "POST",
-                  });
-
-                  if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(
-                      errorData.error || `HTTP error! status: ${res.status}`
-                    );
-                  }
-
-                  const data = await res.json();
-                  setMessage({
-                    type: "success",
-                    text: data.message || "Sync berhasil dijalankan!",
-                  });
-                  setTimeout(() => setMessage({ type: "", text: "" }), 3000);
-                } catch (error) {
-                  console.error("Sync gagal:", error);
-                  setMessage({
-                    type: "error",
-                    text: error.message || "Sync gagal",
-                  });
-                } finally {
-                  setIsSaving(false);
-                }
-              }}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed text-white font-medium px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2"
             >
-              Sync Manual
+              {isSyncing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Menyinkronkan...
+                </>
+              ) : (
+                "Sync Manual"
+              )}
             </button>
 
             {/* Tombol Kembali */}
