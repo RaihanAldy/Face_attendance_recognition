@@ -9,7 +9,7 @@
 ![Flask](https://img.shields.io/badge/Flask-2.3+-black.svg)
 ![InsightFace](https://img.shields.io/badge/InsightFace-AI%20Powered-orange.svg)
 
-**Zero-shot face recognition attendance system with real-time processing and offline-first architecture**
+**face recognition attendance system with real-time processing and offline-first architecture**
 
 [Features](#-features) • [Demo](#-demo) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [API Reference](#-api-reference)
 
@@ -23,7 +23,6 @@ A modern, privacy-focused attendance system that uses **zero-shot face recogniti
 
 | Traditional Systems | Our Solution |
 |-------------------|--------------|
-|❌ Require extensive photo collection | ✅ **Zero-shot** - register with name only |
 |❌ Need model training time | ✅ **Instant recognition** - no training needed |
 |❌ Cloud-dependent processing | ✅ **Offline-first** - works without internet |
 |❌ Privacy concerns | ✅ **Privacy by design** - no raw image storage |

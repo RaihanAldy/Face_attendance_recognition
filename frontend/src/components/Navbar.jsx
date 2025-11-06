@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, Bell, LogOut } from "lucide-react";
+import { Wifi, WifiOff, Bell, LogOut, CheckCircle, Clock, BellRing } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Navbar = ({ onLogout, userRole }) => {
@@ -9,7 +9,79 @@ const Navbar = ({ onLogout, userRole }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+
+  // Fetch notifications from backend
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      
+      // Fetch pending verifications
+      const pendingResponse = await fetch("http://localhost:5000/api/attendance/pending", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (pendingResponse.ok) {
+        const pendingData = await pendingResponse.json();
+        const pendingNotifications = pendingData.requests
+          .filter(req => req.status === 'pending')
+          .map(req => ({
+            id: req._id,
+            type: 'pending_verification',
+            message: `${req.employee_name} mengajukan ${req.type === 'checkin' ? 'check-in' : 'check-out'} manual`,
+            time: formatTimeAgo(new Date(req.timestamp)),
+            timestamp: new Date(req.timestamp),
+            read: false,
+            data: req
+          }));
+
+        // Fetch AI Insights (if available)
+        const insightsResponse = await fetch("http://localhost:5000/api/insights/latest", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        let insightNotifications = [];
+        if (insightsResponse.ok) {
+          const insightsData = await insightsResponse.json();
+          if (insightsData.insights && insightsData.insights.length > 0) {
+            insightNotifications = insightsData.insights.map(insight => ({
+              id: insight._id,
+              type: 'ai_insight',
+              message: `AI Insight baru: ${insight.title || 'Analisis telah selesai'}`,
+              time: formatTimeAgo(new Date(insight.created_at)),
+              timestamp: new Date(insight.created_at),
+              read: insight.read || false,
+              data: insight
+            }));
+          }
+        }
+
+        // Combine and sort notifications
+        const allNotifications = [...pendingNotifications, ...insightNotifications]
+          .sort((a, b) => b.timestamp - a.timestamp);
+
+        setNotifications(allNotifications);
+        setUnreadCount(allNotifications.filter(n => !n.read).length);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    }
+  };
+
+  // Format time ago
+  const formatTimeAgo = (date) => {
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    if (seconds < 60) return "Baru saja";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} menit lalu`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`;
+    return `${Math.floor(seconds / 86400)} hari lalu`;
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -26,15 +98,10 @@ const Navbar = ({ onLogout, userRole }) => {
     const storedUser = localStorage.getItem("userData");
     const userName = localStorage.getItem("userName") || "User";
     const userEmail = localStorage.getItem("userEmail") || "user@example.com";
-    setNotifications([
-      { message: "Sistem berhasil disinkronkan", time: "Baru saja" },
-      { message: "Koneksi jaringan stabil", time: "1 menit lalu" },
-    ]);
 
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     } else {
-      // Create default user data if not exists
       const defaultUser = {
         name: userName,
         email: userEmail,
@@ -42,6 +109,21 @@ const Navbar = ({ onLogout, userRole }) => {
       };
       setUser(defaultUser);
       localStorage.setItem("userData", JSON.stringify(defaultUser));
+    }
+
+    // Fetch notifications initially
+    if (userRole === 'admin') {
+      fetchNotifications();
+      
+      // Poll for new notifications every 30 seconds
+      const notificationInterval = setInterval(fetchNotifications, 30000);
+      
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+        clearInterval(timer);
+        clearInterval(notificationInterval);
+      };
     }
 
     return () => {
@@ -55,7 +137,6 @@ const Navbar = ({ onLogout, userRole }) => {
     if (onLogout) {
       onLogout();
     } else {
-      // Default logout behavior
       localStorage.removeItem("authToken");
       localStorage.removeItem("userRole");
       localStorage.removeItem("userData");
@@ -64,6 +145,39 @@ const Navbar = ({ onLogout, userRole }) => {
       navigate("/login", { replace: true });
     }
     setShowDropdown(false);
+  };
+
+  const handleNotificationClick = (notification) => {
+    if (notification.type === 'pending_verification') {
+      navigate('/admin/pending-verification');
+    } else if (notification.type === 'ai_insight') {
+      navigate('/admin/insights');
+    }
+    setShowNotifications(false);
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const token = localStorage.getItem("authToken");
+      await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      setNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+    setUnreadCount(0);
   };
 
   const initials = user
@@ -95,44 +209,87 @@ const Navbar = ({ onLogout, userRole }) => {
 
             {/* Right Side - Search, Status & User */}
             <div className="flex items-center space-x-4">
-              {/* Search */}
-
               {/* Notifications */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-                </button>
+              {userRole === 'admin' && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
 
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-lg shadow-lg py-2 z-50">
-                    <div className="px-4 py-2 border-b border-slate-700">
-                      <h3 className="text-sm font-semibold text-slate-200">
-                        Notifications
-                      </h3>
+                  {/* Notifications Dropdown */}
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-2 w-96 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50">
+                      <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                          <BellRing className="h-4 w-4" />
+                          Notifikasi
+                        </h3>
+                        {notifications.length > 0 && (
+                          <button
+                            onClick={clearAllNotifications}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            Hapus semua
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-96 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-slate-400">
+                            <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Tidak ada notifikasi</p>
+                          </div>
+                        ) : (
+                          notifications.map((notification, index) => (
+                            <div
+                              key={notification.id || index}
+                              onClick={() => handleNotificationClick(notification)}
+                              className={`px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0 transition-colors ${
+                                !notification.read ? 'bg-slate-750' : ''
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`mt-1 p-1.5 rounded-lg ${
+                                  notification.type === 'pending_verification' 
+                                    ? 'bg-amber-500/20' 
+                                    : 'bg-blue-500/20'
+                                }`}>
+                                  {notification.type === 'pending_verification' ? (
+                                    <Clock className="h-4 w-4 text-amber-400" />
+                                  ) : (
+                                    <CheckCircle className="h-4 w-4 text-blue-400" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm ${
+                                    !notification.read ? 'text-slate-100 font-medium' : 'text-slate-200'
+                                  }`}>
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-slate-400 mt-1">
+                                    {notification.time}
+                                  </p>
+                                </div>
+                                {!notification.read && (
+                                  <div className="h-2 w-2 bg-blue-500 rounded-full mt-2"></div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {notifications.map((notification, index) => (
-                        <div
-                          key={index}
-                          className="px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0"
-                        >
-                          <p className="text-sm text-slate-200">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {notification.time}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* Connection Status */}
               <div className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800">
@@ -165,7 +322,7 @@ const Navbar = ({ onLogout, userRole }) => {
                     onClick={() => setShowDropdown(!showDropdown)}
                     className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors"
                   >
-                    <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
                       {initials}
                     </div>
                     <div className="text-left">
@@ -228,10 +385,13 @@ const Navbar = ({ onLogout, userRole }) => {
       )}
 
       {/* Overlay untuk menutup dropdown ketika klik di luar */}
-      {showDropdown && (
+      {(showDropdown || showNotifications) && (
         <div
           className="fixed inset-0 z-40"
-          onClick={() => setShowDropdown(false)}
+          onClick={() => {
+            setShowDropdown(false);
+            setShowNotifications(false);
+          }}
         />
       )}
     </>

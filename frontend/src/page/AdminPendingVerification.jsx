@@ -14,15 +14,30 @@ const API_BASE_URL = "http://localhost:5000";
 
 const AdminPendingVerification = () => {
   const [requests, setRequests] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("pending");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [reviewing, setReviewing] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState("");
 
   useEffect(() => {
     fetchPendingRequests();
+    fetchEmployees();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/employees`);
+      if (response.ok) {
+        const data = await response.json();
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  };
 
   const fetchPendingRequests = async () => {
     setLoading(true);
@@ -33,7 +48,7 @@ const AdminPendingVerification = () => {
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
-        console.log(` Loaded ${data.length} ${filter} requests`);
+        console.log(`Loaded ${data.length} ${filter} requests`);
       }
     } catch (error) {
       console.error("Error fetching requests:", error);
@@ -43,6 +58,11 @@ const AdminPendingVerification = () => {
   };
 
   const handleReview = async (requestId, action) => {
+    if (!selectedEmployee) {
+      alert("Please select an employee first!");
+      return;
+    }
+
     if (!confirm(`Are you sure you want to ${action} this request?`)) {
       return;
     }
@@ -56,6 +76,7 @@ const AdminPendingVerification = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action,
+            employee_id: selectedEmployee,
             adminName: "Administrator",
           }),
         }
@@ -65,8 +86,13 @@ const AdminPendingVerification = () => {
 
       if (response.ok && result.success) {
         alert(`Request ${action}d successfully!`);
+        
+        // Reset modal state
         setSelectedRequest(null);
-        fetchPendingRequests();
+        setSelectedEmployee("");
+        
+        // Auto refresh data
+        await fetchPendingRequests();
       } else {
         alert(result.error || `Failed to ${action} request`);
       }
@@ -118,20 +144,14 @@ const AdminPendingVerification = () => {
     }
   };
 
-  // Helper function to get the photo URL
-  const getPhotoUrl = (request, angle = "front") => {
-    if (!request.photos) return null;
-
-    // Handle different photo data structures
-    if (request.photos[angle]) return request.photos[angle];
-    if (typeof request.photos === "string") return request.photos;
+  const getPhotoUrl = (request) => {
     if (request.photo) return request.photo;
-
+    if (request.photos?.front) return request.photos.front;
     return null;
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -209,79 +229,43 @@ const AdminPendingVerification = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-xl font-semibold text-white">
-                        {request.employees}
+                        {request.employee_name || request.employees || "Unknown Employee"}
                       </h3>
                       {getStatusBadge(request.status)}
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p className="text-slate-400">Employee ID</p>
-                        <p className="text-blue-400 font-medium">
-                          {request.employee_id}
-                        </p>
-                      </div>
-                      <div>
                         <p className="text-slate-400">Request Time</p>
                         <p className="text-white">
-                          {formatDateTime(request.request_timestamp)}
+                          {formatDateTime(request.timestamp?.$date || request.timestamp)}
                         </p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-slate-400">Reason</p>
-                        <p className="text-white">{request.reason}</p>
                       </div>
                       <div>
                         <p className="text-slate-400">Submitted</p>
                         <p className="text-slate-300">
-                          {formatDateTime(request.submitted_at)}
+                          {formatDateTime(request.submitted_at?.$date || request.submitted_at)}
                         </p>
                       </div>
                       {request.reviewed_at && (
-                        <>
-                          <div>
-                            <p className="text-slate-400">Reviewed By</p>
-                            <p className="text-slate-300">
-                              {request.reviewed_by}
-                            </p>
-                          </div>
-                        </>
+                        <div className="col-span-2">
+                          <p className="text-slate-400">Reviewed By</p>
+                          <p className="text-slate-300">
+                            {request.reviewed_by} - {formatDateTime(request.reviewed_at?.$date || request.reviewed_at)}
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Photos */}
-                {request.photos && (
-                  <div className="mb-4">
-                    <p className="text-sm text-slate-400 mb-3">
-                      Verification Photos:
-                    </p>
-                    <div className="grid grid-cols-3 gap-4">
-                      {["front", "left", "right"].map((angle) => {
-                        const photoUrl = getPhotoUrl(request, angle);
-                        return photoUrl ? (
-                          <div key={angle} className="space-y-2">
-                            <img
-                              src={photoUrl}
-                              alt={`${angle} face`}
-                              className="w-full h-40 object-cover rounded-lg border border-slate-600 cursor-pointer hover:border-blue-500 transition-colors"
-                              onClick={() => window.open(photoUrl, "_blank")}
-                            />
-                            <p className="text-xs text-slate-400 text-center capitalize">
-                              {angle} Profile
-                            </p>
-                          </div>
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 {/* Actions */}
                 {request.status === "pending" && (
                   <div className="flex gap-3">
                     <button
-                      onClick={() => setSelectedRequest(request)}
+                      onClick={() => {
+                        setSelectedRequest(request);
+                        setSelectedEmployee("");
+                      }}
                       className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                     >
                       <Eye className="h-4 w-4" />
@@ -318,41 +302,29 @@ const AdminPendingVerification = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4">
-              <h2 className="text-xl font-bold text-white">Review</h2>
+              <h2 className="text-xl font-bold text-white">Review Request</h2>
             </div>
 
             <div className="p-6 space-y-6">
               {/* Employee Info */}
               <div className="bg-slate-700/50 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-slate-400">Employee</p>
+                  <div className="col-span-2">
+                    <p className="text-slate-400">Employee Name</p>
                     <p className="text-white font-medium text-lg">
-                      {selectedRequest.employees}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400">Employee ID</p>
-                    <p className="text-blue-400 font-medium">
-                      {selectedRequest.employee_id}
+                      {selectedRequest.employee_name || selectedRequest.employees || "Unknown Employee"}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-400">Request Time</p>
                     <p className="text-white">
-                      {formatDateTime(selectedRequest.request_timestamp)}
+                      {formatDateTime(selectedRequest.timestamp?.$date || selectedRequest.timestamp)}
                     </p>
                   </div>
                   <div>
                     <p className="text-slate-400">Submitted</p>
                     <p className="text-white">
-                      {formatDateTime(selectedRequest.submitted_at)}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-slate-400 mb-1">Reason</p>
-                    <p className="text-white">
-                      {selectedRequest.reason || "-"}
+                      {formatDateTime(selectedRequest.submitted_at?.$date || selectedRequest.submitted_at)}
                     </p>
                   </div>
                   <div className="col-span-2">
@@ -361,29 +333,58 @@ const AdminPendingVerification = () => {
                   </div>
                 </div>
               </div>
-              {/* Photos */}
-              {selectedRequest.photos && (
+
+              {/* Photo */}
+              {getPhotoUrl(selectedRequest) && (
                 <div>
                   <p className="text-white font-semibold mb-3">
-                    Verification Photos
+                    Verification Photo
                   </p>
-                  <div className="grid grid-cols-3 gap-4">
-                    {["front", "left", "right"].map((angle) => {
-                      const photoUrl = getPhotoUrl(selectedRequest, angle);
-                      return photoUrl ? (
-                        <div key={angle}>
-                          <img
-                            src={photoUrl}
-                            alt={angle}
-                            className="w-full h-48 object-cover rounded-lg border border-slate-600 cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => window.open(photoUrl, "_blank")}
-                          />
-                          <p className="text-xs text-slate-400 text-center mt-2 capitalize">
-                            {angle} Profile
-                          </p>
-                        </div>
-                      ) : null;
-                    })}
+                  <img
+                    src={getPhotoUrl(selectedRequest)}
+                    alt="Verification"
+                    className="w-full max-h-96 object-contain rounded-lg border border-slate-600 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => window.open(getPhotoUrl(selectedRequest), "_blank")}
+                  />
+                </div>
+              )}
+
+              {/* Employee Selection */}
+              {selectedRequest.status === "pending" && (
+                <div>
+                  <label className="block text-white font-semibold mb-2">
+                    Select Employee <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">-- Select Employee --</option>
+                    {employees.map((emp) => (
+                      <option key={emp.employee_id} value={emp.employee_id}>
+                        {emp.employee_id} - {emp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Review History */}
+              {selectedRequest.reviewed_at && (
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <p className="text-white font-semibold mb-2">Review History</p>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="text-slate-400">Reviewed By</p>
+                      <p className="text-white">{selectedRequest.reviewed_by}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400">Reviewed At</p>
+                      <p className="text-white">
+                        {formatDateTime(selectedRequest.reviewed_at?.$date || selectedRequest.reviewed_at)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -392,7 +393,7 @@ const AdminPendingVerification = () => {
                 <button
                   onClick={() => {
                     setSelectedRequest(null);
-                    ("");
+                    setSelectedEmployee("");
                   }}
                   disabled={reviewing}
                   className="flex-1 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
