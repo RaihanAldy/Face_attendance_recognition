@@ -13,65 +13,69 @@ const Navbar = ({ onLogout, userRole }) => {
   const navigate = useNavigate();
 
   // Fetch notifications from backend
-  const fetchNotifications = async () => {
-    try {
-      const token = localStorage.getItem("authToken");
+const fetchNotifications = async () => {
+  try {
+    const token = localStorage.getItem("authToken");
+    
+    // Fetch pending verifications - PERBAIKI INI
+    const pendingResponse = await fetch("http://localhost:5000/api/attendance/pending?status=pending", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    if (pendingResponse.ok) {
+      const pendingData = await pendingResponse.json();
       
-      // Fetch pending verifications
-      const pendingResponse = await fetch("http://localhost:5000/api/attendance/pending", {
+      // PERBAIKI: Handle array langsung, bukan object.requests
+      const pendingArray = Array.isArray(pendingData) ? pendingData : pendingData.requests || [];
+      
+      const pendingNotifications = pendingArray
+        .filter(req => req.status === 'pending')
+        .map(req => ({
+          id: req._id,
+          type: 'pending_verification',
+          message: `${req.employees} mengajukan ${req.type === 'checkin' ? 'check-in' : 'check-out'} manual`,
+          time: formatTimeAgo(new Date(req.timestamp || req.created_at)),
+          timestamp: new Date(req.timestamp || req.created_at),
+          read: false,
+          data: req
+        }));
+
+      // Fetch AI Insights
+      const insightsResponse = await fetch("http://localhost:5000/api/insights/latest", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      
-      if (pendingResponse.ok) {
-        const pendingData = await pendingResponse.json();
-        const pendingNotifications = pendingData.requests
-          .filter(req => req.status === 'pending')
-          .map(req => ({
-            id: req._id,
-            type: 'pending_verification',
-            message: `${req.employee_name} mengajukan ${req.type === 'checkin' ? 'check-in' : 'check-out'} manual`,
-            time: formatTimeAgo(new Date(req.timestamp)),
-            timestamp: new Date(req.timestamp),
+
+      let insightNotifications = [];
+      if (insightsResponse.ok) {
+        const insightsData = await insightsResponse.json();
+        if (insightsData.insights) {
+          insightNotifications = [{
+            id: insightsData.insights.record_id,
+            type: 'ai_insight',
+            message: `AI Insight baru: ${insightsData.insights.summary?.substring(0, 50) || 'Analisis telah selesai'}...`,
+            time: formatTimeAgo(new Date(insightsData.insights.generated_at)),
+            timestamp: new Date(insightsData.insights.generated_at),
             read: false,
-            data: req
-          }));
-
-        // Fetch AI Insights (if available)
-        const insightsResponse = await fetch("http://localhost:5000/api/insights/latest", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        let insightNotifications = [];
-        if (insightsResponse.ok) {
-          const insightsData = await insightsResponse.json();
-          if (insightsData.insights && insightsData.insights.length > 0) {
-            insightNotifications = insightsData.insights.map(insight => ({
-              id: insight._id,
-              type: 'ai_insight',
-              message: `AI Insight baru: ${insight.title || 'Analisis telah selesai'}`,
-              time: formatTimeAgo(new Date(insight.created_at)),
-              timestamp: new Date(insight.created_at),
-              read: insight.read || false,
-              data: insight
-            }));
-          }
+            data: insightsData.insights
+          }];
         }
-
-        // Combine and sort notifications
-        const allNotifications = [...pendingNotifications, ...insightNotifications]
-          .sort((a, b) => b.timestamp - a.timestamp);
-
-        setNotifications(allNotifications);
-        setUnreadCount(allNotifications.filter(n => !n.read).length);
       }
-    } catch (error) {
-      console.error("Error fetching notifications:", error);
+
+      // Combine and sort notifications
+      const allNotifications = [...pendingNotifications, ...insightNotifications]
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      setNotifications(allNotifications);
+      setUnreadCount(allNotifications.filter(n => !n.read).length);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+  }
+};
 
   // Format time ago
   const formatTimeAgo = (date) => {
@@ -149,7 +153,7 @@ const Navbar = ({ onLogout, userRole }) => {
 
   const handleNotificationClick = (notification) => {
     if (notification.type === 'pending_verification') {
-      navigate('/admin/pending-verification');
+      navigate('/pending');
     } else if (notification.type === 'ai_insight') {
       navigate('/admin/insights');
     }
@@ -322,7 +326,7 @@ const Navbar = ({ onLogout, userRole }) => {
                     onClick={() => setShowDropdown(!showDropdown)}
                     className="flex items-center space-x-2 hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-colors"
                   >
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
+                    <div className="h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold">
                       {initials}
                     </div>
                     <div className="text-left">

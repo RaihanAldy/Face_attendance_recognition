@@ -1052,6 +1052,36 @@ def test_db():
         print(f"Test DB error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/notifications/pending', methods=['GET'])
+def get_pending_notifications():
+    """Get pending attendance for notifications"""
+    try:
+        # Query pending attendance
+        pending_requests = list(db.pending_attendance.find({'status': 'pending'}).sort('created_at', -1))
+        
+        # Format response untuk notifikasi
+        formatted_requests = []
+        for req in pending_requests:
+            formatted_requests.append({
+                '_id': str(req['_id']),
+                'employee_id': req.get('employee_id'),
+                'employee_name': req.get('employee_name'),
+                'type': req.get('type', 'checkin'),
+                'status': req.get('status', 'pending'),
+                'timestamp': req.get('timestamp', req.get('created_at')),
+                'created_at': req.get('created_at')
+            })
+        
+        return jsonify({
+            'success': True,
+            'requests': formatted_requests,
+            'count': len(formatted_requests)
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error getting pending notifications: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
 # ==================== ERROR HANDLERS ====================
 
 @app.errorhandler(404)
