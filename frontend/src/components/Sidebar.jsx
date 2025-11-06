@@ -33,7 +33,7 @@ export default function Sidebar() {
   return (
     <aside
       className={`bg-slate-900 border-r border-slate-800 min-h-screen transition-all duration-300 flex flex-col ${
-        isCollapsed ? "w-20" : "w-64"
+        isCollapsed ? "w-20" : "w-50"
       }`}
     >
       {/* Sidebar Header */}
