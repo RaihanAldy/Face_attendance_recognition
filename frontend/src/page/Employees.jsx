@@ -33,10 +33,6 @@ const Employees = () => {
   if (loading)
     return <div className="text-sky-200 p-6">Loading employees...</div>;
 
-  if (error)
-    // ❌ Tambahkan error handling UI
-    return <div className="text-red-400 p-6">Error: {error}</div>;
-
   // Pagination logic
   const totalPages = Math.ceil(employees.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
