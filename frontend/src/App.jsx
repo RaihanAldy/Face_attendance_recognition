@@ -15,7 +15,6 @@ import AttendanceLog from "./page/AttendanceLogs";
 import Employees from "./page/Employees";
 import Settings from "./page/Settings";
 import Pending from "./page/AdminPendingVerification";
-import AdminPendingVerification from "./page/AdminPendingVerification";
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -105,7 +104,6 @@ export default function App() {
               <Route path="/attendance" element={<AttendanceLog />} />
               <Route path="/employees" element={<Employees />} />
               <Route path="/pending" element={<Pending />} />
-              <Route path="/pending" element={<AdminPendingVerification />} />
               <Route path="/settings" element={<Settings />} />
 
               {/* Admin can also access registration */}

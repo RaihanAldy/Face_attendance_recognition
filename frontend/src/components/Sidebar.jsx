@@ -6,6 +6,8 @@ import {
   Clock,
   Settings,
   UserRoundSearch,
+  UserCheck2Icon,
+  UserSearchIcon,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -24,9 +26,9 @@ export default function Sidebar() {
     },
     { id: "employees", label: "Employees", icon: Users, path: "/employees" },
     {
-      id: "Pending Attendance",
+      id: "pending",
       label: "Pending Attendance",
-      icon: UserRoundSearch,
+      icon: UserSearchIcon,
       path: "/pending",
     },
     { id: "settings", label: "Settings", icon: Settings, path: "/settings" },

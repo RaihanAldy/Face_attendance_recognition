@@ -5,7 +5,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // ❌ Hapus baris 7, hanya pakai ini
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -14,16 +13,14 @@ const Employees = () => {
   // Fetch employees dari API
   const fetchEmployees = async () => {
     setLoading(true);
-    setError(null);
     try {
       const response = await fetch(`${API_BASE_URL}/api/employees`);
       if (!response.ok) throw new Error("Failed to fetch employees");
 
       const data = await response.json();
-      setEmployees(data); // ❌ Ubah dari setEmployeesData menjadi setEmployees
+      setEmployees(data);
     } catch (err) {
-      setError(err.message);
-      console.error("Error fetching employees:", err); // ❌ Ubah dari error menjadi err
+      console.error("Error fetching employees:", err);
     } finally {
       setLoading(false);
     }
@@ -31,13 +28,13 @@ const Employees = () => {
 
   useEffect(() => {
     fetchEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading)
     return <div className="text-sky-200 p-6">Loading employees...</div>;
 
-  if (error) // ❌ Tambahkan error handling UI
+  if (error)
+    // ❌ Tambahkan error handling UI
     return <div className="text-red-400 p-6">Error: {error}</div>;
 
   // Pagination logic
