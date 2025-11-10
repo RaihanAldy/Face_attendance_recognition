@@ -15,7 +15,12 @@ from notification_service import send_all_notifications
 
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173"])
+CORS(app, 
+     origins=["http://localhost:5173"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"],
+     supports_credentials=True,
+     max_age=3600)
 INSIGHTS_TABLE = 'ai-insight'
 AWS_REGION = 'ap-southeast-2'
 
@@ -320,7 +325,32 @@ def get_employees():
         return jsonify({'error': str(e)}), 500
 
 # ==================== ATTENDANCE ENDPOINTS (NEW STRUCTURE) ====================
-
+@app.route('/api/attendance/auto', methods=['POST'])
+def record_attendance_auto():
+    """Record attendance with auto-detect (recommended)"""
+    try:
+        data = request.json or {}
+        print(f"🤖 AUTO ATTENDANCE - Data: {data}")
+        
+        employee_id = data.get('employeeId')
+        confidence = data.get('confidence', 0.0)
+        
+        if not employee_id:
+            return jsonify({'success': False, 'error': 'Employee ID is required'}), 400
+        
+        result = db.record_attendance_auto(employee_id, confidence)
+        
+        if result and result.get('success'):
+            return jsonify(result), 200
+        else:
+            error_msg = result.get('error') if result else 'Failed to record attendance'
+            return jsonify({'success': False, 'error': error_msg}), 500
+                
+    except Exception as e:
+        print(f"❌ Error recording auto attendance: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/api/attendance', methods=['GET', 'POST'])
 def attendance():
     if request.method == 'GET':

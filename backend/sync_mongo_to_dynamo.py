@@ -174,10 +174,8 @@ def fetch_insights_from_dynamodb():
         
         for item in items:
             try:
-                print(f"\n🔍 Raw insight: {item}")
                 
                 item = decimal_to_native(item)
-                print(f"✅ After decimal conversion: {item}")
                 
                 # Extract key fields
                 record_id = item.get('record_id')
