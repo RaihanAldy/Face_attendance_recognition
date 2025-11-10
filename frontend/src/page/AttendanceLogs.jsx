@@ -26,7 +26,7 @@ const AttendanceLogs = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
-  // Filter logic (dari code pertama)
+  // Filtering logic
   const filteredData = attendanceData.reduce((acc, record) => {
     const {
       employeeId,
@@ -91,7 +91,6 @@ const AttendanceLogs = () => {
           timestamp: checkIn,
         });
       }
-
       if (checkOut) {
         acc.push({
           employeeId,
@@ -106,7 +105,7 @@ const AttendanceLogs = () => {
     return acc;
   }, []);
 
-  // Reset pagination saat filter berubah
+  // Reset pagination
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, checkFilters]);
@@ -144,6 +143,7 @@ const AttendanceLogs = () => {
               Monitor and manage employee attendance
             </p>
           </div>
+
           <div className="flex flex-wrap gap-3">
             <RefreshButton
               onClick={() => fetchAttendanceData(filter)}
@@ -151,6 +151,7 @@ const AttendanceLogs = () => {
               loadingText="Loading..."
               normalText="Refresh"
             />
+
             <button
               onClick={handleExportCSV}
               disabled={filteredData.length === 0}
@@ -169,22 +170,26 @@ const AttendanceLogs = () => {
           setCheckFilters={setCheckFilters}
         />
 
-        {/* Error & Loading */}
+        {/* Error */}
         {error && (
           <div className="flex flex-row text-red-400 p-4 bg-red-500/10 rounded-xl border border-red-500/20">
             <TriangleAlert /> {error}
           </div>
         )}
+
+        {/* Loading */}
         {loading && (
           <div className="text-blue-400 text-center py-12">
             <RefreshCw className="animate-spin inline-block w-8 h-8 mb-3" />
-            <p>Memuat data absensi...</p>
+            <p>Loading attendance data...</p>
           </div>
         )}
+
+        {/* No data */}
         {!loading && !error && filteredData.length === 0 && (
           <div className="text-center py-12 bg-slate-800/30 rounded-xl border border-slate-700">
             <p className="text-slate-400 text-lg mb-4">
-              Tidak ada data untuk filter yang dipilih
+              No data for the selected filter
             </p>
           </div>
         )}
@@ -209,6 +214,7 @@ const AttendanceLogs = () => {
                       )}
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-slate-700/50">
                     {currentData.map((record, rowIndex) => (
                       <tr
@@ -238,6 +244,7 @@ const AttendanceLogs = () => {
                 {Math.min(startIndex + itemsPerPage, filteredData.length)} of{" "}
                 {filteredData.length}
               </div>
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
@@ -250,6 +257,7 @@ const AttendanceLogs = () => {
                 >
                   Previous
                 </button>
+
                 {[...Array(totalPages)].map((_, i) => (
                   <button
                     key={i}
@@ -263,6 +271,7 @@ const AttendanceLogs = () => {
                     {i + 1}
                   </button>
                 ))}
+
                 <button
                   onClick={() =>
                     setCurrentPage((p) => Math.min(p + 1, totalPages))

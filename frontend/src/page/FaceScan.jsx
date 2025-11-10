@@ -3,8 +3,6 @@ import {
   ScanFace,
   Camera,
   AlertCircle,
-  CheckCircle,
-  XCircle,
   Lock,
   Settings,
   UserPlus,
@@ -68,7 +66,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
 
   const handleAdminLogin = async () => {
     const { value: formValues } = await MySwal.fire({
-      title: " Admin Login",
+      title: "Admin Login",
       html: `
         <input id="swal-input1" class="swal2-input" placeholder="Username" type="text">
         <input id="swal-input2" class="swal2-input" placeholder="Password" type="password">
@@ -76,13 +74,13 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: "Login",
-      cancelButtonText: "Batal",
+      cancelButtonText: "Cancel",
       confirmButtonColor: "#3b82f6",
       preConfirm: () => {
         const username = document.getElementById("swal-input1").value;
         const password = document.getElementById("swal-input2").value;
         if (!username || !password) {
-          Swal.showValidationMessage("Username dan password harus diisi!");
+          Swal.showValidationMessage("Username and password are required!");
           return false;
         }
         return { username, password };
@@ -100,8 +98,8 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         if (response.ok) {
           const result = await response.json();
           MySwal.fire({
-            title: "Login Berhasil!",
-            text: `Selamat datang, ${result.name || "Admin"}`,
+            title: "Login Successful!",
+            text: `Welcome, ${result.name || "Admin"}`,
             icon: "success",
             timer: 2000,
             showConfirmButton: false,
@@ -110,7 +108,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           setShowAdminMenu(false);
           return;
         } else {
-          throw new Error("Login gagal");
+          throw new Error("Login failed");
         }
       } catch (err) {
         // fallback
@@ -121,8 +119,8 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           formValues.password === "admin123"
         ) {
           MySwal.fire({
-            title: "Login Berhasil!",
-            text: "Selamat datang, Admin",
+            title: "Login Successful!",
+            text: "Welcome, Admin",
             icon: "success",
             timer: 2000,
             showConfirmButton: false,
@@ -134,10 +132,10 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           setShowAdminMenu(false);
         } else {
           MySwal.fire({
-            title: "Login Gagal",
-            text: "Username atau password salah!",
+            title: "Login Failed",
+            text: "Incorrect username or password!",
             icon: "error",
-            confirmButtonText: "Coba Lagi",
+            confirmButtonText: "Try Again",
           });
         }
       }
@@ -160,13 +158,11 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     setErrorMessage("");
 
     try {
-      // Stop existing stream if present
       if (streamRef.current) {
         stopCamera();
         await new Promise((res) => setTimeout(res, 80));
       }
 
-      // Wait for video element to be mounted
       let tries = 0;
       while (!videoRef.current && tries < 10) {
         await new Promise((res) => setTimeout(res, 100));
@@ -197,7 +193,6 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           video.removeEventListener("error", onError);
         };
 
-        // Define the event handlers
         const onLoadedMetadata = () => {
           console.log("Video metadata loaded");
         };
@@ -206,10 +201,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           if (finished) return;
           finished = true;
           cleanup();
-          video
-            .play()
-            .then(resolve)
-            .catch((e) => reject(e));
+          video.play().then(resolve).catch(reject);
         };
 
         const onError = (err) => {
@@ -220,12 +212,10 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           reject(new Error("Video playback error"));
         };
 
-        // Add event listeners
         video.addEventListener("loadedmetadata", onLoadedMetadata);
         video.addEventListener("canplay", onCanPlay);
         video.addEventListener("error", onError);
 
-        // Fallback timeout
         setTimeout(() => {
           if (!finished) {
             finished = true;
@@ -249,12 +239,12 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       setIsScanning(false);
       setScanStatus("failed");
 
-      let detailedError = "Tidak dapat mengakses kamera. ";
+      let detailedError = "Unable to access the camera. ";
       if (error.name === "NotAllowedError") {
         detailedError +=
-          "Permission kamera ditolak. Silakan izinkan akses kamera di browser.";
+          "Camera permission denied. Please allow camera access in the browser.";
       } else if (error.name === "NotFoundError") {
-        detailedError += "Tidak ada kamera yang ditemukan.";
+        detailedError += "No camera device found.";
       } else {
         detailedError += error.message || "Unknown error";
       }
@@ -262,7 +252,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       setErrorMessage(detailedError);
 
       MySwal.fire({
-        title: "Gagal Akses Kamera",
+        title: "Camera Access Failed",
         text: detailedError,
         icon: "error",
         timer: 5000,
@@ -281,13 +271,13 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
 
   const stopCamera = () => {
     try {
-      console.log(" Stopping camera...");
+      console.log("Stopping camera...");
 
       if (streamRef.current) {
-        console.log(" Stopping stream from streamRef");
+        console.log("Stopping stream from streamRef");
         const tracks = streamRef.current.getTracks();
         tracks.forEach((track) => {
-          console.log(` Stopping track: ${track.kind}`);
+          console.log(`Stopping track: ${track.kind}`);
           track.stop();
         });
         streamRef.current = null;
@@ -361,20 +351,20 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         setFailureCount((prev) => prev + 1);
         setScanStatus("failed");
         setErrorMessage(
-          "Tidak ada wajah terdeteksi. Posisikan wajah di tengah frame."
+          "No face detected. Please position your face in the center of the frame."
         );
 
         if (failureCount >= 2) {
           const result = await MySwal.fire({
-            title: "Kesulitan Mendeteksi Wajah?",
+            title: "Difficulty Detecting Face?",
             html: `
-              <p>Sudah ${failureCount + 1}x gagal mendeteksi wajah.</p>
-              <p class="mt-2">Apakah Anda ingin menggunakan <strong>Manual Attendance</strong>?</p>
+              <p>Failed to detect face ${failureCount + 1} times.</p>
+              <p class="mt-2">Would you like to use <strong>Manual Attendance</strong> instead?</p>
             `,
             icon: "question",
             showCancelButton: true,
-            confirmButtonText: "Ya, Gunakan Manual",
-            cancelButtonText: "Coba Lagi",
+            confirmButtonText: "Yes, Use Manual",
+            cancelButtonText: "Try Again",
             confirmButtonColor: "#10b981",
             cancelButtonColor: "#6b7280",
           });
@@ -388,12 +378,12 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           }
         } else {
           await MySwal.fire({
-            title: "Wajah Tidak Terdeteksi",
-            text: "Pastikan wajah Anda berada di tengah frame dengan pencahayaan yang baik.",
+            title: "Face Not Detected",
+            text: "Ensure your face is centered with good lighting.",
             icon: "warning",
             timer: 3000,
             showConfirmButton: true,
-            confirmButtonText: "Coba Lagi",
+            confirmButtonText: "Try Again",
           });
         }
         return;
@@ -414,7 +404,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         const employeeName = employee.name || "Unknown Employee";
         const confidence = employee.confidence || employee.similarity || 0.95;
 
-        console.log(" Employee recognized:", {
+        console.log("Employee recognized:", {
           name: employeeName,
           id: employee.employee_id,
           department: employee.department || "General",
@@ -431,19 +421,19 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       } else {
         setFailureCount((prev) => prev + 1);
         setScanStatus("failed");
-        setErrorMessage("Wajah tidak dikenali. Silakan coba lagi.");
+        setErrorMessage("Face not recognized. Please try again.");
 
         if (failureCount >= 2) {
           const result = await MySwal.fire({
-            title: "Wajah Tidak Dikenali",
+            title: "Face Not Recognized",
             html: `
-              <p>Sudah ${failureCount + 1}x gagal mengenali wajah.</p>
-              <p class="mt-2">Apakah Anda ingin menggunakan <strong>Manual Attendance</strong>?</p>
+              <p>Failed ${failureCount + 1} times.</p>
+              <p class="mt-2">Would you like to use <strong>Manual Attendance</strong>?</p>
             `,
             icon: "warning",
             showCancelButton: true,
-            confirmButtonText: "Ya, Gunakan Manual",
-            cancelButtonText: "Coba Lagi",
+            confirmButtonText: "Yes, Use Manual",
+            cancelButtonText: "Try Again",
             confirmButtonColor: "#10b981",
             cancelButtonColor: "#6b7280",
           });
@@ -457,8 +447,8 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           }
         } else {
           await MySwal.fire({
-            title: "Wajah Tidak Dikenali",
-            text: "Silakan coba lagi atau hubungi admin untuk registrasi.",
+            title: "Face Not Recognized",
+            text: "Try again or contact admin for registration.",
             icon: "warning",
             timer: 3000,
             showConfirmButton: true,
@@ -471,12 +461,12 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       setFailureCount((prev) => prev + 1);
       setScanStatus("failed");
 
-      let msg = "Terjadi kesalahan saat mengenali wajah.";
+      let msg = "An error occurred while recognizing the face.";
       if (err.message?.includes("Failed to fetch")) {
         msg =
-          "Backend tidak merespon. Pastikan server running di http://localhost:5000";
+          "Backend is not responding. Ensure the server is running at http://localhost:5000";
       } else if (err.message?.toLowerCase().includes("no face")) {
-        msg = "Tidak ada wajah terdeteksi. Posisikan wajah dengan benar.";
+        msg = "No face detected. Please adjust your position.";
       } else {
         msg = err.message || msg;
       }
@@ -485,15 +475,15 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
 
       if (failureCount >= 2) {
         const result = await MySwal.fire({
-          title: "Kesalahan Berulang",
+          title: "Repeated Error",
           html: `
             <p>${msg}</p>
-            <p class="mt-2">Apakah Anda ingin menggunakan <strong>Manual Attendance</strong>?</p>
+            <p class="mt-2">Would you like to use <strong>Manual Attendance</strong>?</p>
           `,
           icon: "error",
           showCancelButton: true,
-          confirmButtonText: "Ya, Gunakan Manual",
-          cancelButtonText: "Tutup",
+          confirmButtonText: "Yes, Use Manual",
+          cancelButtonText: "Close",
           confirmButtonColor: "#10b981",
           cancelButtonColor: "#6b7280",
         });
@@ -506,7 +496,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         }
       } else {
         MySwal.fire({
-          title: "Kesalahan",
+          title: "Error",
           text: msg,
           icon: "error",
           timer: 5000,
@@ -546,14 +536,14 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
       const statusFromBackend = result.status || "ontime";
 
       const statusConfig = {
-        ontime: { text: "Tepat Waktu", color: "#10b981" },
-        late: { text: "Terlambat", color: "#f59e0b" },
-        early: { text: "Pulang Cepat", color: "#eab308" },
+        ontime: { text: "On Time", color: "#10b981" },
+        late: { text: "Late", color: "#f59e0b" },
+        early: { text: "Left Early", color: "#eab308" },
       };
 
       const status = statusConfig[statusFromBackend] || statusConfig["ontime"];
       const actionType = result.action || "check_in";
-      const currentTime = new Date().toLocaleTimeString("id-ID");
+      const currentTime = new Date().toLocaleTimeString("en-US");
 
       const finalEmployeeName =
         employeeName ||
@@ -562,11 +552,11 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
         "Unknown Employee";
 
       await MySwal.fire({
-        title: `Berhasil!`,
+        title: `Success!`,
         html: `
           <div style="text-align: center;">
             <p style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">
-              ${actionType === "check_in" ? "Check-In" : "Check-Out"} Berhasil
+              ${actionType === "check_in" ? "Check-In" : "Check-Out"} Successful
             </p>
             <p style="font-size: 16px; color: ${
               status.color
@@ -584,7 +574,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                 confidence * 100
               ).toFixed(1)}%</p>
               <p style="color: #94a3b8; font-size: 12px; margin: 4px 0; border-top: 1px solid #334155; padding-top: 8px;">
-                 Berdasarkan settings: ${
+                 Based on settings: ${
                    actionType === "check_in" ? "Check-in" : "Check-out"
                  } time validation
               </p>
@@ -603,16 +593,16 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     } catch (err) {
       console.error("Attendance recording failed:", err);
 
-      let errorMsg = err.message || "Gagal mencatat absensi";
+      let errorMsg = err.message || "Failed to record attendance";
       if (err.message.includes("Employee not found")) {
         errorMsg =
-          "Employee ID tidak ditemukan di database. Pastikan karyawan sudah terdaftar.";
+          "Employee ID not found in the database. Ensure the employee is registered.";
       }
 
       await MySwal.fire({
-        title: "Absensi Gagal",
+        title: "Attendance Failed",
         html: `<div style="text-align:center;">
-                <p>Gagal mencatat absensi:</p>
+                <p>Failed to record attendance:</p>
                 <p style="color:#ef4444; font-size:14px; margin-top:8px;">${errorMsg}</p>
                 <p style="color:#94a3b8; font-size:12px; margin-top:8px;">Employee ID: ${employeeId}</p>
               </div>`,
@@ -631,10 +621,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
     setScanStatus("scanning");
 
     const cameraStarted = await startCamera();
-    if (!cameraStarted) {
-      console.log(" Camera failed to start");
-      return;
-    }
+    if (!cameraStarted) return;
 
     setTimeout(() => {
       recognizeFace();
@@ -657,7 +644,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
           <div
             onClick={handleLogoClick}
             className="inline-block cursor-pointer hover:scale-105 transition-transform active:scale-90"
-            title="Click 5x untuk menu admin"
+            title="Click 5 times for admin menu"
           >
             <ScanFace className="h-16 w-16 text-blue-500 mx-auto" />
           </div>
@@ -692,7 +679,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                   className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-3"
                 >
                   <Lock className="w-5 h-5" />
-                  Login Admin Dashboard
+                  Admin Dashboard Login
                 </button>
 
                 <button
@@ -700,14 +687,14 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                   className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-3"
                 >
                   <UserPlus className="w-5 h-5" />
-                  Registrasi Karyawan Baru
+                  Register New Employee
                 </button>
 
                 <button
                   onClick={() => setShowAdminMenu(false)}
                   className="w-full px-6 py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
                 >
-                  Batal
+                  Cancel
                 </button>
               </div>
 
@@ -739,7 +726,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                   <ScanFace className="h-24 w-24 text-slate-700 mx-auto mb-4" />
                   <p className="text-slate-500">Face Recognition</p>
                   <p className="text-slate-600 text-sm mt-2">
-                    Klik "Mulai Scan" untuk memulai
+                    Click "Start Scan" to begin
                   </p>
                   <div className="flex space-x-2 m-4">
                     <button
@@ -748,7 +735,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Camera className="h-4 w-4" />
-                      <span>Mulai Scan</span>
+                      <span>Start Scan</span>
                     </button>
                     <button
                       onClick={() => setShowManualForm(true)}
@@ -757,7 +744,6 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
                       <Upload className="h-4 w-4" />
                       <span>Manual</span>
                     </button>
-                    )
                   </div>
                 </div>
               </div>

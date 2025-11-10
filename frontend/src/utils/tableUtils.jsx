@@ -1,38 +1,38 @@
-// Helper untuk nama employee
+// Helper to get employee name
 export const getEmployeeName = (record) => record.name || "Unknown";
 
-// Fungsi menentukan kolom tabel berdasarkan filter
+// Determine table columns based on filters
 export const getTableHeaders = (filter, checkFilters) => {
   const { checkin, checkout } = checkFilters;
 
-  // Jika kedua filter aktif: tampilkan Check In & Check Out (paired view)
+  // If both filters active → paired view
   if (checkin && checkout) {
     return [
       "Employee ID",
-      "Nama",
+      "Name",
       "Check In",
-      "Status Check In",
+      "Check In Status",
       "Check Out",
-      "Status Check Out",
+      "Check Out Status",
       "Working Hours",
     ];
   }
 
-  // Jika hanya checkin aktif
+  // Check In only
   if (checkin && !checkout) {
-    return ["Employee ID", "Nama", "Check In", "Status"];
+    return ["Employee ID", "Name", "Check In", "Status"];
   }
 
-  // Jika hanya checkout aktif
+  // Check Out only
   if (!checkin && checkout) {
-    return ["Employee ID", "Nama", "Check Out", "Status"];
+    return ["Employee ID", "Name", "Check Out", "Status"];
   }
 
-  // Default: tampilkan semua logs (expanded view)
-  return ["Employee ID", "Nama", "Action", "Status", "Timestamp"];
+  // Default: full log view
+  return ["Employee ID", "Name", "Action", "Status", "Timestamp"];
 };
 
-// Fungsi untuk render isi setiap sel tabel
+// Render each table cell
 export const renderTableCell = (record, header, index, formatDateTime) => {
   const baseClass = "px-3 py-4 text-slate-300 text-center";
 
@@ -44,7 +44,7 @@ export const renderTableCell = (record, header, index, formatDateTime) => {
         </td>
       );
 
-    case "Nama":
+    case "Name":
       return (
         <td key={index} className={`${baseClass} text-left`}>
           {getEmployeeName(record)}
@@ -52,13 +52,13 @@ export const renderTableCell = (record, header, index, formatDateTime) => {
       );
 
     case "Status":
-    case "Status Check In":
-    case "Status Check Out": {
+    case "Check In Status":
+    case "Check Out Status": {
       let statusValue;
 
-      if (header === "Status Check In") {
+      if (header === "Check In Status") {
         statusValue = record.checkInStatus || "-";
-      } else if (header === "Status Check Out") {
+      } else if (header === "Check Out Status") {
         statusValue = record.checkOutStatus || "-";
       } else {
         statusValue = record.status || "-";

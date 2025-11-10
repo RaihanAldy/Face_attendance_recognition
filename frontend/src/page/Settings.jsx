@@ -8,7 +8,7 @@ const Settings = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false); // ✅ State baru untuk sync
+  const [isSyncing, setIsSyncing] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
   useEffect(() => {
@@ -30,7 +30,7 @@ const Settings = () => {
         console.error("Failed to load settings:", error);
         setMessage({
           type: "error",
-          text: "Gagal memuat pengaturan",
+          text: "Faled to load settings",
         });
       } finally {
         setIsLoading(false);
@@ -51,11 +51,11 @@ const Settings = () => {
     const { startTime, endTime } = settings;
 
     if (!startTime || !endTime) {
-      return "Waktu mulai dan akhir harus diisi";
+      return "The start and end times must be filled in.";
     }
 
     if (startTime >= endTime) {
-      return "Waktu akhir harus setelah waktu mulai";
+      return "The end time must be after the start time.";
     }
 
     return null;
@@ -94,7 +94,7 @@ const Settings = () => {
 
       setMessage({
         type: "success",
-        text: result.message || "Pengaturan berhasil disimpan!",
+        text: result.message || "Settings successfully sync!",
       });
 
       // Auto clear success message after 3 seconds
@@ -105,7 +105,7 @@ const Settings = () => {
       console.error("Failed to save settings:", error);
       setMessage({
         type: "error",
-        text: error.message || "Error menyimpan pengaturan",
+        text: error.message || "Error Saving Settings!",
       });
     } finally {
       setIsSaving(false);
@@ -130,7 +130,7 @@ const Settings = () => {
       const data = await res.json();
       setMessage({
         type: "success",
-        text: data.message || "Sync berhasil dijalankan!",
+        text: data.message || "Sync Success!",
       });
 
       // Auto clear success message after 5 seconds (lebih lama untuk sync)
@@ -139,7 +139,7 @@ const Settings = () => {
       console.error("Sync gagal:", error);
       setMessage({
         type: "error",
-        text: error.message || "Sync gagal",
+        text: error.message || "Sync Failed!",
       });
     } finally {
       setIsSyncing(false);
@@ -153,7 +153,7 @@ const Settings = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 p-8 flex items-center justify-center">
-        <div className="text-white text-lg">Memuat pengaturan...</div>
+        <div className="text-white text-lg">Loading...</div>
       </div>
     );
   }
@@ -182,7 +182,7 @@ const Settings = () => {
         <div className="bg-slate-900 rounded-xl p-6 space-y-6">
           <div>
             <label className="block text-gray-200 mb-2 text-sm font-medium">
-              Jam Masuk:
+              Check In:
             </label>
             <input
               type="time"
@@ -194,7 +194,7 @@ const Settings = () => {
 
           <div>
             <label className="block text-gray-200 mb-2 text-sm font-medium">
-              Jam Pulang:
+              Check Out:
             </label>
             <input
               type="time"
@@ -214,10 +214,10 @@ const Settings = () => {
               {isSaving ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Menyimpan...
+                  Saving...
                 </>
               ) : (
-                "Simpan Pengaturan"
+                "Save"
               )}
             </button>
 
@@ -242,7 +242,7 @@ const Settings = () => {
               onClick={() => window.history.back()}
               className="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
             >
-              Kembali
+              Back
             </button>
           </div>
         </div>

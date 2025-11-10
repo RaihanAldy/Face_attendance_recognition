@@ -32,7 +32,7 @@ export const useAttendanceData = (dateFilter = "today") => {
         throw new Error("Response data is not an array");
       }
 
-      // Di dalam fetchAttendanceData function, perbaiki field mapping:
+      // Inside fetchAttendanceData: normalize field mapping
       const normalizedData = data.map((item) => {
         const employeeName = item.employee_name || "Unknown Employee";
 
@@ -72,7 +72,9 @@ export const useAttendanceData = (dateFilter = "today") => {
       setAttendanceData(normalizedData);
     } catch (err) {
       console.error(" Error fetching attendance data:", err);
-      setError(err.message || "Terjadi kesalahan saat mengambil data absensi.");
+      setError(
+        err.message || "An error occurred while fetching attendance data."
+      );
       setAttendanceData([]);
     } finally {
       setLoading(false);

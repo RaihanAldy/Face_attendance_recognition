@@ -5,8 +5,6 @@ import {
   Users,
   Clock,
   Settings,
-  UserRoundSearch,
-  UserCheck2Icon,
   UserSearchIcon,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";

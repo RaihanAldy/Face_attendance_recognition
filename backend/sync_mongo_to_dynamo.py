@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError
 from dateutil import parser
 from dotenv import load_dotenv
 from decimal import Decimal
+from notification_service import send_all_notifications
 
 load_dotenv()
 
@@ -86,6 +87,26 @@ def set_last_checkpoint(ts_iso):
     )
 
 
+def parse_timestamp(ts):
+    """
+    Parse timestamp that can be either:
+    - datetime object
+    - ISO string
+    - None
+    Returns datetime object or None
+    """
+    if ts is None:
+        return None
+    if isinstance(ts, datetime):
+        return ts
+    if isinstance(ts, str):
+        try:
+            return parser.isoparse(ts)
+        except:
+            return None
+    return None
+
+
 def transform(doc):
     """Transform MongoDB attendance document to DynamoDB format"""
     checkin = doc.get('checkin') or {}
@@ -155,7 +176,6 @@ def fetch_insights_from_dynamodb():
             try:
                 print(f"\n🔍 Raw insight: {item}")
                 
-                # ⚠️ CRITICAL FIX: Convert ALL Decimal values to native types
                 item = decimal_to_native(item)
                 print(f"✅ After decimal conversion: {item}")
                 
@@ -229,10 +249,80 @@ def sync_insights_from_dynamo():
 
 
 # ------------------------------------
-# ATTENDANCE SYNC (MAIN LOGIC)
+# ATTENDANCE SYNC (MAIN LOGIC) - FIXED
 # ------------------------------------
+
+def sync_single_record(mongo_doc):
+    """
+    ✅ Sync single attendance record to DynamoDB immediately
+    Used for auto-sync on checkout
+    
+    Args:
+        mongo_doc: MongoDB attendance document
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        print(f"\n📤 Syncing single record to DynamoDB...")
+        print(f"   Employee ID: {mongo_doc.get('employee_id')}")
+        print(f"   Employee Name: {mongo_doc.get('employee_name')}")
+        print(f"   Date: {mongo_doc.get('date')}")
+        
+        # ✅ CHECK IF RECORD HAS CHECKOUT
+        if not mongo_doc.get('checkout'):
+            print(f"⚠️ Record doesn't have checkout yet, skipping sync")
+            return False
+        
+        # Transform to DynamoDB format
+        dynamo_item = transform(mongo_doc)
+        
+        print(f"   Transformed item keys: {list(dynamo_item.keys())}")
+        print(f"   Check-in: {dynamo_item.get('checkin_time')}")
+        print(f"   Check-out: {dynamo_item.get('checkout_time')}")
+        print(f"   Duration: {dynamo_item.get('work_duration_minutes')} min")
+        
+        # Write to DynamoDB with retry logic
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                response = table.put_item(Item=dynamo_item)
+                print(f"✅ Successfully written to DynamoDB on attempt {attempt + 1}")
+                print(f"   Response: {response.get('ResponseMetadata', {}).get('HTTPStatusCode')}")
+                return True
+                
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                error_msg = e.response.get('Error', {}).get('Message', 'Unknown')
+                print(f"⚠️ Attempt {attempt + 1} failed: {error_code}")
+                print(f"   Message: {error_msg}")
+                
+                if attempt < max_attempts - 1:
+                    delay = BASE_DELAY * (2 ** attempt)
+                    print(f"   Retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    print(f"❌ Failed after {max_attempts} attempts")
+                    raise
+            except Exception as e:
+                print(f"❌ Unexpected error: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
+                    
+        return False
+        
+    except Exception as e:
+        print(f"❌ Error syncing single record: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def sync_attendance():
-    """Sync attendance from MongoDB to DynamoDB"""
+    """
+    ✅ IMPROVED: Sync attendance from MongoDB to DynamoDB
+    Now handles both batch sync and provides better debugging
+    """
     print("\n" + "="*60)
     print("🚀 ATTENDANCE SYNC TO DYNAMODB")
     print("="*60)
@@ -240,55 +330,113 @@ def sync_attendance():
     last_sync = get_last_checkpoint()
     query = {}
 
-    # Incremental sync
+    # ✅ Use $or to check both field names
     if last_sync:
         print(f"📅 Incremental sync since: {last_sync}")
         last_dt = parser.isoparse(last_sync)
-        query['updated_at'] = {'$gt': last_dt}
+        
+        # Check both 'updatedAt' and 'updated_at'
+        query['$or'] = [
+            {'updatedAt': {'$gt': last_dt}},
+            {'updated_at': {'$gt': last_dt}}
+        ]
     else:
-        # First sync → last 24 hours
-        print("📅 First sync - fetching last 24 hours")
-        since = datetime.utcnow() - timedelta(days=1)
-        query['updated_at'] = {'$gt': since}
+        # First sync → get all records with checkout (completed attendance)
+        print("📅 First sync - fetching all completed attendance (with checkout)")
+        query = {
+            'checkout': {'$exists': True}  # ✅ Only sync completed attendance
+        }
 
-    print("🔍 Querying MongoDB...")
-    cursor = att.find(query).sort('updated_at', 1)
+    print(f"🔍 Query: {query}")
+    print("📊 Querying MongoDB...")
+    
+    try:
+        cursor = att.find(query).sort('updatedAt', -1)  # Most recent first
+        count_check = att.count_documents(query)
+        print(f"📦 Found {count_check} records matching query")
+    except:
+        cursor = att.find(query)
+        count_check = att.count_documents(query)
+        print(f"📦 Found {count_check} records (no sort applied)")
 
     to_sync = []
     for doc in cursor:
-        to_sync.append(transform(doc))
+        try:
+            transformed = transform(doc)
+            to_sync.append(transformed)
+            
+            # Debug first 3 records
+            if len(to_sync) <= 3:
+                print(f"\n🔍 Record {len(to_sync)} sample:")
+                print(f"   Employee: {doc.get('employee_name')} ({doc.get('employee_id')})")
+                print(f"   Date: {doc.get('date')}")
+                print(f"   Check-in: {doc.get('checkin', {}).get('timestamp', 'N/A')}")
+                print(f"   Check-out: {doc.get('checkout', {}).get('timestamp', 'N/A')}")
+                print(f"   Duration: {doc.get('work_duration_minutes', 0)} min")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to transform record {doc.get('_id')}: {e}")
+            continue
 
     count = len(to_sync)
-    print(f"📦 Found {count} attendance records to sync")
+    print(f"\n📦 Total records to sync: {count}")
 
     if count == 0:
+        print("ℹ️ No new records to sync")
         set_last_checkpoint(iso_now())
         return 0
 
-    # Batch sync
+    # Batch sync with progress
     synced = 0
+    failed = 0
+    
     for i, chunk in enumerate(chunked(to_sync, BATCH_SIZE), 1):
         attempt = 0
         while attempt <= MAX_RETRIES:
             try:
+                print(f"\n📤 Syncing batch {i}/{(count + BATCH_SIZE - 1) // BATCH_SIZE} ({len(chunk)} records)...")
                 batch_write(chunk)
                 synced += len(chunk)
-                print(f"✅ Synced batch {i}: {len(chunk)} records ({synced}/{count})")
+                
+                # Show progress
+                progress = (synced / count) * 100
+                print(f"✅ Batch {i} synced! Progress: {synced}/{count} ({progress:.1f}%)")
                 break
+                
             except ClientError as e:
                 attempt += 1
                 delay = BASE_DELAY * (2 ** (attempt - 1))
-                print(f"⚠️ Batch failed (attempt {attempt}), retrying in {delay}s → {e}")
-                time.sleep(delay)
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                print(f"⚠️ Batch {i} failed (attempt {attempt}/{MAX_RETRIES}): {error_code}")
+                
+                if attempt <= MAX_RETRIES:
+                    print(f"   Retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    print(f"❌ Batch {i} failed permanently")
+                    failed += len(chunk)
+                    
+            except Exception as e:
+                print(f"❌ Unexpected error in batch {i}: {e}")
+                import traceback
+                traceback.print_exc()
+                failed += len(chunk)
+                break
 
-        if attempt > MAX_RETRIES:
-            print("❌ ERROR: failed to write after max retries")
-            raise SystemExit(1)
+    # Update checkpoint only if some records were synced
+    if synced > 0:
+        set_last_checkpoint(iso_now())
+        print(f"\n✅ Checkpoint updated to {iso_now()}")
 
-    # Update checkpoint
-    set_last_checkpoint(iso_now())
-    print(f"\n✅ Attendance sync completed: {count} records")
-    return count
+    print(f"\n{'='*60}")
+    print(f"📊 SYNC SUMMARY")
+    print(f"   Total found: {count}")
+    print(f"   Successfully synced: {synced}")
+    print(f"   Failed: {failed}")
+    print(f"   Success rate: {(synced/count*100):.1f}%" if count > 0 else "N/A")
+    print(f"{'='*60}")
+    
+    return synced
 
 
 # ------------------------------------
@@ -302,9 +450,11 @@ def main():
     
     try:
         # 1. Sync attendance to DynamoDB
+        print("\n🔄 Starting attendance sync...")
         attendance_count = sync_attendance()
         
         # 2. Sync AI insights from DynamoDB to MongoDB
+        print("\n🔄 Starting insights sync...")
         insights_count = fetch_insights_from_dynamodb()
         
         elapsed = time.time() - start_time

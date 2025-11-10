@@ -28,7 +28,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   useEffect(() => {
     startCamera();
 
-    // dijalankan saat komponen UNMOUNT
+    // executed when component UNMOUNT
     return () => {
       stopCamera();
     };
@@ -48,12 +48,11 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
 
       console.log("Starting camera...");
 
-      // Try different camera constraints
       const constraints = {
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: "user", // Front camera
+          facingMode: "user",
           frameRate: { ideal: 30 },
         },
         audio: false,
@@ -66,7 +65,6 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
 
-        // Wait for video to be ready
         await new Promise((resolve, reject) => {
           const video = videoRef.current;
 
@@ -86,7 +84,6 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
           });
           video.addEventListener("error", onError, { once: true });
 
-          // Timeout fallback
           setTimeout(() => {
             if (video.readyState >= 2) {
               video.play().then(resolve).catch(reject);
@@ -101,19 +98,19 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       console.log("Camera started successfully");
     } catch (err) {
       console.error("Camera error:", err);
-      let errorMessage = "Gagal mengakses kamera. ";
+      let errorMessage = "Failed to access camera. ";
 
       if (err.name === "NotAllowedError") {
         errorMessage +=
-          "Izin kamera ditolak. Silakan izinkan akses kamera di browser Anda.";
+          "Camera permission denied. Please allow camera access in your browser.";
       } else if (err.name === "NotFoundError") {
-        errorMessage += "Tidak ada kamera yang ditemukan.";
+        errorMessage += "No camera device found.";
       } else if (err.name === "NotReadableError") {
-        errorMessage += "Kamera sedang digunakan oleh aplikasi lain.";
+        errorMessage += "Camera is being used by another application.";
       } else if (err.name === "OverconstrainedError") {
-        errorMessage += "Kamera tidak mendukung resolusi yang diminta.";
+        errorMessage += "Camera does not support the requested resolution.";
       } else {
-        errorMessage += err.message || "Error tidak diketahui.";
+        errorMessage += err.message || "Unknown error.";
       }
 
       setCameraError(errorMessage);
@@ -139,7 +136,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
 
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) {
-      setError("Kamera tidak siap");
+      setError("Camera is not ready");
       return;
     }
 
@@ -156,7 +153,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            setError("Gagal mengambil foto");
+            setError("Failed to capture photo");
             return;
           }
 
@@ -170,7 +167,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       );
     } catch (err) {
       console.error("Capture error:", err);
-      setError("Gagal mengambil foto: " + err.message);
+      setError("Failed to capture photo: " + err.message);
     }
   };
 
@@ -182,7 +179,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       setPhotoPreview(reader.result);
     };
     reader.onerror = () => {
-      setError("Gagal memuat preview foto");
+      setError("Failed to load photo preview");
     };
     reader.readAsDataURL(file);
 
@@ -192,9 +189,8 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith("image/")) {
-        setError("File harus berupa gambar");
+        setError("File must be an image");
         return;
       }
       handlePhotoCapture(file);
@@ -209,12 +205,12 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
 
   const handleSubmit = async () => {
     if (!employeeName.trim()) {
-      setError("Nama harus diisi");
+      setError("Full name is required");
       return;
     }
 
     if (!photo) {
-      setError("Foto harus diambil atau diupload");
+      setError("A photo must be taken or uploaded");
       return;
     }
 
@@ -249,12 +245,12 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
 
       if (result.success) {
         alert(
-          `Absensi Manual Berhasil!\n\nNama: ${employeeName}\nWaktu: ${new Date().toLocaleString()}`
+          `Manual Attendance Successful!\n\nName: ${employeeName}\nTime: ${new Date().toLocaleString()}`
         );
         if (onSuccess) onSuccess(result);
         if (onClose) onClose();
       } else {
-        setError(result.error || "Gagal mengirim absensi");
+        setError(result.error || "Failed to submit attendance");
       }
     } catch (err) {
       console.error("Submit error:", err);
@@ -264,33 +260,29 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
     }
   };
 
-  // Test camera permissions first
   const testCameraAccess = async () => {
     try {
-      // Check if browser supports mediaDevices
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError("Browser tidak mendukung akses kamera");
+        setError("Your browser does not support camera access");
         return;
       }
 
-      // Quick permission test
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(
         (device) => device.kind === "videoinput"
       );
 
       if (videoDevices.length === 0) {
-        setError("Tidak ada kamera yang terdeteksi");
+        setError("No camera detected");
         return;
       }
 
       console.log(`Found ${videoDevices.length} camera(s):`, videoDevices);
 
-      // Now start the camera
       await startCamera();
     } catch (err) {
       console.error("Camera test failed:", err);
-      setError("Tidak dapat mengakses kamera: " + err.message);
+      setError("Cannot access camera: " + err.message);
     }
   };
 
@@ -300,7 +292,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
         <div className="sticky top-0 bg-slate-800 border-b rounded-t-2xl border-slate-700 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <User className="h-6 w-6 text-blue-400" />
-            <h2 className="text-xl font-bold text-white">Absensi Manual</h2>
+            <h2 className="text-xl font-bold text-white">Manual Attendance</h2>
           </div>
           <button
             onClick={onClose}
@@ -317,28 +309,28 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
               <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm text-red-300">{error}</p>
-                {error.includes("izin") && (
+                {error.toLowerCase().includes("permission") && (
                   <button
                     onClick={testCameraAccess}
                     className="text-xs text-blue-400 underline mt-1"
                   >
-                    Coba lagi
+                    Try again
                   </button>
                 )}
               </div>
             </div>
           )}
 
-          {/* Nama Input */}
+          {/* Full Name Input */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Nama Lengkap *
+              Full Name *
             </label>
             <input
               type="text"
               value={employeeName}
               onChange={(e) => setEmployeeName(e.target.value)}
-              placeholder="Masukkan nama lengkap"
+              placeholder="Enter full name"
               className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={loading}
             />
@@ -347,7 +339,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
           {/* Photo Section */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-3">
-              Foto Selfie *
+              Selfie Photo *
             </label>
 
             {useCamera ? (
@@ -362,19 +354,19 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                     style={{ backgroundColor: "black" }}
                   />
                   <div className="absolute top-4 left-4 bg-black/70 px-4 py-2 rounded-lg">
-                    <p className="text-white font-medium">Ambil Foto</p>
+                    <p className="text-white font-medium">Take Photo</p>
                     <p className="text-sm text-slate-300">
-                      Posisikan wajah di tengah
+                      Position your face at the center
                     </p>
                   </div>
 
-                  {/* Camera status indicator */}
                   <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-green-600 px-3 py-1 rounded-lg">
                     <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                    <span className="text-white text-sm">Kamera Aktif</span>
+                    <span className="text-white text-sm">Camera Active</span>
                   </div>
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
+
                 <div className="flex gap-3">
                   <button
                     onClick={capturePhoto}
@@ -382,14 +374,14 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                     disabled={loading}
                   >
                     <Camera className="h-5 w-5" />
-                    Ambil Foto
+                    Take Photo
                   </button>
                   <button
                     onClick={stopCamera}
                     className="px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
                     disabled={loading}
                   >
-                    Batal
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -398,7 +390,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                 <div className="relative">
                   <img
                     src={photoPreview}
-                    alt="Foto selfie"
+                    alt="Selfie"
                     className="w-full h-64 object-cover rounded-lg border-2 border-green-500"
                   />
                   <button
@@ -411,12 +403,12 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                   <div className="absolute top-2 left-2 px-3 py-1 bg-green-600 rounded-lg flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-white" />
                     <span className="text-sm text-white font-medium">
-                      Foto Tersedia
+                      Photo Ready
                     </span>
                   </div>
                 </div>
                 <p className="text-sm text-green-400 text-center">
-                  ✓ Foto berhasil diambil
+                  ✓ Photo captured successfully
                 </p>
               </div>
             ) : (
@@ -424,7 +416,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                 <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center">
                   <Camera className="h-12 w-12 text-slate-500 mx-auto mb-3" />
                   <p className="text-slate-400 mb-4">
-                    Ambil foto selfie untuk absensi
+                    Take a selfie photo for attendance
                   </p>
                   <div className="flex gap-3">
                     <button
@@ -433,7 +425,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                       disabled={loading}
                     >
                       <Camera className="h-4 w-4" />
-                      Gunakan Kamera
+                      Use Camera
                     </button>
                     <label className="flex-1 px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer">
                       <Upload className="h-4 w-4" />
@@ -449,15 +441,15 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                   </div>
                 </div>
 
-                {/* Camera troubleshooting tips */}
+                {/* Troubleshooting */}
                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
                   <p className="text-xs text-yellow-300">
-                    Tips: Jika kamera tidak mau nyala, pastikan:
+                    Tips: If the camera does not turn on, ensure:
                   </p>
                   <ul className="text-xs text-yellow-300 mt-1 space-y-1">
-                    <li>Izin kamera sudah diberikan</li>
-                    <li>Kamera tidak sedang digunakan aplikasi lain</li>
-                    <li>Coba refresh halaman jika masih bermasalah</li>
+                    <li>Camera permission is allowed</li>
+                    <li>The camera is not being used by another app</li>
+                    <li>Refresh the page if the problem persists</li>
                   </ul>
                 </div>
               </div>
@@ -471,7 +463,7 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
               disabled={loading}
               className="flex-1 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
             >
-              Batal
+              Cancel
             </button>
             <button
               onClick={handleSubmit}
@@ -481,10 +473,10 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
               {loading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Mengirim...
+                  Submitting...
                 </>
               ) : (
-                "Submit Absensi"
+                "Submit Attendance"
               )}
             </button>
           </div>

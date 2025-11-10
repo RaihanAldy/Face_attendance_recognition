@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Wifi, WifiOff, Bell, LogOut, CheckCircle, Clock, BellRing } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  Bell,
+  LogOut,
+  CheckCircle,
+  Clock,
+  BellRing,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Navbar = ({ onLogout, userRole }) => {
@@ -13,74 +21,93 @@ const Navbar = ({ onLogout, userRole }) => {
   const navigate = useNavigate();
 
   // Fetch notifications from backend
-const fetchNotifications = async () => {
-  try {
-    const token = localStorage.getItem("authToken");
-    
-    // Fetch pending verifications - PERBAIKI INI
-    const pendingResponse = await fetch("http://localhost:5000/api/attendance/pending?status=pending", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    
-    if (pendingResponse.ok) {
-      const pendingData = await pendingResponse.json();
-      
-      // PERBAIKI: Handle array langsung, bukan object.requests
-      const pendingArray = Array.isArray(pendingData) ? pendingData : pendingData.requests || [];
-      
-      const pendingNotifications = pendingArray
-        .filter(req => req.status === 'pending')
-        .map(req => ({
-          id: req._id,
-          type: 'pending_verification',
-          message: `${req.employees} mengajukan ${req.type === 'checkin' ? 'check-in' : 'check-out'} manual`,
-          time: formatTimeAgo(new Date(req.timestamp || req.created_at)),
-          timestamp: new Date(req.timestamp || req.created_at),
-          read: false,
-          data: req
-        }));
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
 
-      // Fetch AI Insights
-      const insightsResponse = await fetch("http://localhost:5000/api/insights/latest", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      let insightNotifications = [];
-      if (insightsResponse.ok) {
-        const insightsData = await insightsResponse.json();
-        if (insightsData.insights) {
-          insightNotifications = [{
-            id: insightsData.insights.record_id,
-            type: 'ai_insight',
-            message: `AI Insight baru: ${insightsData.insights.summary?.substring(0, 50) || 'Analisis telah selesai'}...`,
-            time: formatTimeAgo(new Date(insightsData.insights.generated_at)),
-            timestamp: new Date(insightsData.insights.generated_at),
-            read: false,
-            data: insightsData.insights
-          }];
+      // Fetch pending verifications - PERBAIKI INI
+      const pendingResponse = await fetch(
+        "http://localhost:5000/api/attendance/pending?status=pending",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
+      );
+
+      if (pendingResponse.ok) {
+        const pendingData = await pendingResponse.json();
+
+        // PERBAIKI: Handle array langsung, bukan object.requests
+        const pendingArray = Array.isArray(pendingData)
+          ? pendingData
+          : pendingData.requests || [];
+
+        const pendingNotifications = pendingArray
+          .filter((req) => req.status === "pending")
+          .map((req) => ({
+            id: req._id,
+            type: "pending_verification",
+            message: `${req.employees} mengajukan ${
+              req.type === "checkin" ? "check-in" : "check-out"
+            } manual`,
+            time: formatTimeAgo(new Date(req.timestamp || req.created_at)),
+            timestamp: new Date(req.timestamp || req.created_at),
+            read: false,
+            data: req,
+          }));
+
+        // Fetch AI Insights
+        const insightsResponse = await fetch(
+          "http://localhost:5000/api/insights/latest",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        let insightNotifications = [];
+        if (insightsResponse.ok) {
+          const insightsData = await insightsResponse.json();
+          if (insightsData.insights) {
+            insightNotifications = [
+              {
+                id: insightsData.insights.record_id,
+                type: "ai_insight",
+                message: `AI Insight baru: ${
+                  insightsData.insights.summary?.substring(0, 50) ||
+                  "Analisis telah selesai"
+                }...`,
+                time: formatTimeAgo(
+                  new Date(insightsData.insights.generated_at)
+                ),
+                timestamp: new Date(insightsData.insights.generated_at),
+                read: false,
+                data: insightsData.insights,
+              },
+            ];
+          }
+        }
+
+        // Combine and sort notifications
+        const allNotifications = [
+          ...pendingNotifications,
+          ...insightNotifications,
+        ].sort((a, b) => b.timestamp - a.timestamp);
+
+        setNotifications(allNotifications);
+        setUnreadCount(allNotifications.filter((n) => !n.read).length);
       }
-
-      // Combine and sort notifications
-      const allNotifications = [...pendingNotifications, ...insightNotifications]
-        .sort((a, b) => b.timestamp - a.timestamp);
-
-      setNotifications(allNotifications);
-      setUnreadCount(allNotifications.filter(n => !n.read).length);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
     }
-  } catch (error) {
-    console.error("Error fetching notifications:", error);
-  }
-};
+  };
 
   // Format time ago
   const formatTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
-    
+
     if (seconds < 60) return "Baru saja";
     if (seconds < 3600) return `${Math.floor(seconds / 60)} menit lalu`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`;
@@ -116,12 +143,12 @@ const fetchNotifications = async () => {
     }
 
     // Fetch notifications initially
-    if (userRole === 'admin') {
+    if (userRole === "admin") {
       fetchNotifications();
-      
+
       // Poll for new notifications every 30 seconds
       const notificationInterval = setInterval(fetchNotifications, 30000);
-      
+
       return () => {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
@@ -135,6 +162,7 @@ const fetchNotifications = async () => {
       window.removeEventListener("offline", handleOffline);
       clearInterval(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userRole]);
 
   const handleLogout = () => {
@@ -152,31 +180,12 @@ const fetchNotifications = async () => {
   };
 
   const handleNotificationClick = (notification) => {
-    if (notification.type === 'pending_verification') {
-      navigate('/pending');
-    } else if (notification.type === 'ai_insight') {
-      navigate('/admin/insights');
+    if (notification.type === "pending_verification") {
+      navigate("/pending");
+    } else if (notification.type === "ai_insight") {
+      navigate("/admin/insights");
     }
     setShowNotifications(false);
-  };
-
-  const markAsRead = async (notificationId) => {
-    try {
-      const token = localStorage.getItem("authToken");
-      await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-    }
   };
 
   const clearAllNotifications = () => {
@@ -214,7 +223,7 @@ const fetchNotifications = async () => {
             {/* Right Side - Search, Status & User */}
             <div className="flex items-center space-x-4">
               {/* Notifications */}
-              {userRole === 'admin' && (
+              {userRole === "admin" && (
                 <div className="relative">
                   <button
                     onClick={() => setShowNotifications(!showNotifications)}
@@ -223,7 +232,7 @@ const fetchNotifications = async () => {
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {unreadCount > 9 ? '9+' : unreadCount}
+                        {unreadCount > 9 ? "9+" : unreadCount}
                       </span>
                     )}
                   </button>
@@ -255,27 +264,36 @@ const fetchNotifications = async () => {
                           notifications.map((notification, index) => (
                             <div
                               key={notification.id || index}
-                              onClick={() => handleNotificationClick(notification)}
+                              onClick={() =>
+                                handleNotificationClick(notification)
+                              }
                               className={`px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-0 transition-colors ${
-                                !notification.read ? 'bg-slate-750' : ''
+                                !notification.read ? "bg-slate-750" : ""
                               }`}
                             >
                               <div className="flex items-start gap-3">
-                                <div className={`mt-1 p-1.5 rounded-lg ${
-                                  notification.type === 'pending_verification' 
-                                    ? 'bg-amber-500/20' 
-                                    : 'bg-blue-500/20'
-                                }`}>
-                                  {notification.type === 'pending_verification' ? (
+                                <div
+                                  className={`mt-1 p-1.5 rounded-lg ${
+                                    notification.type === "pending_verification"
+                                      ? "bg-amber-500/20"
+                                      : "bg-blue-500/20"
+                                  }`}
+                                >
+                                  {notification.type ===
+                                  "pending_verification" ? (
                                     <Clock className="h-4 w-4 text-amber-400" />
                                   ) : (
                                     <CheckCircle className="h-4 w-4 text-blue-400" />
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className={`text-sm ${
-                                    !notification.read ? 'text-slate-100 font-medium' : 'text-slate-200'
-                                  }`}>
+                                  <p
+                                    className={`text-sm ${
+                                      !notification.read
+                                        ? "text-slate-100 font-medium"
+                                        : "text-slate-200"
+                                    }`}
+                                  >
                                     {notification.message}
                                   </p>
                                   <p className="text-xs text-slate-400 mt-1">

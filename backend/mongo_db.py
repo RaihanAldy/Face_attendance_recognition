@@ -5,7 +5,10 @@ from dotenv import load_dotenv
 import traceback
 import numpy as np
 from bson import ObjectId
+import traceback
+
 from notification_service import send_all_notifications
+
 
 load_dotenv()
 
@@ -501,7 +504,7 @@ class MongoDBManager:
     
     def record_attendance_auto(self, employee_id, confidence=0.0):
         """
-        ✅ UPDATE: Kirim notifikasi tanpa telegram_chat_id parameter
+        ✅ FIXED: Auto-sync to DynamoDB when checkout is completed
         """
         try:
             # Ambil employee data
@@ -542,6 +545,7 @@ class MongoDBManager:
             status = self.calculate_attendance_status(timestamp, attendance_type)
             print(f"Calculated status: {status}")
 
+            # ==================== CHECK-IN LOGIC ====================
             if attendance_type == 'check_in':
                 record_data = {
                     'employee_id': employee_id,
@@ -552,7 +556,8 @@ class MongoDBManager:
                         'timestamp': timestamp.isoformat()
                     },
                     'createdAt': timestamp,
-                    'updatedAt': timestamp
+                    'updatedAt': timestamp,
+                    'updated_at': timestamp  # ✅ Add for sync compatibility
                 }
 
                 # Insert or update
@@ -577,30 +582,17 @@ class MongoDBManager:
                         print(f"Email: {employee.get('email', 'Not provided')}")
                         print(f"{'='*60}\n")
                         
-                        # ✅ AMBIL HANYA EMAIL (telegram_chat_id di Lambda)
                         employee_email = employee.get('email')
                         
                         # ✅ KIRIM NOTIFIKASI (non-blocking)
                         try:
-                            notification_result = send_all_notifications(
+                            send_all_notifications(
                                 employee_name=employee_name,
                                 employee_email=employee_email,
                                 lateness_minutes=lateness_minutes
-                                # ❌ TIDAK KIRIM telegram_chat_id!
                             )
-                            
-                            print(f"\n📧 Notification Result:")
-                            print(f"   Success: {notification_result.get('success', False)}")
-                            print(f"   Email sent: {notification_result.get('email_sent', False)}")
-                            print(f"   Telegram sent: {notification_result.get('telegram_sent', False)}")
-                            
-                            if notification_result.get('errors'):
-                                print(f"   Errors: {notification_result.get('errors')}")
-                            
                         except Exception as notif_error:
-                            # ⚠️ JANGAN BLOKIR ATTENDANCE JIKA NOTIFIKASI GAGAL
                             print(f"⚠️ Failed to send notification: {notif_error}")
-                            import traceback
                             traceback.print_exc()
                 
                 return {
@@ -609,9 +601,11 @@ class MongoDBManager:
                     'action': 'check_in',
                     'status': status,
                     'employee_name': employee_name,
+                    'synced_to_dynamodb': False,  # Check-in tidak di-sync
                     'data': record_data
                 }
 
+            # ==================== CHECK-OUT LOGIC (WITH AUTO-SYNC) ====================
             elif attendance_type == 'check_out':
                 # Update dokumen dengan data checkout
                 update_fields = {
@@ -619,30 +613,80 @@ class MongoDBManager:
                         'status': status,
                         'timestamp': timestamp.isoformat()
                     },
-                    'updatedAt': timestamp
+                    'updatedAt': timestamp,
+                    'updated_at': timestamp  # ✅ Add for sync compatibility
                 }
 
                 # Hitung durasi kerja jika checkin ada
+                work_duration = 0
                 if existing_record and existing_record.get('checkin'):
                     checkin_time = datetime.fromisoformat(
                         existing_record['checkin']['timestamp'].replace('Z', '+00:00')
                     )
-                    diff_minutes = int((timestamp - checkin_time).total_seconds() / 60)
-                    update_fields['work_duration_minutes'] = diff_minutes
-                    print(f"Work duration: {diff_minutes} minutes")
+                    work_duration = int((timestamp - checkin_time).total_seconds() / 60)
+                    update_fields['work_duration_minutes'] = work_duration
+                    print(f"Work duration: {work_duration} minutes")
 
+                # ✅ UPDATE MONGODB FIRST
                 result = self.attendance.update_one(
                     {'employee_id': employee_id, 'date': today_str},
                     {'$set': update_fields}
                 )
 
                 print(f"✅ Check-out recorded - Status: {status}")
+
+                # ==================== ✅ AUTO-SYNC TO DYNAMODB ====================
+                sync_success = False
+                try:
+                    print(f"\n{'='*60}")
+                    print(f"☁️  AUTO-SYNCING TO DYNAMODB")
+                    print(f"{'='*60}")
+                    
+                    # ✅ IMPORT DI DALAM FUNCTION UNTUK AVOID CIRCULAR IMPORT
+                    import sync_mongo_to_dynamo
+                    
+                    # Get the updated record
+                    updated_record = self.attendance.find_one({
+                        'employee_id': employee_id,
+                        'date': today_str
+                    })
+                    
+                    if updated_record:
+                        print(f"📋 Updated record found:")
+                        print(f"   Employee: {employee_name}")
+                        print(f"   Date: {today_str}")
+                        print(f"   Has checkout: {bool(updated_record.get('checkout'))}")
+                        print(f"   Work duration: {work_duration} minutes")
+                        
+                        # ✅ CALL SYNC FUNCTION
+                        sync_result = sync_mongo_to_dynamo.sync_single_record(updated_record)
+                        
+                        if sync_result:
+                            print(f"✅ Successfully synced to DynamoDB!")
+                            sync_success = True
+                        else:
+                            print(f"⚠️ Sync failed but local save is OK")
+                    else:
+                        print(f"⚠️ Could not find updated record for sync")
+                        
+                    print(f"{'='*60}\n")
+                    
+                except ImportError as import_error:
+                    print(f"❌ Failed to import sync module: {import_error}")
+                    print(f"⚠️ Make sure sync_mongo_to_dynamo.py is in the same directory")
+                    traceback.print_exc()
+                except Exception as sync_error:
+                    print(f"❌ Auto-sync error (but local save is OK): {sync_error}")
+                    traceback.print_exc()
+
                 return {
                     'success': True, 
                     'message': 'Check-out recorded', 
                     'action': 'check_out',
                     'status': status,
                     'employee_name': employee_name,
+                    'synced_to_dynamodb': sync_success,
+                    'work_duration_minutes': work_duration,
                     'data': update_fields
                 }
 
@@ -650,6 +694,7 @@ class MongoDBManager:
             print(f"❌ Error recording attendance: {e}")
             traceback.print_exc()
             return {'success': False, 'error': str(e)}
+
 
     def get_all_attendance(self):
         """Ambil semua data attendance (format baru)."""

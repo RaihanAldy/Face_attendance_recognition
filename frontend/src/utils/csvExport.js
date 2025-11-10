@@ -6,23 +6,16 @@ export const exportCSV = (
   calculateWorkingHours
 ) => {
   if (filteredData.length === 0) {
-    alert("Tidak ada data untuk di-export");
+    alert("No data available to export");
     return;
   }
 
   let headers = [];
   let csvData = [];
 
-  //  Case 1: Default view (no check filters)
+  // Case 1: Default view (no check filters)
   if (!checkFilters.checkin && !checkFilters.checkout) {
-    headers = [
-      "Employee ID",
-      "Nama",
-      "Action",
-      "Status",
-      "Timestamp",
-      "Tanggal",
-    ];
+    headers = ["Employee ID", "Name", "Action", "Status", "Timestamp", "Date"];
 
     csvData = filteredData.map((record) => [
       record.employeeId || "-",
@@ -31,14 +24,14 @@ export const exportCSV = (
       record.status || "-",
       formatDateTime(record.timestamp) || "-",
       record.timestamp
-        ? new Date(record.timestamp).toLocaleDateString("id-ID")
+        ? new Date(record.timestamp).toLocaleDateString("en-US")
         : "-",
     ]);
   }
 
-  //  Case 2: Check In only
+  // Case 2: Check In only
   else if (checkFilters.checkin && !checkFilters.checkout) {
-    headers = ["Employee ID", "Nama", "Check In", "Status", "Tanggal"];
+    headers = ["Employee ID", "Name", "Check In", "Status", "Date"];
 
     csvData = filteredData.map((record) => [
       record.employeeId || "-",
@@ -46,14 +39,14 @@ export const exportCSV = (
       formatDateTime(record.checkIn) || "-",
       record.status || record.checkInStatus || "-",
       record.checkIn
-        ? new Date(record.checkIn).toLocaleDateString("id-ID")
+        ? new Date(record.checkIn).toLocaleDateString("en-US")
         : "-",
     ]);
   }
 
-  //  Case 3: Check Out only
+  // Case 3: Check Out only
   else if (!checkFilters.checkin && checkFilters.checkout) {
-    headers = ["Employee ID", "Nama", "Check Out", "Status", "Tanggal"];
+    headers = ["Employee ID", "Name", "Check Out", "Status", "Date"];
 
     csvData = filteredData.map((record) => [
       record.employeeId || "-",
@@ -61,22 +54,22 @@ export const exportCSV = (
       formatDateTime(record.checkOut) || "-",
       record.status || record.checkOutStatus || "-",
       record.checkOut
-        ? new Date(record.checkOut).toLocaleDateString("id-ID")
+        ? new Date(record.checkOut).toLocaleDateString("en-US")
         : "-",
     ]);
   }
 
-  //  Case 4: Check In + Check Out (paired view)
+  // Case 4: Check In + Check Out paired
   else if (checkFilters.checkin && checkFilters.checkout) {
     headers = [
       "Employee ID",
-      "Nama",
-      "Tanggal",
+      "Name",
+      "Date",
       "Check In",
-      "Status Check In",
+      "Check In Status",
       "Check Out",
-      "Status Check Out",
-      "Jam Kerja",
+      "Check Out Status",
+      "Working Hours",
     ];
 
     csvData = filteredData.map((record) => [
@@ -84,7 +77,7 @@ export const exportCSV = (
       record.name || "-",
       record.checkIn || record.checkOut
         ? new Date(record.checkIn || record.checkOut).toLocaleDateString(
-            "id-ID"
+            "en-US"
           )
         : "-",
       formatDateTime(record.checkIn) || "-",
@@ -105,7 +98,7 @@ export const exportCSV = (
       row
         .map((field) => {
           const str = String(field);
-          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          // Escape quotes and wrap in quotes if necessary
           if (str.includes(",") || str.includes('"') || str.includes("\n")) {
             return `"${str.replace(/"/g, '""')}"`;
           }
@@ -115,7 +108,7 @@ export const exportCSV = (
     ),
   ].join("\n");
 
-  // Create and download file
+  // Create and download the CSV file
   const blob = new Blob(["\uFEFF" + csvContent], {
     type: "text/csv;charset=utf-8;",
   });
@@ -123,7 +116,7 @@ export const exportCSV = (
   const link = document.createElement("a");
   link.href = url;
 
-  // Generate filename
+  // Filename generator
   const filterSuffix = filter === "all" ? "all-time" : "today";
   const checkFilterSuffix =
     checkFilters.checkin && checkFilters.checkout

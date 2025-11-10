@@ -5,12 +5,13 @@ from face_engine import face_engine
 from datetime import datetime
 import traceback
 import sync_mongo_to_dynamo
-from apscheduler.schedulers.background import BackgroundScheduler
 import boto3
 from botocore.exceptions import ClientError
 from pytz import timezone
 from sync_mongo_to_dynamo import fetch_insights_from_dynamodb
 import json
+from sync_mongo_to_dynamo import sync_attendance
+from notification_service import send_all_notifications
 
 
 app = Flask(__name__)
@@ -24,8 +25,14 @@ insights_table = dynamodb.Table(INSIGHTS_TABLE)
 @app.route('/api/insights/latest', methods=['GET'])
 def get_latest_insights():
     """Get the most recent AI insights"""
+
     try:
-        # Query DynamoDB untuk insights terbaru - INCLUDE key_findings
+        from sync_mongo_to_dynamo import fetch_insights_from_dynamodb
+        fetch_insights_from_dynamodb()
+    except Exception as e:
+        print(f"⚠️ Insight auto-fetch failed: {e}")
+
+    try:
         response = insights_table.scan(
             ProjectionExpression="record_id, summary, generated_at, processed_records, unique_employees, key_findings, data_range",
             Limit=50
@@ -39,15 +46,8 @@ def get_latest_insights():
                 'message': 'No insights available yet'
             }), 404
         
-        # Sort by generated_at descending untuk dapat yang terbaru
         items.sort(key=lambda x: x.get('generated_at', ''), reverse=True)
         insight = items[0]
-        
-        # Debug: print struktur data
-        print(f"🔍 DEBUG Insight data structure:")
-        print(f"   key_findings: {insight.get('key_findings')}")
-        print(f"   key_findings type: {type(insight.get('key_findings'))}")
-        print(f"   key_findings length: {len(insight.get('key_findings', []))}")
         
         return jsonify({
             'success': True,
@@ -64,9 +64,9 @@ def get_latest_insights():
         
     except Exception as e:
         print(f"❌ Error getting latest insights: {e}")
-        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-      
+
+
 @app.route('/api/insights/history', methods=['GET'])
 def get_insights_history():
     """Get historical AI insights"""
@@ -215,24 +215,6 @@ def get_insights_stats():
         print(f"❌ Error getting insights stats: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ================= Scheduler Setup =================
-
-def scheduled_sync():
-    try:
-        print(f"⏰ Running scheduled sync at {datetime.now().isoformat()}")
-        sync_mongo_to_dynamo.main()
-        print("✅ Daily sync completed successfully.")
-    except Exception as e:
-        print(f"❌ Error during scheduled sync: {e}")
-
-def scheduled_insight_sync():
-    """Sinkronisasi AI Insight dari DynamoDB ke MongoDB lokal"""
-    print(f"🕒 Running scheduled insight sync at {datetime.now().isoformat()}")
-    try:
-        new_count = fetch_insights_from_dynamodb()
-        print(f"✅ Insight sync completed — {new_count} item(s) synced.")
-    except Exception as e:
-        print(f"❌ Error during insight sync: {e}")
 
 @app.route('/api/sync', methods=['POST'])
 def manual_sync():
@@ -404,51 +386,34 @@ def checkin():
 
 @app.route('/api/attendance/checkout', methods=['POST'])
 def checkout():
-    """Manual check-out endpoint (new structure)"""
     try:
         data = request.json or {}
         employee_id = data.get('employeeId')
         confidence = data.get('confidence', 0.95)
-        
+
         if not employee_id:
             return jsonify({'success': False, 'error': 'Missing employeeId'}), 400
-        
+
         print(f"📤 Manual check-out for: {employee_id}")
-        
-        # Format baru juga auto-handle checkout
+
+        # Perform checkout logic
         result = db.record_attendance_auto(employee_id, confidence)
+
+        if result.get('success'):
+            print("✅ Checkout successful, syncing attendance to DynamoDB...")
+            try:
+                sync_attendance()
+                print("✅ Sync success!")
+            except Exception as sync_error:
+                print("❌ Sync error:", sync_error)
+
         return jsonify(result), 200 if result.get('success') else 500
-            
+
     except Exception as e:
         print(f"❌ Check-out error: {e}")
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
-    
-@app.route('/api/attendance/auto', methods=['POST'])
-def record_attendance_auto():
-    """Record attendance with auto-detect (recommended)"""
-    try:
-        data = request.json or {}
-        print(f"🤖 AUTO ATTENDANCE - Data: {data}")
-        
-        employee_id = data.get('employeeId')
-        confidence = data.get('confidence', 0.0)
-        
-        if not employee_id:
-            return jsonify({'success': False, 'error': 'Employee ID is required'}), 400
-        
-        result = db.record_attendance_auto(employee_id, confidence)
-        
-        if result and result.get('success'):
-            return jsonify(result), 200
-        else:
-            error_msg = result.get('error') if result else 'Failed to record attendance'
-            return jsonify({'success': False, 'error': error_msg}), 500
-                
-    except Exception as e:
-        print(f"❌ Error recording auto attendance: {e}")
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/attendance/employee/<employee_id>', methods=['GET'])
 def get_employee_attendance(employee_id):
@@ -1045,21 +1010,6 @@ if __name__ == '__main__':
     print("=" * 60)
     print("🚀 Starting Face Recognition Attendance System")
     print("=" * 60)
-    scheduler = BackgroundScheduler()
-
-    scheduler.add_job(
-    scheduled_insight_sync,
-    'interval',
-    hours=1,  # bisa kamu ubah jadi 2 atau 3 jam sesuai kebutuhan
-    timezone=timezone('Asia/Jakarta')
-    )
-    scheduler.add_job(
-    scheduled_sync,
-    'cron',
-    hour=23,
-    minute=0,
-    timezone=timezone('Asia/Jakarta')
-    )
 
     with app.app_context():
         print("Flask starting, checking for unsynced data...")
@@ -1067,11 +1017,6 @@ if __name__ == '__main__':
             sync_mongo_to_dynamo.main()
         except Exception as e:
             print(f"❌ Error during startup sync: {e}")
-
-    # Start scheduler hanya sekali
-    if not scheduler.running:
-        scheduler.start()
-        print("✅ Scheduler aktif: sync otomatis setiap jam 23:00 WIB")
-
+    
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
 

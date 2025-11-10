@@ -50,7 +50,7 @@ const Login = ({ onLogin }) => {
         // Navigate to analytics dashboard
         navigate("/analytics", { replace: true });
       } else {
-        throw new Error(data.error || "Login gagal");
+        throw new Error(data.error || "Login failed. Please try again.");
       }
     } catch (error) {
       console.error(" Login error:", error);
@@ -60,7 +60,7 @@ const Login = ({ onLogin }) => {
 
       if (error.message === "Failed to fetch") {
         errorMessage =
-          "Tidak dapat terhubung ke server. Pastikan backend running di http://localhost:5000";
+          "Unable to connect to the server. Ensure the backend is running on http://localhost:5000";
       }
 
       setError(errorMessage);
@@ -80,9 +80,6 @@ const Login = ({ onLogin }) => {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-white">Admin Login</h2>
-          <p className="text-slate-400 mt-2">
-            Hanya untuk administrator sistem
-          </p>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -143,7 +140,7 @@ const Login = ({ onLogin }) => {
             {isLoading ? (
               <div className="flex items-center justify-center space-x-2">
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Memproses...</span>
+                <span>Processing...</span>
               </div>
             ) : (
               "Login sebagai Admin"
@@ -166,7 +163,7 @@ const Login = ({ onLogin }) => {
               <span className="text-blue-400 font-mono">admin123</span>
             </p>
             <p className="text-xs text-slate-500 mt-2">
-              Username akan diambil dari email (sebelum @)
+              The username will be taken from the email (before @).
             </p>
           </div>
         </div>
@@ -177,7 +174,7 @@ const Login = ({ onLogin }) => {
             onClick={() => navigate("/")}
             className="text-slate-400 hover:text-slate-300 text-sm transition-colors"
           >
-            ← Kembali ke Face Scan
+            ← Face Scan
           </button>
         </div>
       </div>

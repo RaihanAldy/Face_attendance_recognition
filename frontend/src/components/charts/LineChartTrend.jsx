@@ -12,7 +12,7 @@ export default function LineChartTrend({ data, isLoading }) {
   return (
     <div className="bg-slate-900 p-6 rounded-2xl shadow-md">
       <h2 className="text-lg font-semibold mb-4 text-gray-200">
-        Attendance Trend (7 Days)
+        Attendance Trend
       </h2>
       {isLoading ? (
         <div className="h-[280px] flex items-center justify-center">

@@ -24,7 +24,7 @@ export default function Analytics() {
     refetch: refetchInsights,
   } = useAIInsights();
 
-  // PERBAIKAN: Menggunakan loading state yang benar
+  // FIX: Correct loading state
   const loading = dataLoading || insightLoading;
   const error = dataError || insightError;
 
@@ -33,7 +33,7 @@ export default function Analytics() {
     refetchInsights();
   };
 
-  // PERBAIKAN: Error handling yang lebih baik
+  // FIX: Improved Error Handling
   if (error) {
     return (
       <div className="p-6 bg-slate-950 min-h-screen">
@@ -99,6 +99,7 @@ export default function Analytics() {
           data={analyticsData.attendanceTrend}
           isLoading={loading}
         />
+
         {/* AI Insight Summary Card */}
         <AIInsightSummary
           insightData={
@@ -111,10 +112,12 @@ export default function Analytics() {
           }
           isLoading={insightLoading}
         />
+
         <BarChartTrend
           data={analyticsData.topDepartments}
           isLoading={loading}
         />
+
         <Heatmap data={analyticsData.hourlyCheckIns} isLoading={loading} />
       </div>
     </div>
