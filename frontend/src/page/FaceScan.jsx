@@ -234,7 +234,7 @@ export default function FaceScan({ onLogin, onNavigateToRegistration }) {
               reject(new Error("Video load timeout - no dimensions"));
             }
           }
-        }, 5000);
+        }, 20000);
       });
 
       setIsScanning(true);

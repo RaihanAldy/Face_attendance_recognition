@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Wifi, WifiOff, Bell, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from './path-to-your-auth-hook';
+import { useAuth } from '../hooks/useAuth';
 
 const Navbar = ({ onLogout, userRole }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -10,11 +10,7 @@ const Navbar = ({ onLogout, userRole }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
-  const { user } = useAuth();
-
-  if (!user) {
-    return null; // Atau return <LoadingSpinner />
-  }
+  const { user, isAuthenticated, isLoading } = useAuth();
   
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);

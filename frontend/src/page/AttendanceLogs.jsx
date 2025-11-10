@@ -32,6 +32,7 @@ const AttendanceLogs = () => {
     const {
       employeeId,
       name,
+      date,
       checkIn,
       checkInStatus,
       checkOut,
@@ -39,73 +40,50 @@ const AttendanceLogs = () => {
       workingHours,
     } = record;
 
-    // Gunakan 'checkin' dan 'checkout' (huruf kecil)
-    if (!checkin && !checkout) return acc;
-
-    if (checkFilters.checkin && checkFilters.checkout) {
+    // Helper to push a normalized row for either check-in or check-out
+    const pushRow = ({ action, timestamp, status }) => {
       acc.push({
         employeeId,
         name: name || "Unknown Employee",
-        checkIn,
-        checkInStatus,
-        checkOut,
-        checkOutStatus,
+        date: date || null,
+        action,
+        timestamp,
+        status: status || "ontime",
         workingHours,
+        checkIn,
+        checkOut,
+        checkInStatus,
+        checkOutStatus,
       });
+    };
+
+    const wantCheckIn = checkFilters.checkin;
+    const wantCheckOut = checkFilters.checkout;
+
+    // If neither filter is toggled, show both types (if present)
+    if (!wantCheckIn && !wantCheckOut) {
+      if (checkIn) pushRow({ action: "Check In", timestamp: checkIn, status: checkInStatus });
+      if (checkOut) pushRow({ action: "Check Out", timestamp: checkOut, status: checkOutStatus });
       return acc;
     }
 
-    if (checkFilters.checkin && !checkFilters.checkout) {
-      if (checkIn) {
-        acc.push({
-          employeeId,
-          name: name || "Unknown Employee",
-          checkIn,
-          status: checkInStatus || "ontime",
-          action: "Check In",
-          timestamp: checkIn,
-        });
-      }
+    // If both toggled, include both if present
+    if (wantCheckIn && wantCheckOut) {
+      if (checkIn) pushRow({ action: "Check In", timestamp: checkIn, status: checkInStatus });
+      if (checkOut) pushRow({ action: "Check Out", timestamp: checkOut, status: checkOutStatus });
       return acc;
     }
 
-    if (!checkFilters.checkin && checkFilters.checkout) {
-      if (checkOut) {
-        acc.push({
-          employeeId,
-          name: name || "Unknown Employee",
-          checkOut,
-          status: checkOutStatus || "ontime",
-          action: "Check Out",
-          timestamp: checkOut,
-        });
-      }
+    // Only check-in
+    if (wantCheckIn && !wantCheckOut) {
+      if (checkIn) pushRow({ action: "Check In", timestamp: checkIn, status: checkInStatus });
       return acc;
     }
 
-    // Bagian ini juga diperbaiki (sebelumnya menggunakan variabel yang salah)
-    if (!checkFilters.checkin && !checkFilters.checkout) {
-      if (checkin) {
-        acc.push({
-          employeeId: employee_id, // <-- Diperbaiki
-          name: employee_name || "Unknown Employee", // <-- Diperbaiki
-          status: checkin.status || "ontime", // <-- Diperbaiki
-          action: "Check In",
-          timestamp: checkin.timestamp, // <-- Diperbaiki
-          date: date, // <-- Ditambahkan
-        });
-      }
-
-      if (checkout) {
-        acc.push({
-          employeeId: employee_id, // <-- Diperbaiki
-          name: employee_name || "Unknown Employee", // <-- Diperbaiki
-          status: checkout.status || "ontime", // <-- Diperbaiki
-          action: "Check Out",
-          timestamp: checkout.timestamp, // <-- Diperbaiki
-          date: date, // <-- Ditambahkan
-        });
-      }
+    // Only check-out
+    if (!wantCheckIn && wantCheckOut) {
+      if (checkOut) pushRow({ action: "Check Out", timestamp: checkOut, status: checkOutStatus });
+      return acc;
     }
 
     return acc;
