@@ -11,16 +11,14 @@ export const getLast7Days = () => {
 export const formatDay = (dateString) =>
   new Date(dateString).toLocaleDateString("en-US", { weekday: "short" });
 
-// PERBAIKAN: Menambahkan parameter stats dan error handling
+// Fix: Add missing stats parameter and error handling
 export const transformAnalyticsData = (attendance, employees) => {
   try {
-    // Pastikan data adalah array
     const attendanceData = Array.isArray(attendance) ? attendance : [];
     const employeesData = Array.isArray(employees) ? employees : [];
 
     const today = new Date().toISOString().split("T")[0];
     const todayAttendance = attendanceData.filter((a) => a.date === today);
-
     const lateArrivals = todayAttendance.filter(
       (a) => a.checkin?.status === "late"
     ).length;
@@ -55,12 +53,12 @@ export const transformAnalyticsData = (attendance, employees) => {
       date: day,
     }));
 
-    const deptMap = {};
     const empDeptMap = {};
     employeesData.forEach((emp) => {
       empDeptMap[emp.employee_id] = emp.department || "General";
     });
 
+    const deptMap = {};
     attendanceData.forEach((record) => {
       const dept = empDeptMap[record.employee_id] || "General";
       deptMap[dept] = (deptMap[dept] || 0) + 1;
@@ -115,7 +113,7 @@ export const transformAnalyticsData = (attendance, employees) => {
     };
   } catch (error) {
     console.error("Error in transformAnalyticsData:", error);
-    // Return data default jika terjadi error
+    // Return default data on error
     return {
       summary: { total: 0, critical: 0 },
       workingDurationData: { average: 0, longest: 0, shortest: 0 },

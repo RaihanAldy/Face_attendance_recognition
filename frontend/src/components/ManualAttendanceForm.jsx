@@ -18,37 +18,24 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [useCamera, setUseCamera] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Cleanup camera on unmount
   useEffect(() => {
     startCamera();
-
-    // executed when component UNMOUNT
-    return () => {
-      stopCamera();
-    };
+    return () => stopCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startCamera = async () => {
     try {
-      setCameraError(null);
       setError(null);
 
-      // Stop any existing stream first
-      if (streamRef.current) {
-        stopCamera();
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
+      if (streamRef.current) stopCamera();
 
-      console.log("Starting camera...");
-
-      const constraints = {
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
@@ -56,81 +43,48 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
           frameRate: { ideal: 30 },
         },
         audio: false,
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log("Camera access granted");
+      });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
-
-        await new Promise((resolve, reject) => {
-          const video = videoRef.current;
-
-          const onLoadedMetadata = () => {
-            console.log("Video metadata loaded");
-            video.onloadedmetadata = () => {
-              video.play().catch((err) => console.error("Play failed:", err));
-            };
-          };
-
-          const onError = () => {
-            reject(new Error("Video playback failed", cameraError));
-          };
-
-          video.addEventListener("loadedmetadata", onLoadedMetadata, {
-            once: true,
-          });
-          video.addEventListener("error", onError, { once: true });
-
-          setTimeout(() => {
-            if (video.readyState >= 2) {
-              video.play().then(resolve).catch(reject);
-            } else {
-              reject(new Error("Camera timeout"));
-            }
-          }, 3000);
-        });
+        await videoRef.current.play();
       }
 
       setUseCamera(true);
-      console.log("Camera started successfully");
     } catch (err) {
-      console.error("Camera error:", err);
-      let errorMessage = "Failed to access camera. ";
-
-      if (err.name === "NotAllowedError") {
-        errorMessage +=
-          "Camera permission denied. Please allow camera access in your browser.";
-      } else if (err.name === "NotFoundError") {
-        errorMessage += "No camera device found.";
-      } else if (err.name === "NotReadableError") {
-        errorMessage += "Camera is being used by another application.";
-      } else if (err.name === "OverconstrainedError") {
-        errorMessage += "Camera does not support the requested resolution.";
-      } else {
-        errorMessage += err.message || "Unknown error.";
-      }
-
-      setCameraError(errorMessage);
-      setError(errorMessage);
-      stopCamera();
+      handleCameraError(err);
     }
   };
 
+  const handleCameraError = (err) => {
+    let msg = "Failed to access camera. ";
+    switch (err.name) {
+      case "NotAllowedError":
+        msg += "Permission denied. Please allow camera access.";
+        break;
+      case "NotFoundError":
+        msg += "No camera device found.";
+        break;
+      case "NotReadableError":
+        msg += "Camera is in use by another application.";
+        break;
+      case "OverconstrainedError":
+        msg += "Camera does not support the requested resolution.";
+        break;
+      default:
+        msg += err.message || "Unknown error.";
+    }
+    setError(msg);
+    stopCamera();
+  };
+
   const stopCamera = () => {
-    console.log("Stopping camera...");
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        console.log(`Stopping track: ${track.kind}`);
-        track.stop();
-      });
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    if (videoRef.current) videoRef.current.srcObject = null;
     setUseCamera(false);
   };
 
@@ -140,61 +94,47 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
       return;
     }
 
-    try {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
 
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            setError("Failed to capture photo");
-            return;
-          }
-
-          const file = new File([blob], `attendance_${Date.now()}.jpg`, {
-            type: "image/jpeg",
-          });
-          handlePhotoCapture(file);
-        },
-        "image/jpeg",
-        0.9
-      );
-    } catch (err) {
-      console.error("Capture error:", err);
-      setError("Failed to capture photo: " + err.message);
-    }
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setError("Failed to capture photo");
+          return;
+        }
+        const file = new File([blob], `attendance_${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+        handlePhotoCapture(file);
+      },
+      "image/jpeg",
+      0.9
+    );
   };
 
   const handlePhotoCapture = (file) => {
     setPhoto(file);
-
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setPhotoPreview(reader.result);
-    };
-    reader.onerror = () => {
-      setError("Failed to load photo preview");
-    };
+    reader.onloadend = () => setPhotoPreview(reader.result);
+    reader.onerror = () => setError("Failed to load photo preview");
     reader.readAsDataURL(file);
-
     stopCamera();
   };
 
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        setError("File must be an image");
-        return;
-      }
-      handlePhotoCapture(file);
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("File must be an image");
+      return;
     }
+    handlePhotoCapture(file);
   };
 
   const removePhoto = () => {
@@ -204,31 +144,17 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
-    if (!employeeName.trim()) {
-      setError("Full name is required");
-      return;
-    }
-
-    if (!photo) {
-      setError("A photo must be taken or uploaded");
-      return;
-    }
+    if (!employeeName.trim()) return setError("Full name is required");
+    if (!photo) return setError("A photo is required");
 
     setLoading(true);
     setError(null);
 
     try {
-      const photoBase64 = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(photo);
-      });
-
-      const response = await fetch(`${API_BASE_URL}/api/attendance/manual`, {
+      const photoBase64 = await fileToBase64(photo);
+      const res = await fetch(`${API_BASE_URL}/api/attendance/manual`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           employees: employeeName.trim(),
           photo: photoBase64,
@@ -236,52 +162,46 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
 
-      const result = await response.json();
-
+      const result = await res.json();
       if (result.success) {
         alert(
           `Manual Attendance Successful!\n\nName: ${employeeName}\nTime: ${new Date().toLocaleString()}`
         );
-        if (onSuccess) onSuccess(result);
-        if (onClose) onClose();
+        onSuccess?.(result);
+        onClose?.();
       } else {
-        setError(result.error || "Failed to submit attendance");
+        setError(result.error || "Submission failed");
       }
     } catch (err) {
-      console.error("Submit error:", err);
       setError(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  const fileToBase64 = (file) =>
+    new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+
   const testCameraAccess = async () => {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError("Your browser does not support camera access");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError("Browser does not support camera access");
         return;
       }
-
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(
-        (device) => device.kind === "videoinput"
-      );
-
+      const videoDevices = devices.filter((d) => d.kind === "videoinput");
       if (videoDevices.length === 0) {
         setError("No camera detected");
         return;
       }
-
-      console.log(`Found ${videoDevices.length} camera(s):`, videoDevices);
-
       await startCamera();
     } catch (err) {
-      console.error("Camera test failed:", err);
       setError("Cannot access camera: " + err.message);
     }
   };
@@ -321,7 +241,6 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
             </div>
           )}
 
-          {/* Full Name Input */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
               Full Name *
@@ -336,7 +255,6 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
             />
           </div>
 
-          {/* Photo Section */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-3">
               Selfie Photo *
@@ -349,9 +267,8 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                     ref={videoRef}
                     autoPlay
                     playsInline
-                    controls={false}
+                    muted
                     className="w-full h-64 object-cover"
-                    style={{ backgroundColor: "black" }}
                   />
                   <div className="absolute top-4 left-4 bg-black/70 px-4 py-2 rounded-lg">
                     <p className="text-white font-medium">Take Photo</p>
@@ -359,9 +276,8 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                       Position your face at the center
                     </p>
                   </div>
-
                   <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-green-600 px-3 py-1 rounded-lg">
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                     <span className="text-white text-sm">Camera Active</span>
                   </div>
                 </div>
@@ -441,7 +357,6 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
                   </div>
                 </div>
 
-                {/* Troubleshooting */}
                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
                   <p className="text-xs text-yellow-300">
                     Tips: If the camera does not turn on, ensure:
@@ -456,7 +371,6 @@ const ManualAttendanceForm = ({ onClose, onSuccess }) => {
             )}
           </div>
 
-          {/* Submit Button */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={onClose}

@@ -34,7 +34,6 @@ export const useAnalyticsData = () => {
       const employees = await employeesRes.json();
       const stats = await statsRes.json();
 
-      // PERBAIKAN: Menambahkan parameter stats yang hilang
       const transformed = transformAnalyticsData(attendance, employees, stats);
       setAnalyticsData(transformed);
     } catch (err) {

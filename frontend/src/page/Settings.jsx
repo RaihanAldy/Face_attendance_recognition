@@ -12,33 +12,33 @@ const Settings = () => {
   const [message, setMessage] = useState({ type: "", text: "" });
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setIsLoading(true);
-        const res = await fetch("http://localhost:5000/api/settings");
-
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const data = await res.json();
-        setSettings({
-          startTime: data.startTime || "08:00",
-          endTime: data.endTime || "17:00",
-        });
-      } catch (error) {
-        console.error("Failed to load settings:", error);
-        setMessage({
-          type: "error",
-          text: "Faled to load settings",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("http://localhost:5000/api/settings");
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setSettings({
+        startTime: data.startTime || "08:00",
+        endTime: data.endTime || "17:00",
+      });
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+      setMessage({
+        type: "error",
+        text: "Failed to load settings",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setSettings((prev) => ({
@@ -51,11 +51,11 @@ const Settings = () => {
     const { startTime, endTime } = settings;
 
     if (!startTime || !endTime) {
-      return "The start and end times must be filled in.";
+      return "Start and end times must be filled in.";
     }
 
     if (startTime >= endTime) {
-      return "The end time must be after the start time.";
+      return "End time must be after start time.";
     }
 
     return null;
@@ -94,10 +94,9 @@ const Settings = () => {
 
       setMessage({
         type: "success",
-        text: result.message || "Settings successfully sync!",
+        text: result.message || "Settings successfully saved!",
       });
 
-      // Auto clear success message after 3 seconds
       setTimeout(() => {
         setMessage({ type: "", text: "" });
       }, 3000);
@@ -105,14 +104,13 @@ const Settings = () => {
       console.error("Failed to save settings:", error);
       setMessage({
         type: "error",
-        text: error.message || "Error Saving Settings!",
+        text: error.message || "Error saving settings!",
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  // ✅ Fungsi khusus untuk handle sync manual
   const handleManualSync = async () => {
     try {
       setIsSyncing(true);
@@ -130,24 +128,19 @@ const Settings = () => {
       const data = await res.json();
       setMessage({
         type: "success",
-        text: data.message || "Sync Success!",
+        text: data.message || "Sync successful!",
       });
 
-      // Auto clear success message after 5 seconds (lebih lama untuk sync)
       setTimeout(() => setMessage({ type: "", text: "" }), 5000);
     } catch (error) {
-      console.error("Sync gagal:", error);
+      console.error("Sync failed:", error);
       setMessage({
         type: "error",
-        text: error.message || "Sync Failed!",
+        text: error.message || "Sync failed!",
       });
     } finally {
       setIsSyncing(false);
     }
-  };
-
-  const handleTimeChange = (field, value) => {
-    handleInputChange(field, value);
   };
 
   if (isLoading) {
@@ -167,7 +160,7 @@ const Settings = () => {
             Settings
           </h1>
         </div>
-        {/* Message Alert */}
+
         {message.text && (
           <div
             className={`mb-6 p-4 rounded-lg ${
@@ -179,33 +172,33 @@ const Settings = () => {
             {message.text}
           </div>
         )}
+
         <div className="bg-slate-900 rounded-xl p-6 space-y-6">
           <div>
             <label className="block text-gray-200 mb-2 text-sm font-medium">
-              Check In:
+              Check-In Time:
             </label>
             <input
               type="time"
               value={settings.startTime}
-              onChange={(e) => handleTimeChange("startTime", e.target.value)}
+              onChange={(e) => handleInputChange("startTime", e.target.value)}
               className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
             />
           </div>
 
           <div>
             <label className="block text-gray-200 mb-2 text-sm font-medium">
-              Check Out:
+              Check-Out Time:
             </label>
             <input
               type="time"
               value={settings.endTime}
-              onChange={(e) => handleTimeChange("endTime", e.target.value)}
+              onChange={(e) => handleInputChange("endTime", e.target.value)}
               className="w-full bg-white border-2 border-blue-500 rounded-lg px-4 py-3 text-slate-950 focus:outline-none focus:border-blue-400 transition-colors"
             />
           </div>
 
           <div className="flex gap-3 pt-4">
-            {/* Tombol Simpan */}
             <button
               onClick={handleSave}
               disabled={isSaving}
@@ -221,7 +214,6 @@ const Settings = () => {
               )}
             </button>
 
-            {/* ✅ Tombol Sync Manual - DIPERBAIKI */}
             <button
               onClick={handleManualSync}
               disabled={isSyncing}
@@ -230,14 +222,13 @@ const Settings = () => {
               {isSyncing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Menyinkronkan...
+                  Synchronizing...
                 </>
               ) : (
-                "Sync Manual"
+                "Manual Sync"
               )}
             </button>
 
-            {/* Tombol Kembali */}
             <button
               onClick={() => window.history.back()}
               className="bg-gray-600 hover:bg-gray-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"

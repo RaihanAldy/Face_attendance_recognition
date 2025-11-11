@@ -86,7 +86,7 @@ const Login = ({ onLogin }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">
-                Email Admin
+                Admin Email
               </label>
               <input
                 type="text"
@@ -108,7 +108,7 @@ const Login = ({ onLogin }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-12"
-                  placeholder="Masukkan password"
+                  placeholder="Enter password"
                   required
                 />
                 <button
@@ -143,7 +143,7 @@ const Login = ({ onLogin }) => {
                 <span>Processing...</span>
               </div>
             ) : (
-              "Login sebagai Admin"
+              "Login as Admin"
             )}
           </button>
         </form>
