@@ -20,12 +20,11 @@ const Navbar = ({ onLogout, userRole }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
 
-  // Fetch notifications from backend
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem("authToken");
 
-      // Fetch pending verifications - PERBAIKI INI
+      // Fetch pending verifications
       const pendingResponse = await fetch(
         "http://localhost:5000/api/attendance/pending?status=pending",
         {
@@ -38,24 +37,38 @@ const Navbar = ({ onLogout, userRole }) => {
       if (pendingResponse.ok) {
         const pendingData = await pendingResponse.json();
 
-        // PERBAIKI: Handle array langsung, bukan object.requests
+        // Handle direct array
         const pendingArray = Array.isArray(pendingData)
           ? pendingData
           : pendingData.requests || [];
 
         const pendingNotifications = pendingArray
           .filter((req) => req.status === "pending")
-          .map((req) => ({
-            id: req._id,
-            type: "pending_verification",
-            message: `${req.employees} mengajukan ${
-              req.type === "checkin" ? "check-in" : "check-out"
-            } manual`,
-            time: formatTimeAgo(new Date(req.timestamp || req.created_at)),
-            timestamp: new Date(req.timestamp || req.created_at),
-            read: false,
-            data: req,
-          }));
+          .map((req) => {
+            // Get employee name with fallback
+            const employeeName =
+              req.employee_name || req.employees || "Unknown Employee";
+
+            // Determine valid timestamp
+            const timestampValue =
+              req.submitted_at || req.timestamp || req.created_at;
+            const timestampDate = timestampValue
+              ? new Date(timestampValue)
+              : new Date();
+
+            // Ensure timestamp is valid
+            const isValidDate = !isNaN(timestampDate.getTime());
+
+            return {
+              id: req._id,
+              type: "pending_verification",
+              message: `${employeeName} submitted a manual check-out request`,
+              time: isValidDate ? formatTimeAgo(timestampDate) : "Just now",
+              timestamp: isValidDate ? timestampDate : new Date(),
+              read: false,
+              data: req,
+            };
+          });
 
         // Fetch AI Insights
         const insightsResponse = await fetch(
@@ -75,9 +88,9 @@ const Navbar = ({ onLogout, userRole }) => {
               {
                 id: insightsData.insights.record_id,
                 type: "ai_insight",
-                message: `AI Insight baru: ${
+                message: `New AI Insight: ${
                   insightsData.insights.summary?.substring(0, 50) ||
-                  "Analisis telah selesai"
+                  "Analysis completed"
                 }...`,
                 time: formatTimeAgo(
                   new Date(insightsData.insights.generated_at)
@@ -108,10 +121,10 @@ const Navbar = ({ onLogout, userRole }) => {
   const formatTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - date) / 1000);
 
-    if (seconds < 60) return "Baru saja";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} menit lalu`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`;
-    return `${Math.floor(seconds / 86400)} hari lalu`;
+    if (seconds < 60) return "Just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    return `${Math.floor(seconds / 86400)} days ago`;
   };
 
   useEffect(() => {
@@ -146,7 +159,7 @@ const Navbar = ({ onLogout, userRole }) => {
     if (userRole === "admin") {
       fetchNotifications();
 
-      // Poll for new notifications every 30 seconds
+      // Poll every 30 seconds
       const notificationInterval = setInterval(fetchNotifications, 30000);
 
       return () => {
@@ -217,10 +230,13 @@ const Navbar = ({ onLogout, userRole }) => {
       <nav className="bg-slate-900 border-b border-slate-800">
         <div className="px-6">
           <div className="flex items-center justify-between h-16">
-            {/* Logo & Brand */}
-            <div className="flex items-center space-x-2"></div>
+            {/* Left: Logo / Brand (placeholder) */}
+            <div className="flex items-center space-x-2">
+              {/* Put your logo/brand here */}
+              <div className="text-white font-semibold">MyApp</div>
+            </div>
 
-            {/* Right Side - Search, Status & User */}
+            {/* Right: controls */}
             <div className="flex items-center space-x-4">
               {/* Notifications */}
               {userRole === "admin" && (
@@ -243,22 +259,23 @@ const Navbar = ({ onLogout, userRole }) => {
                       <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                           <BellRing className="h-4 w-4" />
-                          Notifikasi
+                          Notifications
                         </h3>
                         {notifications.length > 0 && (
                           <button
                             onClick={clearAllNotifications}
                             className="text-xs text-blue-400 hover:text-blue-300"
                           >
-                            Hapus semua
+                            Clear all
                           </button>
                         )}
                       </div>
+
                       <div className="max-h-96 overflow-y-auto">
                         {notifications.length === 0 ? (
                           <div className="px-4 py-8 text-center text-slate-400">
                             <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                            <p className="text-sm">Tidak ada notifikasi</p>
+                            <p className="text-sm">No notifications</p>
                           </div>
                         ) : (
                           notifications.map((notification, index) => (
@@ -334,7 +351,7 @@ const Navbar = ({ onLogout, userRole }) => {
 
               {/* Current Time */}
               <div className="text-slate-300 text-sm font-mono bg-slate-800 px-3 py-1.5 rounded-lg">
-                {currentTime.toLocaleTimeString("id-ID")}
+                {currentTime.toLocaleTimeString("en-US")}
               </div>
 
               {/* User Profile with Dropdown */}
@@ -397,16 +414,16 @@ const Navbar = ({ onLogout, userRole }) => {
         <div className="bg-amber-600 text-white px-6 py-2.5 text-sm">
           <div className="flex items-center space-x-2">
             <WifiOff className="h-4 w-4" />
-            <span className="font-medium">Mode Offline Aktif</span>
+            <span className="font-medium">Offline Mode Active</span>
             <span className="opacity-90">
-              Data absensi tersimpan lokal dan akan disinkronkan otomatis saat
+              Attendance data is stored locally and will sync automatically when
               online
             </span>
           </div>
         </div>
       )}
 
-      {/* Overlay untuk menutup dropdown ketika klik di luar */}
+      {/* Overlay to close dropdown when clicking outside */}
       {(showDropdown || showNotifications) && (
         <div
           className="fixed inset-0 z-40"
